@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Attendly Pro - V39.0 Personnel, Time & Break Tracking</title>
+    <title>Attendly Pro - V39.1 Personnel, Time & Break Tracking</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2318181b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 11.08V12a10 10 0 1 1-5.93-9.14'/%3E%3Cpolyline points='22 4 12 14.01 9 11.01'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -101,7 +101,7 @@
             attendanceData: {}, 
             punchLogs: {}, 
             leaveRequests:[], 
-            roles: ['Staff', 'Manager', 'Developer', 'HR', 'Admin', 'Intern'],
+            roles:['Staff', 'Manager', 'Developer', 'HR', 'Admin', 'Intern'],
             departments:['General', 'Sales', 'Engineering', 'Marketing'],
             shifts:[
                 { name: 'General Shift', inTime: '09:00', outTime: '18:00' },
@@ -203,10 +203,12 @@
             },
 
             get isManagerOrLead() {
-                return this.userSession &&['manager', 'lead'].includes((this.userSession.role || '').toLowerCase());
+                if (!this.userSession) return false;
+                const r = (this.userSession.role || '').toLowerCase();
+                return r.includes('manager') || r.includes('lead') || r.includes('admin') || r.includes('hr');
             },
 
-	    get activeTeamOnBreak() {
+	        get activeTeamOnBreak() {
                 if (!this.isManagerOrLead) return[];
                 const activeDate = this.getActiveShiftDate();
                 return this.members.filter(m => this.isMemberOnBreak(m.id, activeDate));
@@ -215,15 +217,32 @@
             get pendingLeaveCount() { 
                 return this.leaveRequests.filter(r => r.status === 'pending').length; 
             },
-get exceptionLogs() {
+            
+            get upcomingHolidays() {
+                const istRef = getISTDateObject();
+                istRef.setDate(istRef.getDate() + 1); // tomorrow
+                const tomorrowStr = getISTString(istRef);
+                
+                return this.holidayList.filter(h => {
+                    if (h.date !== tomorrowStr) return false;
+                    const hDeptStr = (h.dept || "All").trim().toLowerCase();
+                    if (hDeptStr === 'all') return true;
+                    if (this.userSession) {
+                        const mDeptStr = (this.userSession.dept || "General").trim().toLowerCase();
+                        return hDeptStr === mDeptStr;
+                    }
+                    return false; 
+                });
+            },
+
+            get exceptionLogs() {
                 if (!this.userSession) return[];
                 const id = this.userSession.id;
                 const logs =[];
-                // Target the specific statuses you asked for: Absent, Half Day, Perms, LOP, Comp Off
                 const targetStatuses =['a', 'h', '1p', '2p', 'lop', 'co'];
                 
                 Object.keys(this.attendanceData)
-                    .sort((a, b) => new Date(b) - new Date(a)) // Sort newest first
+                    .sort((a, b) => new Date(b) - new Date(a)) 
                     .forEach(dateKey => {
                         const statusId = this.attendanceData[dateKey][id];
                         if (statusId && targetStatuses.includes(statusId)) {
@@ -327,7 +346,7 @@ get exceptionLogs() {
                     hasUpdates = true;
                 }
                 
-                this.leaveRequests = [...this.leaveRequests];
+                this.leaveRequests =[...this.leaveRequests];
                 if(hasUpdates) {
                     this.attendanceData = { ...this.attendanceData };
                     this.markDataUpdated(); 
@@ -400,6 +419,11 @@ get exceptionLogs() {
                 const ampm = hNum >= 12 ? 'PM' : 'AM';
                 const h12 = hNum % 12 || 12;
                 return `${h12.toString().padStart(2, '0')}:${m} ${ampm}`;
+            },
+            
+            formatHoursDecimal(mins) {
+                if (!mins || mins <= 0) return '0.00 Hrs';
+                return (mins / 60).toFixed(2) + ' Hrs';
             },
 
             getActiveShiftDate() {
@@ -717,7 +741,7 @@ get exceptionLogs() {
                 const uId = this.userSession.id;
                 if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                 if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[] };
-                if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
+                if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks =[];
                 
                 this.punchLogs[activeDate][uId].breaks.push({ start: this.getCurrentTimeIST(), end: '' });
                 this.punchLogs = { ...this.punchLogs };
@@ -1118,7 +1142,7 @@ get exceptionLogs() {
                 
                 const formatTime = (timeValue) => {
                     if (!timeValue) return '';
-                    const [h, m] = timeValue.split(':');
+                    const[h, m] = timeValue.split(':');
                     let hNum = parseInt(h, 10);
                     const ampm = hNum >= 12 ? 'PM' : 'AM';
                     hNum = hNum % 12 || 12;
@@ -1136,29 +1160,29 @@ get exceptionLogs() {
                 this.editingLogId = null;
             },
 
-adminToggleBreak(mId) {
-    if (!this.isAdminAuthenticated) return this.showNote("Admin access required", "error");
+            adminToggleBreak(mId) {
+                if (!this.isAdminAuthenticated) return this.showNote("Admin access required", "error");
 
-    const activeDate = this.currentDate;
-    if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-    if (!this.punchLogs[activeDate][mId]) this.punchLogs[activeDate][mId] = { in: '', out: '', breaks:[] };
-    if (!this.punchLogs[activeDate][mId].breaks) this.punchLogs[activeDate][mId].breaks =[];
+                const activeDate = this.currentDate;
+                if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+                if (!this.punchLogs[activeDate][mId]) this.punchLogs[activeDate][mId] = { in: '', out: '', breaks:[] };
+                if (!this.punchLogs[activeDate][mId].breaks) this.punchLogs[activeDate][mId].breaks =[];
 
-    const breaks = this.punchLogs[activeDate][mId].breaks;
-    const isOnBreak = breaks.length > 0 && !breaks[breaks.length - 1].end;
+                const breaks = this.punchLogs[activeDate][mId].breaks;
+                const isOnBreak = breaks.length > 0 && !breaks[breaks.length - 1].end;
 
-    if (isOnBreak) {
-        breaks[breaks.length - 1].end = this.getCurrentTimeIST();
-        this.showNote("Break Force-Ended by Admin", "success");
-    } else {
-        breaks.push({ start: this.getCurrentTimeIST(), end: '' });
-        this.showNote("Break Force-Started by Admin", "success");
-    }
+                if (isOnBreak) {
+                    breaks[breaks.length - 1].end = this.getCurrentTimeIST();
+                    this.showNote("Break Force-Ended by Admin", "success");
+                } else {
+                    breaks.push({ start: this.getCurrentTimeIST(), end: '' });
+                    this.showNote("Break Force-Started by Admin", "success");
+                }
 
-    this.punchLogs = { ...this.punchLogs };
-    this.markDataUpdated();
-    this.saveToLocal(true);
-},
+                this.punchLogs = { ...this.punchLogs };
+                this.markDataUpdated();
+                this.saveToLocal(true);
+            },
 
             formatDate(d) { 
                 if (!d) return '...'; 
@@ -1712,6 +1736,8 @@ adminToggleBreak(mId) {
         body { font-family: 'Outfit', sans-serif; background-color: #f4f4f5; }[x-cloak] { display: none !important; }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .period-btn-active { background-color: #18181b; color: white; }
         .cloud-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .status-syncing { background: #f59e0b; animation: pulse 1s infinite; }
@@ -1746,19 +1772,36 @@ adminToggleBreak(mId) {
         </div>
     </div>
 
-    <nav class="hidden md:flex shrink-0 items-center justify-between px-10 py-5 bg-zinc-950 border-b border-zinc-800 z-[2000]">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-lg"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-zinc-950"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-            <h1 class="text-2xl font-black tracking-tighter text-white">Attendly</h1>
+    <nav class="flex flex-col md:flex-row shrink-0 items-center justify-between px-4 md:px-10 py-3 md:py-5 bg-zinc-950 border-b border-zinc-800 z-[2000] gap-4">
+        <div class="flex items-center justify-between w-full md:w-auto">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white flex items-center justify-center shadow-lg"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-zinc-950 md:w-[22px] md:h-[22px]"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+                <h1 class="text-xl md:text-2xl font-black tracking-tighter text-white">Attendly</h1>
+            </div>
+            <div class="flex items-center gap-3 md:hidden">
+                <div class="flex items-center px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full transition-colors" :class="syncError ? 'bg-rose-950/40 border-rose-900/50' : ''">
+                    <span class="cloud-indicator m-0" :class="syncError ? 'bg-rose-500' : (isSyncing ? 'status-syncing' : 'status-synced')"></span>
+                </div>
+                <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white transition-colors">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-zinc-950" x-text="pendingLeaveCount + todayEvents.length"></span>
+                </button>
+                <button x-show="isAdminAuthenticated" @click="logoutAdmin()" class="px-3 py-1.5 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase shadow-xl">Lock</button>
+            </div>
         </div>
-        <div class="flex items-center bg-white/5 p-1 rounded-2xl border border-white/5">
+        
+        <div class="flex items-center bg-white/5 p-1 rounded-2xl border border-white/5 w-full md:w-auto overflow-x-auto no-scrollbar">
             <template x-for="item in menuItems" :key="item.id">
-                <button @click="view = item.id; resetMemberForm()" :class="view === item.id ? 'bg-white text-zinc-950 shadow-2xl' : 'text-zinc-500 hover:text-zinc-300'" class="px-6 py-2.5 rounded-xl transition-all font-bold text-[14px] flex items-center gap-2">
-                    <span x-html="item.icon"></span><span x-text="item.label"></span>
+                <button x-show="!item.admin || isManagerOrLead || members.length === 0" 
+                        @click="view = item.id; resetMemberForm()" 
+                        :class="view === item.id ? 'bg-white text-zinc-950 shadow-2xl' : 'text-zinc-500 hover:text-zinc-300'" 
+                        class="px-4 md:px-6 py-2 md:py-2.5 rounded-xl transition-all font-bold text-[13px] md:text-[14px] flex items-center gap-2 whitespace-nowrap">
+                    <span x-html="item.icon" class="scale-90 md:scale-100"></span><span x-text="item.label" class="hidden sm:inline"></span>
                 </button>
             </template>
         </div>
-        <div class="flex items-center gap-4">
+        
+        <div class="hidden md:flex items-center gap-4">
             <div class="flex items-center px-4 py-1.5 bg-zinc-900 border border-zinc-800 rounded-full transition-colors" :class="syncError ? 'bg-rose-950/40 border-rose-900/50' : ''">
                 <span class="cloud-indicator" :class="syncError ? 'bg-rose-500' : (isSyncing ? 'status-syncing' : 'status-synced')"></span>
                 <p class="text-[10px] font-black uppercase tracking-widest transition-colors" :class="syncError ? 'text-rose-400' : 'text-zinc-500'" x-text="syncError ? 'OFFLINE' : (isSyncing ? 'SYNC' : 'ACTIVE')"></p>
@@ -1772,15 +1815,15 @@ adminToggleBreak(mId) {
     </nav>
 
     <main class="flex-1 flex flex-col overflow-hidden relative">
-        <header class="shrink-0 px-4 md:px-10 pt-6 pb-4 flex flex-col gap-6 no-print z-[1000] relative">
-            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <h2 class="text-4xl md:text-5xl font-black text-zinc-950 tracking-tighter capitalize" x-text="view === 'master' ? 'Master Config' : (view === 'portal' ? 'Personnel' : view)"></h2>
-                <div class="flex flex-wrap items-center gap-4" x-show="view !== 'import' && view !== 'portal' && view !== 'master' && isAdminAuthenticated">
-                    <select x-model="filterName" @change="handleNameFilterChange()" class="w-full md:w-[280px] px-6 py-4 bg-white border border-zinc-200 rounded-[1.5rem] text-[13px] font-bold shadow-sm outline-none appearance-none cursor-pointer hover:bg-zinc-50 transition-colors">
+        <header class="shrink-0 px-4 md:px-10 pt-4 md:pt-6 pb-4 flex flex-col gap-4 no-print z-[1000] relative">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <h2 class="text-3xl md:text-5xl font-black text-zinc-950 tracking-tighter capitalize" x-text="view === 'master' ? 'Master Config' : (view === 'portal' ? 'Personnel' : view)"></h2>
+                <div class="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto" x-show="view !== 'import' && view !== 'portal' && view !== 'master' && isAdminAuthenticated">
+                    <select x-model="filterName" @change="handleNameFilterChange()" class="w-full sm:w-[280px] px-6 py-3 md:py-4 bg-white border border-zinc-200 rounded-[1.5rem] text-[13px] font-bold shadow-sm outline-none appearance-none cursor-pointer hover:bg-zinc-50 transition-colors">
                         <option value="">All Personnel</option>
                         <template x-for="m in availablePersonnelOptions" :key="m.id"><option :value="m.id" x-text="m.name"></option></template>
                     </select>
-                    <select x-model="filterDept" @change="filterName = ''" class="w-full md:w-[240px] px-6 py-4 bg-white border border-zinc-200 rounded-[1.5rem] text-[13px] font-bold shadow-sm outline-none appearance-none cursor-pointer hover:bg-zinc-50 transition-colors">
+                    <select x-model="filterDept" @change="filterName = ''" class="w-full sm:w-[240px] px-6 py-3 md:py-4 bg-white border border-zinc-200 rounded-[1.5rem] text-[13px] font-bold shadow-sm outline-none appearance-none cursor-pointer hover:bg-zinc-50 transition-colors">
                         <option value="">All Departments</option>
                         <template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template>
                     </select>
@@ -1820,6 +1863,24 @@ adminToggleBreak(mId) {
                 </div>
 
                 <div x-show="userSession" class="animate-in fade-in duration-700 space-y-8">
+                    
+                    <template x-if="upcomingHolidays && upcomingHolidays.length > 0">
+                        <div class="space-y-4 mb-8">
+                            <template x-for="hol in upcomingHolidays" :key="hol.id">
+                                <div class="p-6 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+                                    <div class="flex items-center gap-6">
+                                        <div class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl animate-bounce">🎇</div>
+                                        <div>
+                                            <h3 class="text-2xl md:text-3xl font-black tracking-tighter uppercase leading-none">Upcoming Holiday Tomorrow!</h3>
+                                            <p class="text-violet-100 font-bold uppercase tracking-widest text-[10px] mt-1 opacity-90" x-text="hol.name + ' • ' + hol.dept"></p>
+                                        </div>
+                                    </div>
+                                    <div class="px-6 py-3 bg-white/20 text-white border border-white/30 rounded-full font-black uppercase text-[10px] shadow-lg shrink-0 backdrop-blur-sm">Festival Holiday</div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
                     <template x-if="individualStats?.isAnniversary">
                         <div class="p-6 bg-emerald-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl anniversary-glow">
                             <div class="flex items-center gap-6">
@@ -2212,7 +2273,7 @@ adminToggleBreak(mId) {
                         </div>
 
                         <div x-show="view === 'record'" class="space-y-6">
-                            <div class="sticky top-0 z-[1200] py-4 bg-[#f4f4f5]/90 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200/50">
+                            <div class="sticky top-0 z-[1200] py-4 bg-[#f4f4f5]/90 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200/50">
                                 <h3 class="text-2xl font-black tracking-tight uppercase text-zinc-900 px-2">Daily Log</h3>
                                 <div class="bg-white p-1.5 rounded-[1.5rem] border border-zinc-200 shadow-lg flex items-center gap-2 shrink-0">
                                     <button @click="changeDate(-1)" class="w-12 h-12 flex items-center justify-center rounded-[1rem] hover:bg-zinc-100 text-zinc-500 hover:text-zinc-950 transition-all"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -2409,23 +2470,23 @@ adminToggleBreak(mId) {
                         </div>
 
                         <div x-show="view === 'summary'" class="space-y-6">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print px-2">
-                                <div class="flex bg-white border border-zinc-200 p-1.5 rounded-2xl shadow-sm items-center gap-2 relative">
-                                    <input type="date" x-model="summaryStartDate" class="bg-transparent px-3 py-2 font-black text-zinc-950 text-xs outline-none cursor-pointer hover:bg-zinc-50 rounded-xl transition-colors date-trigger">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print px-2">
+                                <div class="flex bg-white border border-zinc-200 p-1.5 rounded-2xl shadow-sm items-center gap-2 relative w-full md:w-auto">
+                                    <input type="date" x-model="summaryStartDate" class="bg-transparent px-3 py-2 font-black text-zinc-950 text-xs outline-none cursor-pointer hover:bg-zinc-50 rounded-xl transition-colors date-trigger w-full md:w-auto text-center">
                                     <span class="text-zinc-300 font-bold text-xs uppercase tracking-widest">To</span>
-                                    <input type="date" x-model="summaryEndDate" class="bg-transparent px-3 py-2 font-black text-zinc-950 text-xs outline-none cursor-pointer hover:bg-zinc-50 rounded-xl transition-colors date-trigger">
+                                    <input type="date" x-model="summaryEndDate" class="bg-transparent px-3 py-2 font-black text-zinc-950 text-xs outline-none cursor-pointer hover:bg-zinc-50 rounded-xl transition-colors date-trigger w-full md:w-auto text-center">
                                 </div>
-                                <div class="flex gap-2">
-                                    <button @click="exportToPDF()" class="bg-zinc-950 text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform">PDF Audit</button>
-                                    <button @click="exportDetailedExcel()" class="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform border border-indigo-700">Detailed Excel</button>
+                                <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                                    <button @click="exportToPDF()" class="flex-1 md:flex-none bg-zinc-950 text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform whitespace-nowrap">PDF Audit</button>
+                                    <button @click="exportDetailedExcel()" class="flex-1 md:flex-none bg-indigo-600 text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform border border-indigo-700 whitespace-nowrap">Detailed Excel</button>
                                 </div>
                             </div>
                             <div id="summary-content" class="bg-white rounded-[2rem] border border-zinc-200 overflow-hidden shadow-sm">
-                                <div class="p-10 border-b border-zinc-100 flex justify-between items-end">
-                                    <div class="space-y-1"><h2 class="text-5xl font-black tracking-tighter text-zinc-950 uppercase leading-none">Audit Matrix</h2><p class="text-zinc-400 font-bold uppercase tracking-[0.3em] text-[9px]"><span x-text="formatDate(summaryStartDate)"></span> TO <span x-text="formatDate(summaryEndDate)"></span> • IST Performance Index</p></div>
+                                <div class="p-6 md:p-10 border-b border-zinc-100 flex justify-between items-end">
+                                    <div class="space-y-1"><h2 class="text-4xl md:text-5xl font-black tracking-tighter text-zinc-950 uppercase leading-none">Audit Matrix</h2><p class="text-zinc-400 font-bold uppercase tracking-[0.3em] text-[9px]"><span x-text="formatDate(summaryStartDate)"></span> TO <span x-text="formatDate(summaryEndDate)"></span> • IST Performance Index</p></div>
                                 </div>
-                                <div id="audit-table-scroll" class="overflow-x-auto min-w-[1400px] max-h-[600px] custom-scrollbar">
-                                    <table class="w-full text-left border-separate border-spacing-0 relative">
+                                <div id="audit-table-scroll" class="overflow-x-auto min-w-full max-h-[600px] custom-scrollbar">
+                                    <table class="w-full text-left border-separate border-spacing-0 relative min-w-[1400px]">
                                         <thead class="sticky top-0 z-10 bg-white">
                                             <tr class="bg-zinc-50/50 text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400 border-b border-zinc-100">
                                                 <th class="px-8 py-6 pl-10">Identity</th>
@@ -2437,10 +2498,10 @@ adminToggleBreak(mId) {
                                                 <th class="px-4 py-6 text-center text-rose-700 bg-rose-50/50">LOP</th>
                                                 <th class="px-4 py-6 text-center text-zinc-700 bg-zinc-200/50">Lv Used (YTD)</th>
                                                 <th class="px-4 py-6 text-center text-zinc-700 bg-zinc-200/50">Prm Used (YTD)</th>
-                                                <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Act (MTD)</th>
-                                                <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Avg Brk (MTD)</th>
-                                                <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Act (YTD)</th>
-                                                <th class="px-8 py-6 text-center pr-10 text-amber-700 bg-amber-50/50">Avg Brk (YTD)</th>
+                                                <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Active Hrs(MTD)</th>
+                                                <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Avg Break Hrs(MTD)</th>
+                                                <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Active Hrs(YTD)</th>
+                                                <th class="px-8 py-6 text-center pr-10 text-amber-700 bg-amber-50/50">Avg Break Hrs(YTD)</th>
                                             </tr>
                                         </thead>
                                         <tbody class="text-xs font-bold">
@@ -2459,10 +2520,10 @@ adminToggleBreak(mId) {
                                                     <td class="px-4 py-6 text-center text-zinc-600 font-black border-b border-zinc-50 bg-zinc-50" x-text="data.lvYTD"></td>
                                                     <td class="px-4 py-6 text-center text-zinc-600 font-black border-b border-zinc-50 bg-zinc-50" x-text="data.prmYTDUsed + 'h'"></td>
                                                     
-                                                    <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveMTD)"></td>
-                                                    <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakMTD)"></td>
-                                                    <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveYTD)"></td>
-                                                    <td class="px-8 py-6 text-center pr-10 text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakYTD)"></td>
+                                                    <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatHoursDecimal(data.avgActiveMTD)"></td>
+                                                    <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatHoursDecimal(data.avgBreakMTD)"></td>
+                                                    <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatHoursDecimal(data.avgActiveYTD)"></td>
+                                                    <td class="px-8 py-6 text-center pr-10 text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatHoursDecimal(data.avgBreakYTD)"></td>
                                                 </tr>
                                             </template>
                                         </tbody>
@@ -2472,19 +2533,19 @@ adminToggleBreak(mId) {
                         </div>
 
                         <div x-show="view === 'master'" class="space-y-8">
-                            <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6">
+                            <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6">
                                 <div class="flex items-center justify-between">
                                     <h5 class="text-xl font-black uppercase tracking-tight">Holiday Governance</h5>
                                     <span class="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-[9px] font-black uppercase border border-emerald-200" x-text="holidayList.length + ' Registered'"></span>
                                 </div>
-                                <div class="flex flex-wrap gap-2 shrink-0">
-                                    <input type="text" x-model="newHoliday.name" placeholder="HOLIDAY NAME" class="flex-1 px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold min-w-[150px]">
-                                    <input type="date" x-model="newHoliday.date" class="px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold">
-                                    <select x-model="newHoliday.dept" class="px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold"><option value="All">All Departments</option><template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template></select>
-                                    <button @click="addHoliday()" class="px-6 py-2.5 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md transition-transform active:scale-95">Register Holiday</button>
+                                <div class="flex flex-col md:flex-row flex-wrap gap-3 shrink-0">
+                                    <input type="text" x-model="newHoliday.name" placeholder="HOLIDAY NAME" class="flex-1 px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold min-w-[150px] w-full">
+                                    <input type="date" x-model="newHoliday.date" class="px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full md:w-auto">
+                                    <select x-model="newHoliday.dept" class="px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full md:w-auto"><option value="All">All Departments</option><template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template></select>
+                                    <button @click="addHoliday()" class="px-6 py-3 md:py-2.5 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md transition-transform active:scale-95 w-full md:w-auto">Register Holiday</button>
                                 </div>
                                 <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar">
-                                    <table class="w-full text-left border-collapse relative">
+                                    <table class="w-full text-left border-collapse relative min-w-[500px]">
                                         <thead class="sticky top-0 z-10 bg-zinc-50 border-b border-zinc-100"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Holiday Event</th><th class="p-4">Date</th><th class="p-4">Applicable To</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                         <tbody class="text-xs font-bold">
                                             <template x-for="holiday in holidayList" :key="holiday.id"><tr class="hover:bg-zinc-50/50 transition-colors border-b border-zinc-50 last:border-0"><td class="p-4 pl-6 text-zinc-950" x-text="holiday.name"></td><td class="p-4 text-zinc-500" x-text="formatDate(holiday.date)"></td><td class="p-4"><span class="px-2 py-1 bg-zinc-100 text-zinc-600 rounded text-[9px] font-black uppercase border border-zinc-200" x-text="holiday.dept"></span></td><td class="p-4 text-right pr-6"><button @click="removeHoliday(holiday.id)" class="text-zinc-300 hover:text-rose-500 transition-colors"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr></template>
@@ -2493,62 +2554,62 @@ adminToggleBreak(mId) {
                                 </div>
                             </div>
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
+                                <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
                                     <h5 class="text-xl font-black uppercase tracking-tight">Departments</h5>
-                                    <div class="flex gap-2"><input type="text" x-model="newDeptName" placeholder="ADD DEPARTMENT" class="flex-1 px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold"><button @click="addDept()" class="px-6 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95">Add</button></div>
+                                    <div class="flex gap-2"><input type="text" x-model="newDeptName" placeholder="ADD DEPARTMENT" class="flex-1 px-4 py-3 md:py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full"><button @click="addDept()" class="px-6 py-3 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 shrink-0">Add</button></div>
                                     <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar flex-1">
-                                        <table class="w-full text-left relative"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Name</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
+                                        <table class="w-full text-left relative min-w-[300px]"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Name</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                         <tbody class="text-xs font-bold"><template x-for="dept in departments" :key="dept"><tr class="border-b border-zinc-50"><td class="p-4 pl-6" x-text="dept"></td><td class="p-4 text-right pr-6"><button @click="removeDept(dept)" class="text-zinc-300 hover:text-rose-500">×</button></td></tr></template></tbody></table>
                                     </div>
                                 </div>
-                                <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
+                                <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
                                     <h5 class="text-xl font-black uppercase tracking-tight">Roles</h5>
-                                    <div class="flex gap-2"><input type="text" x-model="newRoleName" placeholder="ADD ROLE" class="flex-1 px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold"><button @click="addRole()" class="px-6 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95">Add</button></div>
+                                    <div class="flex gap-2"><input type="text" x-model="newRoleName" placeholder="ADD ROLE" class="flex-1 px-4 py-3 md:py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full"><button @click="addRole()" class="px-6 py-3 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 shrink-0">Add</button></div>
                                     <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar flex-1">
-                                        <table class="w-full text-left relative"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Title</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
+                                        <table class="w-full text-left relative min-w-[300px]"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Title</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                         <tbody class="text-xs font-bold"><template x-for="role in roles" :key="role"><tr class="border-b border-zinc-50"><td class="p-4 pl-6" x-text="role"></td><td class="p-4 text-right pr-6"><button @click="removeRole(role)" class="text-zinc-300 hover:text-rose-500">×</button></td></tr></template></tbody></table>
                                     </div>
                                 </div>
                             </div>
-                            <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6">
+                            <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6">
                                 <h5 class="text-xl font-black uppercase tracking-tight">Shift Timing</h5>
-                                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                    <input type="text" x-model="newShift.name" placeholder="SHIFT NAME" class="px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl font-bold text-xs outline-none">
-                                    <div class="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3"><span class="text-[9px] font-black text-zinc-400">IN</span><input type="time" x-model="newShift.inTime" class="bg-transparent outline-none font-bold text-xs"></div>
-                                    <div class="flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3"><span class="text-[9px] font-black text-zinc-400">OUT</span><input type="time" x-model="newShift.outTime" class="bg-transparent outline-none font-bold text-xs"></div>
-                                    <button @click="addShift()" class="px-6 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95">Add Shift</button>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <input type="text" x-model="newShift.name" placeholder="SHIFT NAME" class="px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl font-bold text-xs outline-none w-full">
+                                    <div class="flex items-center justify-between gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3"><span class="text-[9px] font-black text-zinc-400">IN</span><input type="time" x-model="newShift.inTime" class="bg-transparent outline-none font-bold text-xs"></div>
+                                    <div class="flex items-center justify-between gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3"><span class="text-[9px] font-black text-zinc-400">OUT</span><input type="time" x-model="newShift.outTime" class="bg-transparent outline-none font-bold text-xs"></div>
+                                    <button @click="addShift()" class="px-6 py-3 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 w-full">Add Shift</button>
                                 </div>
                                 <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar">
-                                    <table class="w-full text-left"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Type</th><th class="p-4">IN</th><th class="p-4">OUT</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
+                                    <table class="w-full text-left min-w-[500px]"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Type</th><th class="p-4">IN</th><th class="p-4">OUT</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                     <tbody class="text-xs font-bold"><template x-for="shift in shifts" :key="shift.name"><tr class="border-b border-zinc-50"><td class="p-4 pl-6" x-text="shift.name"></td><td class="p-4 text-emerald-600" x-text="formatTimeDisplay(shift.inTime)"></td><td class="p-4 text-rose-600" x-text="formatTimeDisplay(shift.outTime)"></td><td class="p-4 text-right pr-6"><button @click="removeShift(shift.name)" class="text-zinc-300 hover:text-rose-500">×</button></td></tr></template></tbody></table>
                                 </div>
                             </div>
                         </div>
 
                         <div x-show="view === 'import'" class="space-y-8">
-                            <div class="bg-zinc-950 p-12 rounded-[3rem] shadow-2xl relative overflow-hidden text-white border-4 border-white/5">
+                            <div class="bg-zinc-950 p-8 md:p-12 rounded-[3rem] shadow-2xl relative overflow-hidden text-white border-4 border-white/5">
                                 <div class="absolute -right-20 -bottom-20 w-96 h-96 bg-white/5 rounded-full blur-[100px]"></div>
-                                <div class="relative z-10 space-y-8 text-center md:text-left">
-                                    <h4 class="text-4xl font-black tracking-tighter leading-none uppercase flex items-center justify-center md:justify-start gap-3">
+                                <div class="relative z-10 space-y-8 text-center lg:text-left">
+                                    <h4 class="text-3xl md:text-4xl font-black tracking-tighter leading-none uppercase flex flex-col md:flex-row items-center justify-center lg:justify-start gap-3">
                                         Enterprise Vault
-                                        <span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[10px] tracking-widest flex items-center gap-1">
+                                        <span class="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[10px] tracking-widest flex items-center gap-1 mt-2 md:mt-0">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                                             AES-256 ENCRYPTED
                                         </span>
                                     </h4>
-                                    <p class="text-zinc-500 font-bold max-w-md text-sm leading-relaxed">Hard-linked organizational vault active. Global synchronization is locked to Indian Standard Time (Asia/Kolkata). Data is End-to-End Encrypted before leaving the browser.</p>
-                                    <div class="flex flex-wrap gap-4 justify-center md:justify-start">
-                                        <button @click="syncFromCloud()" class="px-8 py-4 bg-white text-zinc-950 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-transform">Sync Hub</button>
-                                        <button @click="syncToCloud()" class="px-8 py-4 bg-white/10 border border-white/10 text-white rounded-2xl font-black text-sm hover:bg-white/20 transition-all">Manual Backup</button>
+                                    <p class="text-zinc-500 font-bold max-w-md mx-auto lg:mx-0 text-sm leading-relaxed">Hard-linked organizational vault active. Global synchronization is locked to Indian Standard Time (Asia/Kolkata). Data is End-to-End Encrypted before leaving the browser.</p>
+                                    <div class="flex flex-wrap gap-4 justify-center lg:justify-start">
+                                        <button @click="syncFromCloud()" class="px-8 py-4 bg-white text-zinc-950 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-transform w-full sm:w-auto">Sync Hub</button>
+                                        <button @click="syncToCloud()" class="px-8 py-4 bg-white/10 border border-white/10 text-white rounded-2xl font-black text-sm hover:bg-white/20 transition-all w-full sm:w-auto">Manual Backup</button>
                                     </div>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
                                     <h5 class="text-xl font-black uppercase">Credentials</h5>
                                     <div class="flex gap-2 mt-auto">
                                         <input type="password" x-model="newPinValue" placeholder="NEW PIN" maxlength="6" class="flex-1 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none text-center font-black tracking-widest">
-                                        <button @click="changeAdminPin()" class="px-6 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase active:scale-95">Set</button>
+                                        <button @click="changeAdminPin()" class="px-6 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase active:scale-95 shrink-0">Set</button>
                                     </div>
                                 </div>
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
@@ -2560,12 +2621,12 @@ adminToggleBreak(mId) {
                                                 <span class="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Auto-Export (IST)</span>
                                                 <button @click="toggleAutoExport()"
                                                         :class="autoExportEnabled ? 'bg-indigo-600' : 'bg-zinc-300'"
-                                                        class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none">
+                                                        class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none shrink-0">
                                                     <span :class="autoExportEnabled ? 'translate-x-5' : 'translate-x-1'" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform"></span>
                                                 </button>
                                             </div>
                                             <div x-show="autoExportEnabled" class="flex items-center gap-3 pt-2 border-t border-indigo-100">
-                                                <input type="time" x-model="autoExportTime" @change="saveAutoExportSettings()" class="flex-1 px-4 py-2 bg-white border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold outline-none">
+                                                <input type="time" x-model="autoExportTime" @change="saveAutoExportSettings()" class="flex-1 px-4 py-2 bg-white border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold outline-none w-full">
                                                 <span class="text-[9px] font-black text-indigo-400 uppercase">Daily</span>
                                             </div>
                                         </div>
@@ -2585,12 +2646,12 @@ adminToggleBreak(mId) {
                                     </div>
                                 </div>
                                 <div class="bg-rose-50 p-8 rounded-[2rem] border border-rose-100 shadow-xl space-y-6 flex flex-col h-full">
-    <div class="space-y-1">
-        <h5 class="text-xl font-black uppercase text-rose-600 leading-none">Purge Vault</h5>
-        <p class="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Global Data Wipe</p>
-    </div>
-    <button @click="confirmWipe('local')" class="w-full py-4 bg-white text-rose-600 rounded-xl font-black text-[10px] uppercase border border-rose-200 mt-auto shadow-sm hover:bg-rose-600 hover:text-white transition-all active:scale-95">Initiate Complete Wipe</button>
-</div>
+                                    <div class="space-y-1">
+                                        <h5 class="text-xl font-black uppercase text-rose-600 leading-none">Purge Vault</h5>
+                                        <p class="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Global Data Wipe</p>
+                                    </div>
+                                    <button @click="confirmWipe('local')" class="w-full py-4 bg-white text-rose-600 rounded-xl font-black text-[10px] uppercase border border-rose-200 mt-auto shadow-sm hover:bg-rose-600 hover:text-white transition-all active:scale-95">Initiate Complete Wipe</button>
+                                </div>
                             </div>
                         </div>
 
@@ -2666,8 +2727,8 @@ adminToggleBreak(mId) {
 
     <div x-show="showLeaveModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showLeaveModal = false"></div>
-        <div class="relative bg-white rounded-[2.5rem] w-full max-w-lg p-10 space-y-8 animate-in zoom-in-95 shadow-2xl">
-            <h4 class="text-4xl font-black tracking-tighter uppercase leading-none">Time-off Request</h4>
+        <div class="relative bg-white rounded-[2.5rem] w-full max-w-lg p-6 md:p-10 space-y-8 animate-in zoom-in-95 shadow-2xl">
+            <h4 class="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none">Time-off Request</h4>
             <div class="space-y-6">
                 <div class="space-y-1.5">
                     <label class="text-[9px] font-black uppercase text-zinc-400">Category</label>
@@ -2684,13 +2745,13 @@ adminToggleBreak(mId) {
                     <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">End</label><input type="date" x-model="newLeave.endDate" class="w-full p-4 bg-zinc-50 border rounded-2xl font-black text-xs outline-none"></div>
                 </div>
                 <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">Notes</label><textarea x-model="newLeave.reason" rows="3" class="w-full p-4 bg-zinc-50 border rounded-2xl font-bold text-xs outline-none resize-none"></textarea></div>
-                <div class="flex gap-4"><button @click="submitLeave()" class="flex-1 py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm active:scale-95 transition-transform">Submit Request</button><button @click="showLeaveModal = false" class="px-8 py-5 bg-zinc-100 text-zinc-600 rounded-2xl font-black text-sm">Cancel</button></div>
+                <div class="flex flex-col md:flex-row gap-4"><button @click="submitLeave()" class="flex-1 py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm active:scale-95 transition-transform w-full">Submit Request</button><button @click="showLeaveModal = false" class="px-8 py-5 bg-zinc-100 text-zinc-600 rounded-2xl font-black text-sm w-full md:w-auto">Cancel</button></div>
             </div>
         </div>
     </div>
 
-    <div x-show="notification" x-transition class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[6000] px-8 py-4 rounded-2xl shadow-2xl bg-zinc-950 text-white text-[11px] font-black flex items-center gap-3 border border-zinc-800">
-        <div class="w-2 h-2 rounded-full" :class="notification?.type === 'error' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'"></div><span x-text="notification?.msg"></span>
+    <div x-show="notification" x-transition class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[6000] px-8 py-4 rounded-2xl shadow-2xl bg-zinc-950 text-white text-[11px] font-black flex items-center gap-3 border border-zinc-800 w-[90%] md:w-auto text-center md:text-left justify-center md:justify-start">
+        <div class="w-2 h-2 rounded-full shrink-0" :class="notification?.type === 'error' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'"></div><span x-text="notification?.msg"></span>
     </div>
 
     <div x-show="showDeleteModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
