@@ -54,6 +54,10 @@
             initialToday: initialToday,
             currentDate: initialToday,
             
+            // IST Widget Variables
+            currentISTTimeWidget: '',
+            currentISTDateWidget: '',
+
             isAdminAuthenticated: false,
             adminPinInput: '',
             
@@ -158,6 +162,17 @@
             init() {
                 this.userSession = null;
                 this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
+
+                // Setup the IST Time Widget
+                setInterval(() => {
+                    const now = new Date();
+                    this.currentISTTimeWidget = new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+                    }).format(now);
+                    this.currentISTDateWidget = new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'Asia/Kolkata', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+                    }).format(now);
+                }, 1000);
                 
                 // Pure Cloud: Await cloud fetch before processing logic
                 this.syncFromCloud(true).then(() => {
@@ -1613,6 +1628,40 @@
                 console.warn("Emergency snapshot bypassed (running in pure-cloud mode)");
             },
 
+            importFromJson(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        
+                        this.createSafeSnapshot(); 
+
+                        if (parsed.members) this.members = parsed.members;
+                        if (parsed.attendanceData) this.attendanceData = parsed.attendanceData;
+                        if (parsed.punchLogs) this.punchLogs = parsed.punchLogs;
+                        if (parsed.roles) this.roles = parsed.roles;
+                        if (parsed.departments) this.departments = parsed.departments;
+                        if (parsed.holidayList) this.holidayList = parsed.holidayList;
+
+                        this.markConfigUpdated();
+                        this.markDataUpdated();
+                        this.saveToLocal(true);
+                        
+                        this.showNote("JSON Data Imported Successfully!", "success");
+                        
+                    } catch (err) {
+                        console.error(err);
+                        this.showNote("Error reading JSON file. Check format.", "error");
+                    } finally {
+                        event.target.value = '';
+                    }
+                };
+                reader.readAsText(file);
+            },
+
             importFromExcel(event) {
                 const file = event.target.files[0];
                 if (!file) return;
@@ -1755,21 +1804,21 @@
 <body class="text-zinc-900 h-screen w-full flex flex-col overflow-hidden" x-data="attendanceApp()" x-init="init()" x-cloak>
 
     <div x-show="userSession && userOnBreak" class="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col items-center justify-center text-white" x-transition x-cloak>
-        <div class="w-24 h-24 bg-amber-500 text-amber-950 rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_0_60px_-15px_rgba(245,158,11,0.5)] mb-8 animate-pulse">
+        <div class="w-24 h-24 bg-[#f26522] text-white rounded-[2rem] flex items-center justify-center mx-auto shadow-[0_0_60px_-15px_rgba(242,101,34,0.5)] mb-8 animate-pulse">
              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
         </div>
         <h3 class="text-4xl md:text-5xl font-black tracking-tighter uppercase mb-4 text-center px-4" x-text="(userSession?.firstName || 'User') + ' is on Break'"></h3>
-        <div class="flex items-center gap-2 mb-10 px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-full">
-            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-            <p class="text-amber-500 font-black uppercase tracking-widest text-[10px]">Tool Locked • Break Time Recording</p>
+        <div class="flex items-center gap-2 mb-10 px-4 py-2 bg-[#f26522]/10 border border-[#f26522]/20 rounded-full">
+            <span class="w-2.5 h-2.5 rounded-full bg-[#f26522] animate-pulse"></span>
+            <p class="text-[#f26522] font-black uppercase tracking-widest text-[10px]">Tool Locked • Break Time Recording</p>
         </div>
         
         <div class="w-full max-w-xl mx-auto space-y-6 px-6">
             <div class="space-y-4">
                 <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500 text-center block w-full">Enter PIN to Unlock & Resume</label>
-                <input type="password" id="break-pin-input" x-model="breakPinInput" @keyup.enter="handleBreakUnlock()" @input="if(breakPinInput.length === 6) handleBreakUnlock()" maxlength="6" placeholder="••••••" class="w-full px-6 py-5 bg-zinc-900 border border-zinc-800 rounded-[1.5rem] text-center font-black text-4xl tracking-[0.5em] outline-none shadow-inner text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all placeholder:text-zinc-800">
+                <input type="password" id="break-pin-input" x-model="breakPinInput" @keyup.enter="handleBreakUnlock()" @input="if(breakPinInput.length === 6) handleBreakUnlock()" maxlength="6" placeholder="••••••" class="w-full px-6 py-5 bg-zinc-900 border border-zinc-800 rounded-[1.5rem] text-center font-black text-4xl tracking-[0.5em] outline-none shadow-inner text-white focus:border-[#f26522] focus:ring-1 focus:ring-[#f26522] transition-all placeholder:text-zinc-800">
             </div>
-            <button @click="handleBreakUnlock()" class="w-full py-5 bg-amber-500 text-zinc-950 rounded-[1.5rem] font-black text-lg shadow-2xl transition-transform active:scale-95 hover:bg-amber-400">Unlock & End Break</button>
+            <button @click="handleBreakUnlock()" class="w-full py-5 bg-[#f26522] text-white rounded-[1.5rem] font-black text-lg shadow-2xl transition-transform active:scale-95 hover:bg-[#d9561c]">Unlock & End Break</button>
         </div>
     </div>
 
@@ -1840,13 +1889,14 @@
         <div class="flex-1 overflow-y-auto px-4 md:px-10 pb-16 custom-scrollbar">
             
             <div x-show="view === 'portal'" class="max-w-7xl mx-auto py-6 space-y-8">
+
                 <div x-show="!userSession" class="max-w-xl mx-auto bg-white p-8 rounded-[2rem] shadow-xl text-center space-y-8 animate-in slide-in-from-bottom">
-                    <div class="w-20 h-20 bg-zinc-950 text-white rounded-2xl flex items-center justify-center mx-auto shadow-2xl"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                    <div class="w-20 h-20 bg-[#0f4c81] text-white rounded-2xl flex items-center justify-center mx-auto shadow-2xl"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
                     <div x-show="loginStep === 'id'" class="space-y-6">
                         <h3 class="text-4xl font-black tracking-tighter uppercase">Identity Portal</h3>
                         <div class="space-y-4">
                             <input type="text" id="login-id-input" x-model="loginIdInput" @keyup.enter="handleIdEntry()" placeholder="EMPLOYEE ID" class="w-full px-6 py-5 bg-zinc-50 border border-zinc-200 rounded-[1.5rem] text-center font-black text-2xl uppercase outline-none focus:bg-white shadow-inner">
-                            <button @click="handleIdEntry()" class="w-full py-5 bg-zinc-950 text-white rounded-[1.5rem] font-black text-lg shadow-2xl transition-transform active:scale-95">Verify Identity</button>
+                            <button @click="handleIdEntry()" class="w-full py-5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-[1.5rem] font-black text-lg shadow-2xl transition-transform active:scale-95">Verify Identity</button>
                         </div>
                     </div>
                     <div x-show="loginStep === 'pin'" class="space-y-6">
@@ -1854,16 +1904,16 @@
                         <p class="text-zinc-400 font-bold uppercase text-xs tracking-widest" x-text="'Verified: ' + tempUser?.name"></p>
                         <div class="space-y-4">
                             <input type="password" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" placeholder="••••••" class="w-full px-6 py-5 bg-zinc-50 border border-zinc-200 rounded-[1.5rem] text-center font-black text-4xl tracking-[0.5em] outline-none shadow-inner">
-                            <button @click="handlePinVerification()" class="w-full py-5 bg-zinc-950 text-white rounded-[1.5rem] font-black text-lg shadow-2xl transition-transform active:scale-95">Confirm & Punch In</button>
+                            <button @click="handlePinVerification()" class="w-full py-5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-[1.5rem] font-black text-lg shadow-2xl transition-transform active:scale-95">Confirm & Punch In</button>
                             <button @click="cancelLogin()" class="text-[10px] font-black text-zinc-400 uppercase tracking-widest pt-4">Back</button>
                         </div>
                     </div>
                     <div x-show="loginStep === 'setup'" class="space-y-6">
-                        <h3 class="text-3xl font-black tracking-tighter text-emerald-600 uppercase">Set Access PIN</h3>
+                        <h3 class="text-3xl font-black tracking-tighter text-[#f26522] uppercase">Set Access PIN</h3>
                         <p class="text-zinc-400 font-bold uppercase text-xs tracking-widest" x-text="'Hello ' + tempUser?.firstName + ', please set a 6-digit Private PIN'"></p>
                         <div class="space-y-4">
-                            <input type="password" id="setup-pin-input" x-model="loginPinInput" @keyup.enter="handlePinSetup()" @input="if(loginPinInput.length === 6) handlePinSetup()" maxlength="6" placeholder="000000" class="w-full px-6 py-5 bg-emerald-50 border border-emerald-200 rounded-[1.5rem] text-center font-black text-4xl tracking-[0.5em] outline-none shadow-inner">
-                            <button @click="handlePinSetup()" class="w-full py-5 bg-emerald-600 text-white rounded-[1.5rem] font-black text-lg shadow-2xl">Confirm Registration</button>
+                            <input type="password" id="setup-pin-input" x-model="loginPinInput" @keyup.enter="handlePinSetup()" @input="if(loginPinInput.length === 6) handlePinSetup()" maxlength="6" placeholder="000000" class="w-full px-6 py-5 bg-orange-50 border border-orange-200 rounded-[1.5rem] text-center font-black text-4xl tracking-[0.5em] outline-none shadow-inner">
+                            <button @click="handlePinSetup()" class="w-full py-5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-[1.5rem] font-black text-lg shadow-2xl">Confirm Registration</button>
                         </div>
                     </div>
                 </div>
@@ -1915,14 +1965,21 @@
 
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div class="flex items-center gap-6">
-                            <div class="w-24 h-24 rounded-[2rem] bg-zinc-950 flex items-center justify-center text-white text-4xl font-black shadow-2xl border-4 border-white shrink-0" x-text="userSession?.firstName.charAt(0)"></div>
+                            <div class="w-24 h-24 rounded-[2rem] bg-[#0f4c81] flex items-center justify-center text-white text-4xl font-black shadow-2xl border-4 border-white shrink-0" x-text="userSession?.firstName.charAt(0)"></div>
                             <div class="space-y-1">
                                 <h3 class="text-5xl font-black tracking-tighter leading-tight" x-text="'Hello ' + userSession?.firstName"></h3>
                                 <p class="text-sm text-zinc-400 font-bold uppercase tracking-[0.2em]" x-text="(userSession?.role || 'Staff') + ' • ' + (userSession?.dept || 'General')"></p>
                             </div>
                         </div>
-                        <div class="flex gap-2 shrink-0">
-                            <button @click="showLeaveModal = true" class="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black text-xs uppercase shadow-sm hover:bg-indigo-700 transition-colors shrink-0">Time-off Request</button>
+                        
+                        <!-- Compact IST Time Widget replaces Time-off Request -->
+                        <div class="flex flex-col items-end justify-center shrink-0 bg-white border border-zinc-200 px-5 py-3 rounded-[1.5rem] shadow-sm relative overflow-hidden">
+                            <div class="flex items-center gap-2 mb-0.5 z-10">
+                                <span class="w-1.5 h-1.5 rounded-full bg-[#f26522] animate-pulse"></span>
+                                <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400">IST Time</span>
+                            </div>
+                            <h2 class="text-2xl font-black tracking-tighter tabular-nums text-[#0f4c81] z-10 leading-none" x-text="currentISTTimeWidget || '--:--'"></h2>
+                            <p class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest z-10 mt-1" x-text="currentISTDateWidget || '---'"></p>
                         </div>
                     </div>
 
@@ -1945,14 +2002,22 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="flex flex-wrap gap-2 mt-4 md:mt-0 shrink-0">
+                            
+                            <!-- Unified Quick Actions Panel: Take Break -> Day Log Out -> Time-Off -->
+                            <div class="flex flex-wrap items-center gap-2 mt-4 md:mt-0 shrink-0 bg-zinc-50 p-2 rounded-2xl border border-zinc-100">
+                                
                                 <template x-if="!userOnBreak && punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in && !punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out">
-                                    <button @click="startBreak()" class="px-6 py-3 bg-amber-500 text-white hover:bg-amber-600 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-md">Break☕</button>
+                                    <button @click="startBreak()" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81]">Take Break</button>
                                 </template>
+                                
                                 <template x-if="userOnBreak">
-                                    <button @click="endBreak()" class="px-6 py-3 bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-md animate-pulse">End Break</button>
+                                    <button @click="endBreak()" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81] animate-pulse">End Break</button>
                                 </template>
-                                <button @click="initiateLogout()" class="px-6 py-3 bg-rose-600 text-white hover:bg-rose-700 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-md ml-1">Punch-Out!</button>
+                                
+                                <button @click="initiateLogout()" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81]">Day Log Out</button>
+
+                                <button @click="showLeaveModal = true" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81]">Time-Off</button>
+
                             </div>
                         </div>
 
@@ -1992,20 +2057,20 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div class="bg-indigo-950 p-6 rounded-[2rem] text-white flex flex-col justify-between h-full shadow-xl portal-card border border-indigo-900">
+                        <div class="bg-[#0f4c81] p-6 rounded-[2rem] text-white flex flex-col justify-between h-full shadow-xl portal-card border border-[#0d406d]">
                             <div class="flex justify-between items-center mb-4">
-                                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300">This Month</p>
-                                <div class="w-8 h-8 rounded-full bg-indigo-900 flex items-center justify-center text-indigo-400"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#86b5e0]">This Month</p>
+                                <div class="w-8 h-8 rounded-full bg-[#0a3861] flex items-center justify-center text-[#86b5e0]"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
                             </div>
                             <div>
                                 <div class="flex items-baseline gap-2">
                                     <h4 class="text-6xl font-black tracking-tighter text-white" x-text="individualStats?.metrics.presentMTD"></h4>
-                                    <span class="text-xs font-bold text-indigo-400 uppercase tracking-widest">Days</span>
+                                    <span class="text-xs font-bold text-[#86b5e0] uppercase tracking-widest">Days</span>
                                 </div>
-                                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mt-1">Present (MTD)</p>
+                                <p class="text-[10px] font-bold text-[#86b5e0] uppercase tracking-widest mt-1">Present (MTD)</p>
                             </div>
-                            <div class="pt-4 mt-4 border-t border-indigo-900/50">
-                                <span class="px-3 py-1.5 bg-indigo-900/50 text-indigo-300 rounded-lg text-[9px] font-black uppercase shadow-sm">Current Pay Cycle</span>
+                            <div class="pt-4 mt-4 border-t border-[#0a3861]/50">
+                                <span class="px-3 py-1.5 bg-[#0a3861]/50 text-[#86b5e0] rounded-lg text-[9px] font-black uppercase shadow-sm">Current Pay Cycle</span>
                             </div>
                         </div>
 
@@ -2083,10 +2148,10 @@
                                 </template>
                             </div>
                         </div>
-                        <div class="bg-gradient-to-br from-amber-950 via-zinc-900 to-zinc-950 border border-amber-900/30 p-8 rounded-[2rem] text-white shadow-2xl flex flex-col h-full relative overflow-hidden">
-                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl"></div>
+                        <div class="bg-gradient-to-br from-[#0f4c81] via-zinc-900 to-zinc-950 border border-[#0d406d]/30 p-8 rounded-[2rem] text-white shadow-2xl flex flex-col h-full relative overflow-hidden">
+                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-[#f26522]/10 rounded-full blur-2xl"></div>
                             <div class="flex items-center justify-between mb-6 relative z-10 shrink-0">
-                                <h5 class="text-2xl font-black tracking-tighter uppercase text-amber-500">Break Log</h5>
+                                <h5 class="text-2xl font-black tracking-tighter uppercase text-[#f26522]">Break Log</h5>
                                 <span class="px-3 py-1 bg-white/10 text-white rounded-full text-[10px] font-black tracking-widest uppercase border border-white/20" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks)) + ' Total'"></span>
                             </div>
                             <div class="flex-1 max-h-[320px] overflow-y-auto pr-3 custom-scrollbar relative z-10 pt-2">
@@ -2102,20 +2167,20 @@
                                     <div class="space-y-4">
                                         <template x-for="(brk, index) in punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks" :key="index">
                                             <div class="relative pl-12 flex items-center group">
-                                                <div class="absolute left-3 w-4 h-4 rounded-full bg-zinc-900 border-[3px] border-amber-500 z-10 flex items-center justify-center transition-transform group-hover:scale-125" :class="!brk.end ? 'shadow-[0_0_15px_rgba(245,158,11,0.5)]' : ''">
-                                                    <div x-show="!brk.end" class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
+                                                <div class="absolute left-3 w-4 h-4 rounded-full bg-zinc-900 border-[3px] border-[#f26522] z-10 flex items-center justify-center transition-transform group-hover:scale-125" :class="!brk.end ? 'shadow-[0_0_15px_rgba(242,101,34,0.5)]' : ''">
+                                                    <div x-show="!brk.end" class="w-1.5 h-1.5 bg-[#f26522] rounded-full animate-pulse"></div>
                                                 </div>
                                                 <div class="flex-1 bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/20 hover:shadow-lg">
                                                     <div class="flex items-start justify-between">
                                                         <div class="flex flex-col">
                                                             <div class="flex items-center gap-2 mb-1.5">
-                                                                <span class="text-[10px] font-black text-amber-500 uppercase tracking-widest" x-text="'Session ' + (index + 1)"></span>
-                                                                <span x-show="!brk.end" class="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded-md text-[8px] font-black uppercase tracking-widest animate-pulse border border-amber-500/30">Active</span>
+                                                                <span class="text-[10px] font-black text-[#f26522] uppercase tracking-widest" x-text="'Session ' + (index + 1)"></span>
+                                                                <span x-show="!brk.end" class="px-2 py-0.5 bg-[#f26522]/20 text-[#f26522] rounded-md text-[8px] font-black uppercase tracking-widest animate-pulse border border-[#f26522]/30">Active</span>
                                                             </div>
                                                             <div class="flex items-center gap-2 text-white font-bold text-sm">
                                                                 <span x-text="brk.start"></span>
                                                                 <svg class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                                                                <span x-text="brk.end || '--:--'" :class="!brk.end ? 'text-amber-400 animate-pulse' : ''"></span>
+                                                                <span x-text="brk.end || '--:--'" :class="!brk.end ? 'text-[#f26522] animate-pulse' : ''"></span>
                                                             </div>
                                                         </div>
                                                         <div x-show="brk.end" class="text-right flex flex-col items-end">
@@ -2214,11 +2279,11 @@
             <template x-if="menuItems.find(i => i.id === view)?.admin">
                 <div class="space-y-8 pb-10">
                     <div x-show="!isAdminAuthenticated" class="flex flex-col items-center justify-center py-16 space-y-6 animate-in fade-in">
-                        <div class="w-16 h-16 bg-zinc-950 text-white rounded-[1.5rem] flex items-center justify-center shadow-lg"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                        <div class="w-16 h-16 bg-[#0f4c81] text-white rounded-[1.5rem] flex items-center justify-center shadow-lg"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                         <div class="text-center space-y-1"><h3 class="text-2xl font-black tracking-tighter uppercase leading-none">Vault Secured</h3><p class="text-zinc-400 font-bold text-[9px] uppercase tracking-[0.2em]">Master PIN Entry Required</p></div>
                         <div class="w-full max-w-xl mx-auto space-y-4 mt-2">
                             <input type="password" x-model="adminPinInput" @keyup.enter="verifyAdmin()" placeholder="••••••" maxlength="6" class="w-full px-6 py-5 bg-white border border-zinc-200 rounded-[1.5rem] text-center font-black text-3xl tracking-[0.3em] outline-none shadow-sm">
-                            <button @click="verifyAdmin()" class="w-full py-5 bg-zinc-950 text-white rounded-[1.5rem] font-black text-lg shadow-lg hover:scale-105 transition-transform active:scale-95">Access Command Center</button>
+                            <button @click="verifyAdmin()" class="w-full py-5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-[1.5rem] font-black text-lg shadow-lg hover:scale-105 transition-transform active:scale-95">Access Command Center</button>
                         </div>
                     </div>
 
@@ -2380,7 +2445,7 @@
                                             <div class="shrink-0 w-full lg:w-auto mt-4 lg:mt-0 flex justify-end lg:border-l border-zinc-100 lg:pl-4">
                                                 <button @click="toggleEditLog(m.id)"
                                                         class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm w-full lg:w-auto border"
-                                                        :class="editingLogId === m.id ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900'">
+                                                        :class="editingLogId === m.id ? 'bg-[#f26522] text-white border-[#d9561c] shadow-md' : 'bg-white text-zinc-500 border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900'">
                                                     <span x-text="editingLogId === m.id ? 'Save' : 'Action'"></span>
                                                 </button>
                                             </div>
@@ -2437,7 +2502,7 @@
                         </div>
 
                         <div x-show="view === 'members'" class="space-y-8">
-                            <div class="flex items-center justify-between px-2"><h3 class="text-2xl font-black tracking-tight uppercase">Registry</h3><button @click="openNewMemberForm()" x-show="!isAddingMember" class="bg-zinc-950 text-white px-8 py-3 rounded-xl font-black text-[10px] shadow-md transition-all hover:scale-105">+ Register Profile</button></div>
+                            <div class="flex items-center justify-between px-2"><h3 class="text-2xl font-black tracking-tight uppercase">Registry</h3><button @click="openNewMemberForm()" x-show="!isAddingMember" class="bg-[#f26522] hover:bg-[#d9561c] text-white px-8 py-3 rounded-xl font-black text-[10px] shadow-md transition-all hover:scale-105">+ Register Profile</button></div>
                             <div x-show="isAddingMember" class="bg-white p-8 rounded-[2rem] border border-zinc-200 shadow-xl space-y-8">
                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                     <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">ID</label><input type="text" x-model="newMember.empId" :disabled="isEditing" class="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-xl font-bold outline-none text-sm"></div>
@@ -2453,13 +2518,13 @@
                                     <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">Joining Date</label><input type="date" x-model="newMember.doj" class="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-xl font-bold outline-none text-sm"></div>
                                     <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">Exit Date</label><input type="date" x-model="newMember.doe" class="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-xl font-bold outline-none text-sm"></div>
                                 </div>
-                                <div class="flex justify-end gap-3"><button @click="resetMemberForm()" class="px-6 py-2.5 bg-zinc-100 text-zinc-600 hover:bg-zinc-200 rounded-xl font-black text-xs uppercase tracking-widest transition-colors">Cancel</button><button @click="addMember()" class="px-8 py-2.5 bg-zinc-950 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">Save</button></div>
+                                <div class="flex justify-end gap-3"><button @click="resetMemberForm()" class="px-6 py-2.5 bg-zinc-100 text-zinc-600 hover:bg-zinc-200 rounded-xl font-black text-xs uppercase tracking-widest transition-colors">Cancel</button><button @click="addMember()" class="px-8 py-2.5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md active:scale-95 transition-all">Save</button></div>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
                                 <template x-for="m in filteredMembers" :key="m.empId">
                                     <div class="bg-white p-6 rounded-[2rem] border border-zinc-50 hover:shadow-xl transition-all flex flex-col justify-between h-full portal-card group">
                                         <div class="flex items-center gap-4">
-                                            <div class="w-16 h-16 rounded-[1.5rem] bg-zinc-950 text-white flex items-center justify-center font-black text-2xl shadow-md group-hover:scale-110 transition-transform shrink-0" x-text="m.firstName.charAt(0)"></div>
+                                            <div class="w-16 h-16 rounded-[1.5rem] bg-[#0f4c81] text-white flex items-center justify-center font-black text-2xl shadow-md group-hover:scale-110 transition-transform shrink-0" x-text="m.firstName.charAt(0)"></div>
                                             <div class="min-w-0">
                                                 <h4 class="font-black text-xl truncate leading-tight uppercase" x-text="m.name"></h4>
                                                 <p class="text-[10px] font-bold text-zinc-400 uppercase mt-1" x-text="(m.dept || 'General') + ' • ' + (m.role || 'Staff') + ' • ' + (m.shift || 'General Shift')"></p>
@@ -2475,7 +2540,7 @@
                                                 <button @click="startEdit(m)" class="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-zinc-950 hover:bg-zinc-50 rounded-lg transition-all"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
                                                 <button @click="removeMember(m.id)" class="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
                                             </div>
-                                            <button @click="resetUserPin(m.id)" x-show="m.pin" class="px-4 py-2 bg-zinc-950 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm">Reset PIN</button>
+                                            <button @click="resetUserPin(m.id)" x-show="m.pin" class="px-4 py-2 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm">Reset PIN</button>
                                         </div>
                                     </div>
                                 </template>
@@ -2490,8 +2555,8 @@
                                     <input type="date" x-model="summaryEndDate" class="bg-transparent px-3 py-2 font-black text-zinc-950 text-xs outline-none cursor-pointer hover:bg-zinc-50 rounded-xl transition-colors date-trigger w-full md:w-auto text-center">
                                 </div>
                                 <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                                    <button @click="exportToPDF()" class="flex-1 md:flex-none bg-zinc-950 text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform whitespace-nowrap">PDF Audit</button>
-                                    <button @click="exportDetailedExcel()" class="flex-1 md:flex-none bg-indigo-600 text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform border border-indigo-700 whitespace-nowrap">Detailed Excel</button>
+                                    <button @click="exportToPDF()" class="flex-1 md:flex-none bg-[#f26522] hover:bg-[#d9561c] text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform whitespace-nowrap">PDF Audit</button>
+                                    <button @click="exportDetailedExcel()" class="flex-1 md:flex-none bg-[#0f4c81] hover:bg-[#0a3861] text-white px-6 py-3 rounded-xl font-black shadow-md text-[11px] hover:scale-105 transition-transform border border-[#0a3861] whitespace-nowrap">Detailed Excel</button>
                                 </div>
                             </div>
                             <div id="summary-content" class="bg-white rounded-[2rem] border border-zinc-200 overflow-hidden shadow-sm">
@@ -2555,7 +2620,7 @@
                                     <input type="text" x-model="newHoliday.name" placeholder="HOLIDAY NAME" class="flex-1 px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold min-w-[150px] w-full">
                                     <input type="date" x-model="newHoliday.date" class="px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full md:w-auto">
                                     <select x-model="newHoliday.dept" class="px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full md:w-auto"><option value="All">All Departments</option><template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template></select>
-                                    <button @click="addHoliday()" class="px-6 py-3 md:py-2.5 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md transition-transform active:scale-95 w-full md:w-auto">Register Holiday</button>
+                                    <button @click="addHoliday()" class="px-6 py-3 md:py-2.5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[10px] uppercase shadow-md transition-transform active:scale-95 w-full md:w-auto">Register Holiday</button>
                                 </div>
                                 <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar">
                                     <table class="w-full text-left border-collapse relative min-w-[500px]">
@@ -2569,7 +2634,7 @@
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
                                     <h5 class="text-xl font-black uppercase tracking-tight">Departments</h5>
-                                    <div class="flex gap-2"><input type="text" x-model="newDeptName" placeholder="ADD DEPARTMENT" class="flex-1 px-4 py-3 md:py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full"><button @click="addDept()" class="px-6 py-3 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 shrink-0">Add</button></div>
+                                    <div class="flex gap-2"><input type="text" x-model="newDeptName" placeholder="ADD DEPARTMENT" class="flex-1 px-4 py-3 md:py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full"><button @click="addDept()" class="px-6 py-3 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 shrink-0">Add</button></div>
                                     <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar flex-1">
                                         <table class="w-full text-left relative min-w-[300px]"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Name</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                         <tbody class="text-xs font-bold"><template x-for="dept in departments" :key="dept"><tr class="border-b border-zinc-50"><td class="p-4 pl-6" x-text="dept"></td><td class="p-4 text-right pr-6"><button @click="removeDept(dept)" class="text-zinc-300 hover:text-rose-500">×</button></td></tr></template></tbody></table>
@@ -2577,7 +2642,7 @@
                                 </div>
                                 <div class="bg-white p-6 md:p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
                                     <h5 class="text-xl font-black uppercase tracking-tight">Roles</h5>
-                                    <div class="flex gap-2"><input type="text" x-model="newRoleName" placeholder="ADD ROLE" class="flex-1 px-4 py-3 md:py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full"><button @click="addRole()" class="px-6 py-3 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 shrink-0">Add</button></div>
+                                    <div class="flex gap-2"><input type="text" x-model="newRoleName" placeholder="ADD ROLE" class="flex-1 px-4 py-3 md:py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl outline-none shadow-sm text-xs font-bold w-full"><button @click="addRole()" class="px-6 py-3 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 shrink-0">Add</button></div>
                                     <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar flex-1">
                                         <table class="w-full text-left relative min-w-[300px]"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Title</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                         <tbody class="text-xs font-bold"><template x-for="role in roles" :key="role"><tr class="border-b border-zinc-50"><td class="p-4 pl-6" x-text="role"></td><td class="p-4 text-right pr-6"><button @click="removeRole(role)" class="text-zinc-300 hover:text-rose-500">×</button></td></tr></template></tbody></table>
@@ -2590,7 +2655,7 @@
                                     <input type="text" x-model="newShift.name" placeholder="SHIFT NAME" class="px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl font-bold text-xs outline-none w-full">
                                     <div class="flex items-center justify-between gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3"><span class="text-[9px] font-black text-zinc-400">IN</span><input type="time" x-model="newShift.inTime" class="bg-transparent outline-none font-bold text-xs"></div>
                                     <div class="flex items-center justify-between gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3"><span class="text-[9px] font-black text-zinc-400">OUT</span><input type="time" x-model="newShift.outTime" class="bg-transparent outline-none font-bold text-xs"></div>
-                                    <button @click="addShift()" class="px-6 py-3 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 w-full">Add Shift</button>
+                                    <button @click="addShift()" class="px-6 py-3 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 w-full">Add Shift</button>
                                 </div>
                                 <div class="overflow-x-auto border border-zinc-100 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar">
                                     <table class="w-full text-left min-w-[500px]"><thead class="sticky top-0 z-10 bg-zinc-50"><tr class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400"><th class="p-4 pl-6">Type</th><th class="p-4">IN</th><th class="p-4">OUT</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
@@ -2612,8 +2677,8 @@
                                     </h4>
                                     <p class="text-zinc-500 font-bold max-w-md mx-auto lg:mx-0 text-sm leading-relaxed">Hard-linked organizational vault active. Global synchronization is locked to Indian Standard Time (Asia/Kolkata). Data is End-to-End Encrypted before leaving the browser.</p>
                                     <div class="flex flex-wrap gap-4 justify-center lg:justify-start">
-                                        <button @click="syncFromCloud()" class="px-8 py-4 bg-white text-zinc-950 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-transform w-full sm:w-auto">Sync Hub</button>
-                                        <button @click="syncToCloud()" class="px-8 py-4 bg-white/10 border border-white/10 text-white rounded-2xl font-black text-sm hover:bg-white/20 transition-all w-full sm:w-auto">Manual Backup</button>
+                                        <button @click="syncFromCloud()" class="px-8 py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-transform w-full sm:w-auto">Sync Hub</button>
+                                        <button @click="syncToCloud()" class="px-8 py-4 bg-[#0f4c81] hover:bg-[#0a3861] border border-[#0f4c81] text-white rounded-2xl font-black text-sm transition-all w-full sm:w-auto">Manual Backup</button>
                                     </div>
                                 </div>
                             </div>
@@ -2622,7 +2687,7 @@
                                     <h5 class="text-xl font-black uppercase">Credentials</h5>
                                     <div class="flex gap-2 mt-auto">
                                         <input type="password" x-model="newPinValue" placeholder="NEW PIN" maxlength="6" class="flex-1 px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none text-center font-black tracking-widest">
-                                        <button @click="changeAdminPin()" class="px-6 bg-zinc-950 text-white rounded-xl font-black text-[10px] uppercase active:scale-95 shrink-0">Set</button>
+                                        <button @click="changeAdminPin()" class="px-6 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[10px] uppercase active:scale-95 shrink-0">Set</button>
                                     </div>
                                 </div>
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-xl space-y-6 flex flex-col h-full">
@@ -2648,14 +2713,22 @@
                                    <div class="space-y-3 mt-auto pt-4 border-t border-zinc-100 relative">
                                         <div class="relative w-full">
                                             <input type="file" accept=".xlsx, .xls" @change="importFromExcel" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Upload Excel Backup">
-                                            <button class="w-full py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase border border-emerald-700 shadow-md transition-colors relative z-0 flex items-center justify-center gap-2">
+                                            <button class="w-full py-3 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase border border-[#0f4c81] shadow-md transition-colors relative z-0 flex items-center justify-center gap-2">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                                                 Restore / Import Excel
                                             </button>
                                         </div>
                                         
-                                        <button @click="executeFullSystemExport(false)" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase border border-indigo-700 hover:bg-indigo-700 shadow-md transition-colors">Download System Excel</button>
-                                        <button @click="exportBackupJSON()" class="w-full py-3 bg-zinc-50 text-zinc-950 rounded-xl font-black text-[10px] uppercase border border-zinc-200 hover:bg-zinc-100 transition-colors">System JSON Backup</button>
+                                        <div class="relative w-full">
+                                            <input type="file" accept=".json" @change="importFromJson" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Upload JSON Backup">
+                                            <button class="w-full py-3 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase border border-[#0f4c81] shadow-md transition-colors relative z-0 flex items-center justify-center gap-2">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 3v12"/><polyline points="8 11 12 15 16 11"/></svg>
+                                                Restore / Import JSON
+                                            </button>
+                                        </div>
+
+                                        <button @click="executeFullSystemExport(false)" class="w-full py-3 bg-[#0f4c81] hover:bg-[#0a3861] text-white border border-[#0f4c81] rounded-xl font-black text-[10px] uppercase shadow-md transition-colors">Download System Excel</button>
+                                        <button @click="exportBackupJSON()" class="w-full py-3 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase border border-[#0f4c81] transition-colors">System JSON Backup</button>
                                     </div>
                                 </div>
                                 <div class="bg-rose-50 p-8 rounded-[2rem] border border-rose-100 shadow-xl space-y-6 flex flex-col h-full">
@@ -2663,7 +2736,7 @@
                                         <h5 class="text-xl font-black uppercase text-rose-600 leading-none">Purge Vault</h5>
                                         <p class="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Global Data Wipe</p>
                                     </div>
-                                    <button @click="confirmWipe('local')" class="w-full py-4 bg-white text-rose-600 rounded-xl font-black text-[10px] uppercase border border-rose-200 mt-auto shadow-sm hover:bg-rose-600 hover:text-white transition-all active:scale-95">Initiate Complete Wipe</button>
+                                    <button @click="confirmWipe('local')" class="w-full py-4 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase border border-rose-700 mt-auto shadow-sm hover:bg-rose-700 transition-all active:scale-95">Initiate Complete Wipe</button>
                                 </div>
                             </div>
                         </div>
@@ -2721,6 +2794,7 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div x-show="showLogoutModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showLogoutModal = false"></div>
         <div class="relative bg-white rounded-[2rem] w-full max-w-sm p-10 space-y-8 animate-in zoom-in-95 shadow-2xl text-center">
@@ -2732,8 +2806,8 @@
                 <p class="text-zinc-500 font-bold text-sm">Punch out at <span class="text-zinc-950 font-black" x-text="logoutTimePreview"></span>?</p>
             </div>
             <div class="grid grid-cols-2 gap-4">
-                <button @click="showLogoutModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-sm">Cancel</button>
-                <button @click="confirmLogoutPortal()" class="py-4 bg-zinc-950 text-white rounded-xl font-black text-sm shadow-md active:scale-95 transition-transform">Confirm</button>
+                <button @click="showLogoutModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-sm hover:bg-zinc-200 transition-colors">Cancel</button>
+                <button @click="confirmLogoutPortal()" class="py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-sm shadow-md active:scale-95 transition-transform">Confirm</button>
             </div>
         </div>
     </div>
@@ -2746,10 +2820,10 @@
                 <div class="space-y-1.5">
                     <label class="text-[9px] font-black uppercase text-zinc-400">Category</label>
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        <button @click="newLeave.type = 'a'" :class="newLeave.type === 'a' ? 'bg-zinc-950 text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Full Day</button>
-                        <button @click="newLeave.type = 'h'" :class="newLeave.type === 'h' ? 'bg-sky-600 text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Half Day</button>
-                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg-amber-500 text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">1Hr Perm</button>
-                        <button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-orange-500 text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
+                        <button @click="newLeave.type = 'a'" :class="newLeave.type === 'a' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Full Day</button>
+                        <button @click="newLeave.type = 'h'" :class="newLeave.type === 'h' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Half Day</button>
+                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">1Hr Perm</button>
+                        <button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
                         <button @click="newLeave.type = 'lop'" :class="newLeave.type === 'lop' ? 'bg-rose-600 text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Unplanned</button>
                     </div>
                 </div>
@@ -2758,15 +2832,17 @@
                     <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">End</label><input type="date" x-model="newLeave.endDate" class="w-full p-4 bg-zinc-50 border rounded-2xl font-black text-xs outline-none"></div>
                 </div>
                 <div class="space-y-1.5"><label class="text-[9px] font-black uppercase text-zinc-400">Notes</label><textarea x-model="newLeave.reason" rows="3" class="w-full p-4 bg-zinc-50 border rounded-2xl font-bold text-xs outline-none resize-none"></textarea></div>
-                <div class="flex flex-col md:flex-row gap-4"><button @click="submitLeave()" class="flex-1 py-5 bg-indigo-600 text-white rounded-2xl font-black text-sm active:scale-95 transition-transform w-full">Submit Request</button><button @click="showLeaveModal = false" class="px-8 py-5 bg-zinc-100 text-zinc-600 rounded-2xl font-black text-sm w-full md:w-auto">Cancel</button></div>
+                <div class="flex flex-col md:flex-row gap-4"><button @click="submitLeave()" class="flex-1 py-5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-sm active:scale-95 transition-transform w-full">Submit Request</button><button @click="showLeaveModal = false" class="px-8 py-5 bg-zinc-100 hover:bg-zinc-200 transition-colors text-zinc-600 rounded-2xl font-black text-sm w-full md:w-auto">Cancel</button></div>
             </div>
         </div>
     </div>
 
-    <div x-show="notification" x-transition class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[6000] px-8 py-4 rounded-2xl shadow-2xl bg-zinc-950 text-white text-[11px] font-black flex items-center gap-3 border border-zinc-800 w-[90%] md:w-auto text-center md:text-left justify-center md:justify-start">
-        <div class="w-2 h-2 rounded-full shrink-0" :class="notification?.type === 'error' ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'"></div><span x-text="notification?.msg"></span>
+    <!-- Notification Toast -->
+    <div x-show="notification" x-transition class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[6000] px-8 py-4 rounded-2xl shadow-2xl bg-[#0f4c81] text-white text-[11px] font-black flex items-center gap-3 border border-[#0a3861] w-[90%] md:w-auto text-center md:text-left justify-center md:justify-start">
+        <div class="w-2 h-2 rounded-full shrink-0" :class="notification?.type === 'error' ? 'bg-rose-500' : 'bg-[#f26522] animate-pulse'"></div><span x-text="notification?.msg"></span>
     </div>
 
+    <!-- Wipe / Delete Confirm Modal -->
     <div x-show="showDeleteModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showDeleteModal = false"></div>
         <div class="bg-white rounded-[2rem] p-10 max-w-sm w-full relative z-10 text-center space-y-6 shadow-2xl">
