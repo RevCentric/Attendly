@@ -48,11 +48,6 @@
             dashboardPeriod: 'month',
             portalPeriod: 'month', 
             
-// CAPTCHA SYSTEM VARS
-            captchaTargets: [], 
-            captchaStats: {},   
-            captchaEngine: null,
-            captchaState: { show: false, num1: 0, num2: 0, input: '', timer: 0, interval: null },
             filterName: '', 
             filterDept: '', 
             
@@ -621,8 +616,6 @@ syncChannel
                         shifts: useLocalConfig ? safeLocal.shifts : (cloud.shifts || safeLocal.shifts),
                         holidayList: useLocalConfig ? safeLocal.holidayList : (cloud.holidayList || safeLocal.holidayList),
                         masterPin: useLocalConfig ? safeLocal.masterPin : (cloud.masterPin || safeLocal.masterPin),
-			captchaTargets: useLocalConfig ? this.captchaTargets : (cloud.captchaTargets || this.captchaTargets),
-			captchaStats: this.forcePushData ? this.captchaStats : this.mergeDailyData(cloud.captchaStats, this.captchaStats),
                         
                         // CLOUD TRACKING FOR EXPORT PREFERENCES
                         autoExportEnabled: useLocalConfig ? this.autoExportEnabled : (cloud.autoExportEnabled || false),
@@ -720,8 +713,7 @@ syncChannel
                         
                         // Cloud has newer data OR app just loaded (memory version is 0)
                         if (cloudTime > this.configVersion || this.configVersion === 0) {
-				this.captchaTargets = cloud.captchaTargets || [];	
-                    this.members = cloud.members ||[];
+                            this.members = cloud.members ||[];
                             this.roles = cloud.roles ||[];
                             this.departments = cloud.departments ||[];
                             this.shifts = cloud.shifts ||[];
@@ -736,7 +728,6 @@ syncChannel
                         }
 
                         if (cloudDataTime > this.dataVersion || this.dataVersion === 0) {
-				this.captchaStats = cloud.captchaStats || this.captchaStats;	
                             this.attendanceData = cloud.attendanceData || this.attendanceData;
                             this.punchLogs = cloud.punchLogs || this.punchLogs;
                             this.leaveRequests = cloud.leaveRequests || this.leaveRequests;
@@ -1263,105 +1254,6 @@ syncChannel
                 this.saveToLocal(true);
                 this.showNote("Shift Record Updated", "success");
             },
-
-// --- CAPTCHA LOGIC ---
-            toggleCaptchaTarget(id) {
-                if (this.captchaTargets.includes(id)) {
-                    this.captchaTargets = this.captchaTargets.filter(t => t !== id);
-                } else {
-                    this.captchaTargets.push(id);
-                }
-                this.markConfigUpdated();
-                this.saveToLocal(true);
-            },
-
-            startCaptchaEngine() {
-                if (this.captchaEngine) clearTimeout(this.captchaEngine);
-                if (!this.userSession || !this.captchaTargets.includes(this.userSession.id)) return;
-
-                const scheduleNext = () => {
-                    // Random interval between 30 and 45 minutes
-                    const delayMins = Math.floor(Math.random() * (45 - 30 + 1)) + 30;
-                    this.captchaEngine = setTimeout(() => {
-                        if (this.userSession && !this.userOnBreak) {
-                            this.triggerCaptcha();
-                        }
-                        scheduleNext();
-                    }, delayMins * 60 * 1000);
-                };
-                scheduleNext();
-            },
-
-            triggerCaptcha() {
-                const n1 = Math.floor(Math.random() * 10) + 1;
-                const n2 = Math.floor(Math.random() * 10) + 1;
-                this.captchaState = { show: true, num1: n1, num2: n2, input: '', timer: 60, interval: null };
-
-                const uId = this.userSession.id;
-                const today = this.getActiveShiftDate();
-                
-                if (!this.captchaStats[today]) this.captchaStats[today] = {};
-                if (!this.captchaStats[today][uId]) this.captchaStats[today][uId] = { total: 0, passed: 0 };
-                
-                this.captchaStats[today][uId].total++;
-                this.markDataUpdated();
-                this.saveToLocal(true);
-
-                this.captchaState.interval = setInterval(() => {
-                    this.captchaState.timer--;
-                    if (this.captchaState.timer <= 0) {
-                        this.failCaptcha();
-                    }
-                }, 1000);
-
-                setTimeout(() => { const el = document.getElementById('captcha-input'); if(el) el.focus(); }, 100);
-            },
-
-            verifyCaptcha() {
-                const expected = this.captchaState.num1 + this.captchaState.num2;
-                if (parseInt(this.captchaState.input) === expected) {
-                    const uId = this.userSession.id;
-                    const today = this.getActiveShiftDate();
-                    this.captchaStats[today][uId].passed++;
-                    
-                    clearInterval(this.captchaState.interval);
-                    this.captchaState.show = false;
-                    this.markDataUpdated();
-                    this.saveToLocal(true);
-                    this.showNote("Identity Verified", "success");
-                } else {
-                    this.showNote("Incorrect answer", "error");
-                    this.captchaState.input = '';
-                }
-            },
-
-            failCaptcha() {
-                clearInterval(this.captchaState.interval);
-                this.captchaState.show = false;
-                this.showNote("Verification Missed!", "error");
-                // Stats were already incremented on trigger, so missing it drops the success rate
-                this.markDataUpdated();
-                this.saveToLocal(true);
-            },
-
-            get captchaAlerts() {
-                if (!this.isManagerOrLead) return [];
-                const alerts = [];
-                const today = getISTString();
-                if (!this.captchaStats[today]) return [];
-
-                Object.keys(this.captchaStats[today]).forEach(uid => {
-                    const stats = this.captchaStats[today][uid];
-                    if (stats.total > 0) {
-                        const rate = (stats.passed / stats.total) * 100;
-                        if (rate < 90) {
-                            const user = this.members.find(m => m.id === uid);
-                            if (user) alerts.push({ user: user.name, rate: rate.toFixed(1), passed: stats.passed, total: stats.total });
-                        }
-                    }
-                });
-                return alerts;
-            },
             
             initiateLogout() {
                 if (!this.userSession) return;
@@ -1486,7 +1378,6 @@ syncChannel
                         this.saveToLocal(true); 
                         this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
                         this.showNote("Security Registered", "success"); 
-			this.startCaptchaEngine();
                     } 
                 } else { this.showNote("PIN must be 6 digits", "error"); } 
             },
@@ -1495,10 +1386,6 @@ syncChannel
                 this.userSession = null; 
                 this.loginStep = 'id'; 
                 setTimeout(() => { const el = document.getElementById('login-id-input'); if (el) el.focus(); }, 50);
-		if (this.captchaEngine) clearTimeout(this.captchaEngine);
-		if (this.captchaState.interval) clearInterval(this.captchaState.interval);
-		this.captchaState.show = false;	
-	
             },
             cancelLogin() { 
                 this.loginStep = 'id'; 
@@ -1953,26 +1840,6 @@ syncChannel
                      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
                      <path d="M12 12v-2" class="animate-pulse"/>
                  </svg>
-
-<div x-show="captchaState.show" class="fixed inset-0 z-[9999] bg-[#0a192f]/95 backdrop-blur-md flex flex-col items-center justify-center text-white" x-transition x-cloak>
-        <div class="bg-white p-8 rounded-[2rem] max-w-sm w-full text-zinc-900 text-center shadow-2xl relative overflow-hidden">
-            <div class="absolute top-0 left-0 h-1.5 bg-[#f26522] transition-all duration-1000 linear" :style="`width: ${(captchaState.timer / 60) * 100}%`"></div>
-            
-            <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <h3 class="text-2xl font-black uppercase tracking-tighter mb-1">Presence Check</h3>
-            <p class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Verify within <span x-text="captchaState.timer" class="text-rose-600 animate-pulse"></span>s</p>
-            
-            <div class="text-4xl font-black tracking-widest text-[#0f4c81] mb-6 select-none bg-zinc-50 py-4 rounded-xl border border-zinc-100">
-                <span x-text="captchaState.num1"></span> + <span x-text="captchaState.num2"></span> = ?
-            </div>
-
-            <input type="number" id="captcha-input" x-model="captchaState.input" @keyup.enter="verifyCaptcha()" placeholder="Answer" class="w-full px-6 py-4 bg-zinc-100 border border-zinc-200 rounded-xl text-center font-black text-2xl outline-none focus:border-indigo-500 mb-4 transition-colors">
-            <button @click="verifyCaptcha()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-transform">Verify</button>
-        </div>
-    </div>
-
             </div>
         
             <div x-show="activeIcon === 2" x-transition.opacity.duration.500ms x-cloak class="absolute inset-0 flex items-center justify-center">
@@ -2062,7 +1929,7 @@ syncChannel
                 </div>
                 <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                    <span x-show="(pendingLeaveCount + todayEvents.length + captchaAlerts.length) > 0" class="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-zinc-950" x-text="pendingLeaveCount + todayEvents.length + captchaAlerts.length"></span>
+                    <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-zinc-950" x-text="pendingLeaveCount + todayEvents.length"></span>
                 </button>
                 <button x-show="isAdminAuthenticated" @click="logoutAdmin()" class="px-3 py-1.5 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase shadow-xl">Lock</button>
             </div>
@@ -2087,7 +1954,7 @@ syncChannel
             </div>
             <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                <span x-show="(pendingLeaveCount + todayEvents.length + captchaAlerts.length) > 0" class="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#0f4c81]" x-text="pendingLeaveCount + todayEvents.length + captchaAlerts.length"></span>
+                <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#0f4c81]" x-text="pendingLeaveCount + todayEvents.length"></span>
             </button>
             <button x-show="isAdminAuthenticated" @click="logoutAdmin()" class="px-4 py-1.5 bg-rose-500 text-white rounded-full text-[10px] font-black uppercase shadow-xl">Lock Vault</button>
         </div>
@@ -2607,12 +2474,6 @@ syncChannel
                                                         <span x-text="m.empId"></span> <span class="mx-1 text-zinc-200">•</span>
                                                         <span x-text="(m.dept || 'General')"></span>
                                                     </p>
-<div x-show="captchaTargets.includes(m.id)" class="mt-2 flex items-center gap-1.5">
-    <span class="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest border"
-          :class="(!captchaStats[currentDate]?.[m.id]?.total || captchaStats[currentDate]?.[m.id]?.passed === captchaStats[currentDate]?.[m.id]?.total) ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-rose-50 text-rose-600 border-rose-200'">
-        <span x-text="'CAPTCHA: ' + (captchaStats[currentDate]?.[m.id]?.passed || 0) + ' / ' + (captchaStats[currentDate]?.[m.id]?.total || 0)"></span>
-    </span>
-</div>
                                                 </div>
                                             </div>
 
@@ -2771,11 +2632,6 @@ syncChannel
                                                 <button @click="removeMember(m.id)" class="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
                                             </div>
                                             <button @click="resetUserPin(m.id)" x-show="m.pin" class="px-4 py-2 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm">Reset PIN</button>
-<button @click="toggleCaptchaTarget(m.id)" 
-        :class="captchaTargets.includes(m.id) ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-zinc-100 text-zinc-400 border-zinc-200'"
-        class="px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border shadow-sm transition-colors">
-    Captcha: <span x-text="captchaTargets.includes(m.id) ? 'ON' : 'OFF'"></span>
-</button>
                                         </div>
                                     </div>
                                 </template>
@@ -3020,22 +2876,8 @@ syncChannel
                         </div>
                     </template>
                 </div>
-<div x-show="captchaAlerts.length > 0" class="space-y-4 pt-6 border-t border-zinc-100">
-    <h4 class="text-[10px] font-black text-rose-500 uppercase tracking-widest px-2 flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span> Presence Alerts
-    </h4>
-    <template x-for="alert in captchaAlerts">
-        <div class="p-4 bg-rose-50 rounded-2xl border border-rose-100 flex flex-col gap-2 shadow-sm">
-            <div class="flex items-center justify-between">
-                <p class="font-black uppercase text-sm text-rose-950 truncate" x-text="alert.user"></p>
-                <span class="px-2 py-1 bg-rose-600 text-white rounded-md text-[9px] font-black" x-text="alert.rate + '%'"></span>
-            </div>
-            <p class="text-[9px] font-bold text-rose-600 uppercase tracking-widest" x-text="'Passed ' + alert.passed + ' of ' + alert.total + ' checks today'"></p>
-        </div>
-    </template>
-</div>
 
-                <div x-show="pendingLeaveCount === 0 && todayEvents.length === 0 && captchaAlerts.length === 0"" class="py-20 flex flex-col items-center justify-center text-zinc-300">
+                <div x-show="pendingLeaveCount === 0 && todayEvents.length === 0" class="py-20 flex flex-col items-center justify-center text-zinc-300">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-4"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="m16 19 2 2 4-4"/></svg>
                     <span class="font-black uppercase text-xs tracking-widest">Inbox Zero</span>
                 </div>
