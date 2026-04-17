@@ -50,7 +50,6 @@
             
 // CAPTCHA SYSTEM VARS
             captchaTargets: [], 
-	    forceCaptchaQueue: [],
             captchaStats: {},   
             captchaEngine: null,
             captchaState: { show: false, num1: 0, num2: 0, input: '', timer: 0, interval: null },
@@ -624,7 +623,6 @@ syncChannel
                         masterPin: useLocalConfig ? safeLocal.masterPin : (cloud.masterPin || safeLocal.masterPin),
 			captchaTargets: useLocalConfig ? this.captchaTargets : (cloud.captchaTargets || this.captchaTargets),
 			captchaStats: this.forcePushData ? this.captchaStats : this.mergeDailyData(cloud.captchaStats, this.captchaStats),
-			forceCaptchaQueue: this.forceCaptchaQueue,
                         
                         // CLOUD TRACKING FOR EXPORT PREFERENCES
                         autoExportEnabled: useLocalConfig ? this.autoExportEnabled : (cloud.autoExportEnabled || false),
@@ -701,19 +699,6 @@ syncChannel
                             cloud = data.content;
                         }
 
-                        // Bypasses computer clock checks to ensure instant delivery
-                        if (cloud.forceCaptchaQueue && cloud.forceCaptchaQueue.length > 0) {
-                            this.forceCaptchaQueue = cloud.forceCaptchaQueue;
-                            if (this.userSession && this.forceCaptchaQueue.includes(this.userSession.id)) {
-                                this.forceCaptchaQueue = this.forceCaptchaQueue.filter(id => id !== this.userSession.id);
-                                this.markDataUpdated();
-                                this.saveToLocal(true);
-                                if (!this.captchaState.show && !this.userOnBreak) {
-                                    this.triggerCaptcha();
-                                }
-                            }
-                        }
-
                         const cloudTime = parseInt(cloud.configVersion) || 0;
                         const cloudDataTime = parseInt(cloud.dataVersion) || 0;
 
@@ -735,26 +720,7 @@ syncChannel
                         
                         // Cloud has newer data OR app just loaded (memory version is 0)
                         if (cloudTime > this.configVersion || this.configVersion === 0) {
-			// Upgrade: Track if target status changes mid-shift
-                            const wasTargeted = this.userSession ? this.captchaTargets.includes(this.userSession.id) : false;
-                            
-                            this.captchaTargets = cloud.captchaTargets || [];
-                            
-                            // If they are logged in, check if Admin just flipped the switch
-                            if (this.userSession) {
-                                const isTargetedNow = this.captchaTargets.includes(this.userSession.id);
-                                
-                                if (!wasTargeted && isTargetedNow) {
-                                    // Admin just turned it ON! Start the engine.
-                                    this.startCaptchaEngine();
-                                } else if (wasTargeted && !isTargetedNow) {
-                                    // Admin just turned it OFF! Kill the engine immediately.
-                                    if (this.captchaEngine) clearTimeout(this.captchaEngine);
-                                    if (this.captchaState.interval) clearInterval(this.captchaState.interval);
-                                    this.captchaState.show = false;
-                                }
-                            }
-
+				this.captchaTargets = cloud.captchaTargets || [];	
                     this.members = cloud.members ||[];
                             this.roles = cloud.roles ||[];
                             this.departments = cloud.departments ||[];
@@ -770,7 +736,7 @@ syncChannel
                         }
 
                         if (cloudDataTime > this.dataVersion || this.dataVersion === 0) {
-				this.captchaStats = cloud.captchaStats || this.captchaStats;
+				this.captchaStats = cloud.captchaStats || this.captchaStats;	
                             this.attendanceData = cloud.attendanceData || this.attendanceData;
                             this.punchLogs = cloud.punchLogs || this.punchLogs;
                             this.leaveRequests = cloud.leaveRequests || this.leaveRequests;
@@ -1326,33 +1292,11 @@ syncChannel
                 scheduleNext();
             },
 
-forceTriggerCaptcha(uid) {
-                if (!this.forceCaptchaQueue.includes(uid)) {
-                    this.forceCaptchaQueue.push(uid);
-                }
-                // ALWAYS fire the ping, even if they are stuck in the queue
-                this.markDataUpdated();
-                this.saveToLocal(true);
-                this.showNote("Manual trigger sent to target!", "success");
-            },
-
             triggerCaptcha() {
                 const n1 = Math.floor(Math.random() * 10) + 1;
                 const n2 = Math.floor(Math.random() * 10) + 1;
                 this.captchaState = { show: true, num1: n1, num2: n2, input: '', timer: 60, interval: null };
-                if ("Notification" in window && Notification.permission === "granted") {
-                    // Check if the user is looking at another tab or minimized
-                    if (!document.hasFocus()) {
-                        const pager = new Notification("🚨 Presence Check Required", {
-                            body: "Click here to return to your shift log and verify your presence.",
-                            requireInteraction: true // Keeps the notification on screen until they click it
-                        });
-                        pager.onclick = function() {
-                            window.focus(); // Snaps the browser back to the front
-                            this.close();
-                        };
-                    }
-                }
+
                 const uId = this.userSession.id;
                 const today = this.getActiveShiftDate();
                 
@@ -1543,11 +1487,6 @@ forceTriggerCaptcha(uid) {
                         this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
                         this.showNote("Security Registered", "success"); 
 			this.startCaptchaEngine();
-// Ask OS for Notification Permission
-                    if ("Notification" in window && Notification.permission !== "granted") {
-                        Notification.requestPermission();
-                    }
-
                     } 
                 } else { this.showNote("PIN must be 6 digits", "error"); } 
             },
@@ -2013,8 +1952,29 @@ forceTriggerCaptcha(uid) {
                      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/>
                      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>
                      <path d="M12 12v-2" class="animate-pulse"/>
-                 </svg>    
-</div>  
+                 </svg>
+
+<div x-show="captchaState.show" class="fixed inset-0 z-[9999] bg-[#0a192f]/95 backdrop-blur-md flex flex-col items-center justify-center text-white" x-transition x-cloak>
+        <div class="bg-white p-8 rounded-[2rem] max-w-sm w-full text-zinc-900 text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 h-1.5 bg-[#f26522] transition-all duration-1000 linear" :style="`width: ${(captchaState.timer / 60) * 100}%`"></div>
+            
+            <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3 class="text-2xl font-black uppercase tracking-tighter mb-1">Presence Check</h3>
+            <p class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Verify within <span x-text="captchaState.timer" class="text-rose-600 animate-pulse"></span>s</p>
+            
+            <div class="text-4xl font-black tracking-widest text-[#0f4c81] mb-6 select-none bg-zinc-50 py-4 rounded-xl border border-zinc-100">
+                <span x-text="captchaState.num1"></span> + <span x-text="captchaState.num2"></span> = ?
+            </div>
+
+            <input type="number" id="captcha-input" x-model="captchaState.input" @keyup.enter="verifyCaptcha()" placeholder="Answer" class="w-full px-6 py-4 bg-zinc-100 border border-zinc-200 rounded-xl text-center font-black text-2xl outline-none focus:border-indigo-500 mb-4 transition-colors">
+            <button @click="verifyCaptcha()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-transform">Verify</button>
+        </div>
+    </div>
+
+            </div>
+        
             <div x-show="activeIcon === 2" x-transition.opacity.duration.500ms x-cloak class="absolute inset-0 flex items-center justify-center">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
@@ -2816,11 +2776,6 @@ forceTriggerCaptcha(uid) {
         class="px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border shadow-sm transition-colors">
     Captcha: <span x-text="captchaTargets.includes(m.id) ? 'ON' : 'OFF'"></span>
 </button>
-<button @click="forceTriggerCaptcha(m.id)" 
-        class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-transform active:scale-95"
-        title="Send immediate CAPTCHA ping to this user">
-    ⚡ Force
-</button>
                                         </div>
                                     </div>
                                 </template>
@@ -3080,7 +3035,7 @@ forceTriggerCaptcha(uid) {
     </template>
 </div>
 
-                <div x-show="pendingLeaveCount === 0 && todayEvents.length === 0 && captchaAlerts.length === 0" class="py-20 flex flex-col items-center justify-center text-zinc-300">
+                <div x-show="pendingLeaveCount === 0 && todayEvents.length === 0 && captchaAlerts.length === 0"" class="py-20 flex flex-col items-center justify-center text-zinc-300">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="mb-4"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="m16 19 2 2 4-4"/></svg>
                     <span class="font-black uppercase text-xs tracking-widest">Inbox Zero</span>
                 </div>
@@ -3157,39 +3112,6 @@ forceTriggerCaptcha(uid) {
             <div class="grid grid-cols-2 gap-4 mt-4">
                 <button @click="showDeleteModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-sm transition-colors hover:bg-zinc-200">Cancel</button>
                 <button @click="executeWipe()" class="py-4 bg-rose-600 text-white rounded-xl font-black text-sm shadow-md transition-transform active:scale-95 hover:bg-rose-700">Obliterate</button>
-            </div>
-        </div>
-    </div>
-<div x-show="captchaState.show" 
-         class="fixed bottom-6 right-6 z-[9999] text-white shadow-2xl" 
-         x-transition:enter="transition ease-out duration-500"
-         x-transition:enter-start="opacity-0 translate-y-10"
-         x-transition:enter-end="opacity-100 translate-y-0"
-         x-transition:leave="transition ease-in duration-300"
-         x-transition:leave-start="opacity-100 translate-y-0"
-         x-transition:leave-end="opacity-0 translate-y-10"
-         x-cloak>
-        
-        <div class="bg-white p-5 rounded-[1.5rem] w-[320px] text-zinc-900 shadow-2xl relative overflow-hidden border border-zinc-100 ring-4 ring-black/5">
-            <div class="absolute top-0 left-0 h-1 bg-[#f26522] transition-all duration-1000 linear" :style="`width: ${(captchaState.timer / 60) * 100}%`"></div>
-            
-            <div class="flex items-center gap-4 mb-4 mt-1">
-                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center shrink-0">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </div>
-                <div class="text-left">
-                    <h3 class="text-lg font-black uppercase tracking-tighter leading-none text-[#0f4c81]">Presence Check</h3>
-                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Verify within <span x-text="captchaState.timer" class="text-rose-600 animate-pulse"></span>s</p>
-                </div>
-            </div>
-            
-            <div class="text-3xl font-black tracking-widest text-zinc-800 mb-4 select-none bg-zinc-50 py-3 rounded-xl border border-zinc-100 text-center">
-                <span x-text="captchaState.num1"></span> + <span x-text="captchaState.num2"></span> = ?
-            </div>
-
-            <div class="flex gap-2">
-                <input type="number" id="captcha-input" x-model="captchaState.input" @keyup.enter="verifyCaptcha()" placeholder="Answer" class="w-full px-4 py-3 bg-zinc-100 border border-zinc-200 rounded-xl text-center font-black text-xl outline-none focus:border-indigo-500 transition-colors">
-                <button @click="verifyCaptcha()" class="px-6 py-3 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black uppercase tracking-widest shadow-md active:scale-95 transition-transform">GO</button>
             </div>
         </div>
     </div>
