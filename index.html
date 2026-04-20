@@ -237,6 +237,28 @@ window.attendanceApp = () => {
                 };
                 needsReactivity = true;
             }
+            // 👇 ADDED: Handle real-time updates from the break_logs table
+            else if (table === 'break_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
+                const date = newRec.log_date;
+                const mId = newRec.member_id;
+
+                if (!this.punchLogs[date]) this.punchLogs[date] = {};
+                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks: [], captchas: [] };
+
+                let breaks = this.punchLogs[date][mId].breaks || [];
+                let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
+
+                if (breakIdx !== -1) {
+                    // Update existing break (End time)
+                    breaks[breakIdx].end = newRec.end_time || '';
+                } else {
+                    // Insert new break (Start time)
+                    breaks.push({ start: newRec.start_time, end: newRec.end_time || '' });
+                }
+
+                this.punchLogs[date][mId].breaks = breaks;
+                needsReactivity = true;
+            }
 
             if (needsReactivity) {
                 if (this.syncTimer) clearTimeout(this.syncTimer);
@@ -988,7 +1010,11 @@ window.attendanceApp = () => {
             });
         },
         get availablePersonnelOptions() { return this.filterDept ? this.members.filter(m => m.dept === this.filterDept) : this.members; },
-        get filteredMembers() { return this.members.filter(m => (!this.filterName || m.id === this.filterName) && (!this.filterDept || m.dept === this.filterDept)); },
+        get filteredMembers() { 
+    return this.members
+        .filter(m => (!this.filterName || m.id === this.filterName) && (!this.filterDept || m.dept === this.filterDept))
+        .sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' })); 
+},
         handleNameFilterChange() { if (this.filterName) this.filterDept = this.members.find(m => m.id === this.filterName)?.dept; },
 
         markAttendance(id, s) { 
