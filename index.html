@@ -94,16 +94,16 @@ window.attendanceApp = () => {
         supabase: null,
         
         // APP STATE (Hydrated from Relational DB)
-        members: [],
+        members:[],
         attendanceData: {}, 
         punchLogs: {}, 
 	ytdStats: {}, // 👈 ADD THIS LINE
-	userExceptionHistory: [], // 👈 Add this new array
+	userExceptionHistory:[], // 👈 Add this new array
         leaveRequests: [], 
         roles: [],
         departments: [],
-        shifts: [],
-        holidayList: [],
+        shifts:[],
+        holidayList:[],
         
         newRoleName: '',
         newDeptName: '',
@@ -133,6 +133,7 @@ window.attendanceApp = () => {
 
         statusOptions:[
             { id: 'p', display: 'P', label: 'Present', color: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-500', hex: '#10b981' },
+            { id: 'wfh', display: 'WFH', label: 'Work From Home', color: 'text-blue-700', bg: 'bg-blue-50', ring: 'ring-blue-500', hex: '#3b82f6', value: 1 },
             { id: '1p', display: '1P', label: '1HR Perm.', color: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-500', hex: '#f59e0b', value: 1 },
             { id: '2p', display: '2P', label: '2HRS Perm.', color: 'text-orange-700', bg: 'bg-orange-50', ring: 'ring-orange-500', hex: '#ea580c', value: 2 },
             { id: 'h', display: 'H', label: 'Half Day', color: 'text-sky-700', bg: 'bg-sky-50', ring: 'ring-sky-500', hex: '#0ea5e9', value: 0.5 },
@@ -180,8 +181,7 @@ window.attendanceApp = () => {
             }, 1000);
             
             // Initial Fetch from DB
-            this.syncInitialConfig();         
-            ['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
+            this.syncInitialConfig();['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
                 window.addEventListener(evt, () => this.resetIdleTimer());
             });
 
@@ -262,9 +262,9 @@ window.attendanceApp = () => {
                 const mId = newRec.member_id;
 
                 if (!this.punchLogs[date]) this.punchLogs[date] = {};
-                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks: [], captchas: [] };
+                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks: [], captchas:[] };
 
-                let breaks = this.punchLogs[date][mId].breaks || [];
+                let breaks = this.punchLogs[date][mId].breaks ||[];
                 let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
 
                 if (breakIdx !== -1) {
@@ -333,7 +333,7 @@ window.attendanceApp = () => {
                 await this.supabase.from('punch_logs').upsert({
                     date, member_id: mId, 
                     in_time: log.in || null, out_time: log.out || null,
-                    breaks: log.breaks || [], captchas: log.captchas || []
+                    breaks: log.breaks ||[], captchas: log.captchas ||[]
                 });
             } catch(e) { console.error("Punch save error", e); }
         },
@@ -428,7 +428,7 @@ window.attendanceApp = () => {
                 }
 
                 // Fire queries concurrently
-                const [ { data: vData }, { data: aData }, { data: pData }, { data: bData }, { data: capData } ] = await Promise.all([
+                const[ { data: vData }, { data: aData }, { data: pData }, { data: bData }, { data: capData } ] = await Promise.all([
                     ytdQuery, attQuery, punchQuery, breakQuery, capQuery
                 ]);
 
@@ -456,7 +456,7 @@ window.attendanceApp = () => {
                 if (pData) {
                     pData.forEach(r => {
                         if(!newPunch[r.date]) newPunch[r.date] = {};
-                        newPunch[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', breaks: [], captchas: [] };
+                        newPunch[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', breaks: [], captchas:[] };
                     });
                 }
                 if (bData) {
@@ -520,14 +520,14 @@ window.attendanceApp = () => {
                 if (pData) {
                     pData.forEach(r => {
                         this.punchLogs[targetDate][r.member_id] = { 
-                            in: r.in_time || '', out: r.out_time || '', breaks: [], captchas: [] 
+                            in: r.in_time || '', out: r.out_time || '', breaks: [], captchas:[] 
                         };
                     });
                 }
                 
                 if (bData) {
                     bData.forEach(b => {
-                        if (!this.punchLogs[targetDate][b.member_id]) this.punchLogs[targetDate][b.member_id] = { in: '', out: '', breaks: [], captchas: [] };
+                        if (!this.punchLogs[targetDate][b.member_id]) this.punchLogs[targetDate][b.member_id] = { in: '', out: '', breaks: [], captchas:[] };
                         this.punchLogs[targetDate][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '' });
                     });
                 }
@@ -650,7 +650,7 @@ window.attendanceApp = () => {
             return r.includes('manager') || r.includes('lead') || r.includes('admin') || r.includes('hr');
         },
         get activeTeamOnBreak() {
-            if (!this.isManagerOrLead) return [];
+            if (!this.isManagerOrLead) return[];
             const activeDate = this.getActiveShiftDate();
             return this.members.filter(m => this.isMemberOnBreak(m.id, activeDate));
         },
@@ -664,7 +664,7 @@ window.attendanceApp = () => {
         
         get todayEvents() {
             const curM = getISTDateObject().getMonth() + 1, curD = getISTDateObject().getDate();
-            const events = [];
+            const events =[];
             this.members.forEach(m => {
                 if (m.dob && parseInt(m.dob.split('-')[1]) === curM && parseInt(m.dob.split('-')[2]) === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
                 if (m.doj && parseInt(m.doj.split('-')[1]) === curM && parseInt(m.doj.split('-')[2]) === curD) {
@@ -725,7 +725,7 @@ window.attendanceApp = () => {
 
         // FIX 3B: Use Bulk Upsert instead of N+1 API calls
         processAutoHolidays() {
-            const bulkRecords = [];
+            const bulkRecords =[];
             
             this.holidayList.forEach(h => {
                 this.members.forEach(m => {
@@ -826,7 +826,7 @@ window.attendanceApp = () => {
 
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas: [] };
-            if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
+            if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks =[];
             
             this.punchLogs[activeDate][uId].breaks.push({ start: startTime, end: '' });
             this.punchLogs = { ...this.punchLogs };
@@ -919,7 +919,7 @@ window.attendanceApp = () => {
             if (!this.userSession) return null;
             const user = this.members.find(m => m.id === this.userSession.id) || this.userSession;
             const id = user.id, curRef = getISTDateObject(), curY = curRef.getFullYear(), curM = curRef.getMonth() + 1, curD = curRef.getDate();
-            const stats = { periodTotals: {}, history: [] };
+            const stats = { periodTotals: {}, history:[] };
             this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
 
             for (let i = 0; i < 15; i++) {
@@ -941,7 +941,7 @@ window.attendanceApp = () => {
                     if (s === 'a') ytd.lv += 1; if (s === 'h') ytd.lv += 0.5;
                     if (s === '1p') ytd.prm += 1; if (s === '2p') ytd.prm += 2;
                     if (dm === curM) {
-                        if (['p','1p','2p','co'].includes(s)) mtd.p += 1;
+                        if (['p','wfh','1p','2p','co'].includes(s)) mtd.p += 1;
                         if (s === 'h') { mtd.p += 0.5; mtd.lv += 0.5; }
                         if (s === 'a') mtd.lv += 1;
                         if (s === 'lop') mtd.lop += 1;
@@ -1008,7 +1008,7 @@ window.attendanceApp = () => {
                     if (!s) return;
                     const [y, mm] = dk.split('-').map(Number);
                     if (dk >= sDate && dk <= eDate) {
-                        if (s === 'p') d.presentMTD += 1;
+                        if (s === 'p' || s === 'wfh') d.presentMTD += 1;
                         if (s === 'a') d.absentMTD += 1;
                         if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
                         if (s === '1p') { d.presentMTD += 1; d.prmHrsMTD += 1; }
@@ -1082,7 +1082,7 @@ window.attendanceApp = () => {
             if (!this.editingLogId) return;
             const id = this.editingLogId;
             if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-            if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', breaks:[], captchas: [] };
+            if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', breaks:[], captchas:[] };
             
             const formatT = (t) => {
                 if(!t) return ''; const[h, m] = t.split(':');
@@ -1099,7 +1099,7 @@ window.attendanceApp = () => {
         async adminToggleBreak(mId) {
             if (!this.isAdminAuthenticated) return;
             if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-            if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', breaks:[], captchas: [] };
+            if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', breaks:[], captchas:[] };
             
             const breaks = this.punchLogs[this.currentDate][mId].breaks;
             const currentTime = this.getCurrentTimeIST();
@@ -1151,7 +1151,7 @@ window.attendanceApp = () => {
         confirmLogoutPortal() {
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas: [] };
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas:[] };
             const breaks = this.punchLogs[activeDate][uId].breaks;
             if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = this.logoutTimePreview;
             this.punchLogs[activeDate][uId].out = this.logoutTimePreview;
@@ -1256,7 +1256,7 @@ window.attendanceApp = () => {
 
                     if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                     if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
-                        this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas: [] };
+                        this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
                         this.upsertPunchCloud(activeDate, uId); // Targeted Save
                     }
                     this.attendanceData = { ...this.attendanceData }; this.punchLogs = { ...this.punchLogs };
@@ -1324,8 +1324,8 @@ window.attendanceApp = () => {
         },
         
         addRole() { if (this.newRoleName.trim() && !this.roles.includes(this.newRoleName.trim())) { this.roles = [...this.roles, this.newRoleName.trim()]; this.upsertConfigCloud('roles', this.roles); this.newRoleName = ''; this.showNote("Role added", "success"); } },
-        addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments = [...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
-        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts = [...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
+        addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments =[...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
+        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts =[...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
 
         removeDept(dept) { this.departments = this.departments.filter(d => d !== dept); this.upsertConfigCloud('departments', this.departments); },
         removeRole(role) { this.roles = this.roles.filter(r => r !== role); this.upsertConfigCloud('roles', this.roles); },
@@ -1362,29 +1362,29 @@ window.attendanceApp = () => {
 
         exportDetailedExcel() {
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Invalid date range", "error");
-            const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), detailedRows = [];
+            const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), detailedRows =[];
             this.filteredMembers.forEach(m => {
                 for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
                     const dateStr = getISTString(d), statusId = this.attendanceData[dateStr]?.[m.id] || '-';
                     const punchLog = this.punchLogs[dateStr]?.[m.id] || { in: '', out: '', breaks:[], captchas:[] };
                     let notes = '';
                     if (statusId === 'fh') { const h = this.holidayList.find(hol => hol.date === dateStr && (hol.dept === 'All' || hol.dept === m.dept)); if (h) notes = `Holiday: ${h.name}`; } 
-                    else if (['a', 'h', '1p', '2p', 'lop'].includes(statusId)) { const leave = this.leaveRequests.find(l => l.empId === m.id && l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
+                    else if (['a', 'h', '1p', '2p', 'lop', 'wfh'].includes(statusId)) { const leave = this.leaveRequests.find(l => l.empId === m.id && l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
                     detailedRows.push({ 'Date': dateStr, 'Emp ID': m.empId, 'Name': m.name, 'Department': m.dept, 'Shift': m.shift, 'Status': this.statusOptions.find(s => s.id === statusId)?.label || 'Unrecorded', 'Punch In': punchLog.in || '', 'Punch Out': punchLog.out || '', 'Active (Mins)': this.getActiveMinsForLog(punchLog, dateStr), 'Break (Mins)': this.calculateTotalBreakMins(punchLog.breaks), 'Captcha Fails': punchLog.captchas?.filter(c => c.status !== 'Passed').length || 0, 'Notes': notes });
                 }
             });
             if (detailedRows.length === 0) return this.showNote("No data", "error");
             const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(detailedRows);
-            ws['!cols'] = [{wch: 12}, {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 10}, {wch: 18}, {wch: 18}, {wch: 15}, {wch: 30}];
+            ws['!cols'] =[{wch: 12}, {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 10}, {wch: 18}, {wch: 18}, {wch: 15}, {wch: 30}];
             XLSX.utils.book_append_sheet(wb, ws, "Detailed_Logs"); XLSX.writeFile(wb, `Detailed_Audit_${this.summaryStartDate}_to_${this.summaryEndDate}.xlsx`); this.showNote("Report Downloaded", "success");
         },
 
         executeFullSystemExport(isAuto = false) { 
             const wb = XLSX.utils.book_new(); 
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(this.members.map(m => ({ ID: m.empId, Name: m.name, Dept: m.dept, Role: m.role, Shift: m.shift, PL: m.allowedPL, SL: m.allowedSL, Perm: m.allowedPerm, DOJ: m.doj, DOB: m.dob || '' }))), "Personnel"); 
-            const attendanceRows = []; Object.keys(this.attendanceData).sort().forEach(date => Object.keys(this.attendanceData[date]).forEach(empId => { if (this.attendanceData[date][empId]) attendanceRows.push({ Date: date, EmpID: empId, Name: this.members.find(m => m.id === empId)?.name || 'Unknown', Status: this.attendanceData[date][empId].toUpperCase() }); }));
+            const attendanceRows =[]; Object.keys(this.attendanceData).sort().forEach(date => Object.keys(this.attendanceData[date]).forEach(empId => { if (this.attendanceData[date][empId]) attendanceRows.push({ Date: date, EmpID: empId, Name: this.members.find(m => m.id === empId)?.name || 'Unknown', Status: this.attendanceData[date][empId].toUpperCase() }); }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceRows), "Attendance_Log");
-            const punchRows = []; Object.keys(this.punchLogs).sort().forEach(date => Object.keys(this.punchLogs[date]).forEach(empId => { const log = this.punchLogs[date][empId]; punchRows.push({ Date: date, EmpID: empId, Name: this.members.find(m => m.id === empId)?.name || 'Unknown', In: log.in || '', Out: log.out || '', ActiveMins: this.getActiveMinsForLog(log, date), BreakMins: this.calculateTotalBreakMins(log.breaks) }); }));
+            const punchRows =[]; Object.keys(this.punchLogs).sort().forEach(date => Object.keys(this.punchLogs[date]).forEach(empId => { const log = this.punchLogs[date][empId]; punchRows.push({ Date: date, EmpID: empId, Name: this.members.find(m => m.id === empId)?.name || 'Unknown', In: log.in || '', Out: log.out || '', ActiveMins: this.getActiveMinsForLog(log, date), BreakMins: this.calculateTotalBreakMins(log.breaks) }); }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(punchRows), "Punch_Logs");
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(this.leaveRequests.map(l => ({ ID: l.id, EmpID: l.empId, Name: l.name, Type: l.type, Start: l.startDate, End: l.endDate, Reason: l.reason, Status: l.status }))), "Leave_Requests");
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(this.holidayList.map(h => ({ Name: h.name, Date: h.date, Applicable_To: h.dept }))), "Holidays");
@@ -2064,8 +2064,8 @@ window.attendanceApp = () => {
                                     <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
                                 </div>
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-sm flex flex-col justify-between h-full portal-card">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-4">Confirmed Presents</p>
-                                    <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="dashboardStats.totals['p'] || 0"></h3>
+                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-4">Confirmed Presents (Incl. WFH)</p>
+                                    <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="(dashboardStats.totals['p'] || 0) + (dashboardStats.totals['wfh'] || 0)"></h3>
                                 </div>
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-sm flex flex-col justify-between h-full portal-card">
                                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-4">Confirmed Absents</p>
@@ -2127,7 +2127,7 @@ window.attendanceApp = () => {
                                     <div class="bg-white rounded-[2rem] p-5 lg:p-6 flex flex-col gap-4 border border-zinc-100 shadow-sm hover:shadow-xl transition-all duration-300 group relative overflow-hidden">
                                         
                                         <div class="absolute left-0 top-0 bottom-0 w-2 transition-colors duration-300" 
-                                             :class="isMemberOnBreak(m.id, currentDate) ? 'bg-amber-500 animate-pulse' : (isMarked(m.id, 'p') ? 'bg-emerald-500' : (isMarked(m.id, 'a') || isMarked(m.id, 'lop') ? 'bg-rose-500' : (isMarked(m.id, 'fh') ? 'bg-violet-500' : (isMarked(m.id, 'co') ? 'bg-teal-500' : 'bg-transparent'))))"></div>
+                                             :class="isMemberOnBreak(m.id, currentDate) ? 'bg-amber-500 animate-pulse' : (isMarked(m.id, 'p') ? 'bg-emerald-500' : (isMarked(m.id, 'wfh') ? 'bg-blue-500' : (isMarked(m.id, 'a') || isMarked(m.id, 'lop') ? 'bg-rose-500' : (isMarked(m.id, 'fh') ? 'bg-violet-500' : (isMarked(m.id, 'co') ? 'bg-teal-500' : 'bg-transparent')))))"></div>
 
                                         <div class="flex flex-col lg:flex-row lg:items-center gap-6 w-full">
                                             <div class="flex items-center gap-5 w-full lg:w-[28%] shrink-0 pl-2">
@@ -2135,6 +2135,7 @@ window.attendanceApp = () => {
                                                     <span x-text="m.firstName.charAt(0)"></span>
                                                     <div x-show="isMemberOnBreak(m.id, currentDate)" class="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 border-2 border-white rounded-full shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse z-10" title="On Break"></div>
                                                     <div x-show="isMarked(m.id, 'p') && !isMemberOnBreak(m.id, currentDate)" class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full z-10"></div>
+                                                    <div x-show="isMarked(m.id, 'wfh') && !isMemberOnBreak(m.id, currentDate)" class="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 border-2 border-white rounded-full z-10"></div>
                                                     <div x-show="isMarked(m.id, 'co') && !isMemberOnBreak(m.id, currentDate)" class="absolute -top-1 -right-1 w-4 h-4 bg-teal-500 border-2 border-white rounded-full z-10"></div>
                                                 </div>
                                                 <div class="min-w-0">
@@ -2635,6 +2636,7 @@ flex items-center gap-3 pt-2 border-t border-indigo-100">
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
                         <button @click="newLeave.type = 'a'" :class="newLeave.type === 'a' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Full Day</button>
                         <button @click="newLeave.type = 'h'" :class="newLeave.type === 'h' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Half Day</button>
+                        <button @click="newLeave.type = 'wfh'" :class="newLeave.type === 'wfh' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">WFH</button>
                         <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">1Hr Perm</button>
                         <button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
                         <button @click="newLeave.type = 'lop'" :class="newLeave.type === 'lop' ? 'bg-rose-600 text-white shadow-md' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'" class="py-3 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Unplanned</button>
