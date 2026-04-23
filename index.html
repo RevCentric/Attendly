@@ -799,18 +799,20 @@ window.attendanceApp = () => {
         resetIdleTimer() {
             if (this.idleTimer) clearTimeout(this.idleTimer);
             
-            // Start the idle timer if an Admin OR a Standard User is logged in
-            if (this.isAdminAuthenticated || this.userSession) {
-                
-                // You can change 'this.idleTimeout' to something shorter for staff if you want, 
-                // like 60000 (1 minute). Currently it uses your default of 5 minutes.
+            // Determine who actually needs to be monitored for inactivity
+            const monitorAdmin = this.isAdminAuthenticated;
+            const monitorUser = this.userSession && !this.userSession.captchaEnabled;
+
+            // Only start the countdown if the admin is logged in OR a user WITHOUT captcha is logged in
+            if (monitorAdmin || monitorUser) {
                 this.idleTimer = setTimeout(() => { 
                     if (this.isAdminAuthenticated) { 
                         this.logoutAdmin(); 
                         this.showNote("Vault auto-locked due to inactivity", "error"); 
                     }
-                    if (this.userSession) {
-                        this.logoutUser(); // This triggers the connection kill-switch!
+                    // Final safety check before logging out the user
+                    if (this.userSession && !this.userSession.captchaEnabled) {
+                        this.logoutUser(); 
                         this.showNote("Session expired due to inactivity", "error");
                     }
                 }, this.idleTimeout); 
