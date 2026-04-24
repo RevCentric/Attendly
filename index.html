@@ -56,7 +56,7 @@ window.attendanceApp = () => {
         newPinValue: '',
 
         userSession: null,
-	userSyncChannel: null, // Holds the active user's realtime connection
+	userSyncChannel: null, 
         loginIdInput: '',
         loginPinInput: '',
         breakPinInput: '',
@@ -83,10 +83,8 @@ window.attendanceApp = () => {
         autoExportTime: '18:00',
         lastAutoExportDate: '',
 
-	// NEW: On-Demand Fetching Trackers
         scopeStartStr: '',
         fetchedOldDates: new Set(),
-
 
         // SUPABASE CREDENTIALS
         supabaseUrl: 'https://lpthzknjzmxwukwpvhii.supabase.co',
@@ -97,10 +95,10 @@ window.attendanceApp = () => {
         members:[],
         attendanceData: {}, 
         punchLogs: {}, 
-	ytdStats: {}, // 👈 ADD THIS LINE
-	userExceptionHistory:[], // 👈 Add this new array
+	ytdStats: {}, 
+	userExceptionHistory:[], 
         leaveRequests: [], 
-        roles: [],
+        roles:[],
         departments: [],
         shifts:[],
         holidayList:[],
@@ -158,12 +156,10 @@ window.attendanceApp = () => {
             this.userSession = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
 
-            // Calculate 20 days ago for the initial load
             const todayRef = getISTDateObject();
             const initScopeDate = new Date(todayRef.getFullYear(), todayRef.getMonth(), todayRef.getDate() - 31);
             this.scopeStartStr = getISTString(initScopeDate);
 
-            // Watch the currentDate. If user selects a date older than our 20-day scope, fetch it.
             this.$watch('currentDate', (newDate) => {
                 if (this.scopeStartStr && newDate < this.scopeStartStr && !this.fetchedOldDates.has(newDate)) {
                     this.fetchHistoricalDate(newDate);
@@ -180,10 +176,7 @@ window.attendanceApp = () => {
                 }).format(now);
             }, 1000);
             
-            // Initial Fetch from DB
-            this.syncInitialConfig();
-
-            ['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
+            this.syncInitialConfig();['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
                 window.addEventListener(evt, () => this.resetIdleTimer());
             });
 
@@ -228,17 +221,25 @@ window.attendanceApp = () => {
         handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
 
-            const { table, eventType, new: newRec } = payload;
+            const { table, eventType, new: newRec, old: oldRec } = payload;
 
-            if (table === 'attendance' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
-                if (!this.attendanceData[newRec.date]) this.attendanceData[newRec.date] = {};
-                this.attendanceData[newRec.date][newRec.member_id] = newRec.status;
+            if (table === 'attendance') {
+                if (eventType === 'INSERT' || eventType === 'UPDATE') {
+                    if (!this.attendanceData[newRec.date]) this.attendanceData[newRec.date] = {};
+                    this.attendanceData[newRec.date][newRec.member_id] = newRec.status;
+                    this.attendanceData = { ...this.attendanceData }; 
+                } else if (eventType === 'DELETE' && oldRec) {
+                    if (this.attendanceData[oldRec.date] && this.attendanceData[oldRec.date][oldRec.member_id]) {
+                        this.attendanceData[oldRec.date][oldRec.member_id] = '';
+                        this.attendanceData = { ...this.attendanceData };
+                    }
+                }
             } 
             else if (table === 'punch_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 if (!this.punchLogs[newRec.date]) this.punchLogs[newRec.date] = {};
                 
-                const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks || [];
-                const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas || [];
+                const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks ||[];
+                const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas ||[];
 
                 this.punchLogs[newRec.date][newRec.member_id] = {
                     in: newRec.in_time || '', 
@@ -246,13 +247,14 @@ window.attendanceApp = () => {
                     breaks: existingBreaks, 
                     captchas: existingCaptchas
                 };
+                this.punchLogs = { ...this.punchLogs };
             }
             else if (table === 'break_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 const date = newRec.log_date;
                 const mId = newRec.member_id;
 
                 if (!this.punchLogs[date]) this.punchLogs[date] = {};
-                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks: [], captchas:[] };
+                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks:[], captchas:[] };
 
                 let breaks = this.punchLogs[date][mId].breaks ||[];
                 let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
@@ -264,6 +266,7 @@ window.attendanceApp = () => {
                 }
 
                 this.punchLogs[date][mId].breaks = breaks;
+                this.punchLogs = { ...this.punchLogs };
             }
         },
 
@@ -287,29 +290,40 @@ window.attendanceApp = () => {
             } catch(e) { console.error("Member save error", e); }
         },
 
+        // FIX: Explicit duplicate cleanup approach to solve "bounce back" issues natively
         async upsertAttCloud(date, mId, status) {
             try {
                 if (!status) {
                     await this.supabase.from('attendance').delete().match({ date, member_id: mId });
                 } else {
-                    // 1. Explicitly try to update the existing record first
+                    // 1. Try updating matching rows first (fixes duplicate DB entries)
                     const { data, error } = await this.supabase.from('attendance')
-                        .update({ status: status })
-                        .match({ date: date, member_id: mId })
+                        .update({ status })
+                        .match({ date, member_id: mId })
                         .select();
-                    
-                    // 2. If no record was updated (because it doesn't exist yet), insert a new one
-                    if (!data || data.length === 0) {
-                        await this.supabase.from('attendance').insert({ date: date, member_id: mId, status: status });
+                        
+                    // 2. If it does not exist, safe to insert
+                    if (!error && (!data || data.length === 0)) {
+                        await this.supabase.from('attendance').insert({ date, member_id: mId, status });
                     }
                 }
             } catch(e) { console.error("Attendance save error", e); }
         },
 
+        // FIX: Same explicitly safe approach for bulk updates to prevent duplicates
         async bulkUpsertAttCloud(recordsArray) {
             if (!recordsArray || recordsArray.length === 0) return;
             try {
-                await this.supabase.from('attendance').upsert(recordsArray);
+                for (const rec of recordsArray) {
+                    const { data, error } = await this.supabase.from('attendance')
+                        .update({ status: rec.status })
+                        .match({ date: rec.date, member_id: rec.member_id })
+                        .select();
+                        
+                    if (!error && (!data || data.length === 0)) {
+                        await this.supabase.from('attendance').insert(rec);
+                    }
+                }
             } catch(e) { console.error("Bulk Attendance save error", e); }
         },
 
@@ -317,11 +331,17 @@ window.attendanceApp = () => {
             try {
                 const log = this.punchLogs[date]?.[mId];
                 if (!log) return;
-                await this.supabase.from('punch_logs').upsert({
-                    date, member_id: mId, 
-                    in_time: log.in || null, out_time: log.out || null,
-                    breaks: log.breaks ||[], captchas: log.captchas ||[]
-                });
+                
+                const { data, error } = await this.supabase.from('punch_logs')
+                    .update({ in_time: log.in || null, out_time: log.out || null, breaks: log.breaks ||[], captchas: log.captchas ||[] })
+                    .match({ date, member_id: mId })
+                    .select();
+                    
+                if (!error && (!data || data.length === 0)) {
+                    await this.supabase.from('punch_logs').insert({
+                        date, member_id: mId, in_time: log.in || null, out_time: log.out || null, breaks: log.breaks ||[], captchas: log.captchas ||[]
+                    });
+                }
             } catch(e) { console.error("Punch save error", e); }
         },
 
@@ -339,7 +359,6 @@ window.attendanceApp = () => {
             catch(e) { console.error("Holiday save error", e); }
         },
 
-        // --- CORE SYNC ---
         async syncInitialConfig() {
             this.isSyncing = true;
             try {
@@ -367,7 +386,6 @@ window.attendanceApp = () => {
                         doj: m.doj, dob: m.dob, allowedPL: m.allowed_pl, allowedSL: m.allowed_sl, 
                         allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled
                     }));
-                    // OPTIMIZATION: Sort exactly once when fetching
                     this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
                 }
                 this.syncError = false;
@@ -393,7 +411,6 @@ window.attendanceApp = () => {
                 const { data: hData } = await this.supabase.from('holidays').select('*');
                 if (hData) {
                     this.holidayList = hData;
-                    // 1. ❌ REMOVED from here so it doesn't fire too early
                 }
 
                 let ytdQuery = this.supabase.from('member_ytd_stats').select('*');
@@ -432,9 +449,8 @@ window.attendanceApp = () => {
                 }
                 this.attendanceData = newAtt;
 
-                // 2. ✅ ADDED right here. Now it runs after 'this.attendanceData' is fully populated.
                 if (this.holidayList && this.holidayList.length > 0) {
-                    this.processAutoHolidays();
+	                //this.processAutoHolidays();
                 }
 
                 let newPunch = {};
@@ -489,6 +505,7 @@ window.attendanceApp = () => {
                     aData.forEach(r => {
                         this.attendanceData[targetDate][r.member_id] = r.status;
                     });
+                    this.attendanceData = { ...this.attendanceData }; 
                 }
 
                 const { data: pData } = await this.supabase.from('punch_logs').select('*').eq('date', targetDate);
@@ -514,11 +531,12 @@ window.attendanceApp = () => {
 
                 if (capData) {
                     capData.forEach(c => {
-                        if (!this.punchLogs[targetDate][c.member_id]) this.punchLogs[targetDate][c.member_id] = { in: '', out: '', breaks: [], captchas: [] };
+                        if (!this.punchLogs[targetDate][c.member_id]) this.punchLogs[targetDate][c.member_id] = { in: '', out: '', breaks:[], captchas: [] };
                         this.punchLogs[targetDate][c.member_id].captchas.push({ time: c.check_time, status: c.status });
                     });
                 }
 
+                this.punchLogs = { ...this.punchLogs }; 
                 this.showNote(`Historical log loaded for ${this.formatDate(targetDate)}`, "success");
             } catch(e) { 
                 console.error("Historical Pull Error:", e); 
@@ -528,10 +546,6 @@ window.attendanceApp = () => {
                 this.isSyncing = false; 
             }
         },
-
-        // ==========================================
-        //  🔄 CAPTCHA & APP LOGIC UPDATED
-        // ==========================================
 
         toggleCaptcha() {
             if (!this.userSession) return;
@@ -606,10 +620,11 @@ window.attendanceApp = () => {
             const checkTime = this.getCurrentTimeIST();
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks: [], captchas: [] };
-            if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas = [];
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas: [] };
+            if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas =[];
             
             this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status });
+            this.punchLogs = { ...this.punchLogs };
             
             try {
                 await this.supabase.from('captcha_logs').insert({
@@ -684,6 +699,7 @@ window.attendanceApp = () => {
                 this.attendanceData[dStr][req.empId] = req.type;
                 this.upsertAttCloud(dStr, req.empId, req.type); 
             }
+            this.attendanceData = { ...this.attendanceData }; 
             this.showNote(`Approved leave for ${req.name}`);
         },
 
@@ -702,7 +718,6 @@ window.attendanceApp = () => {
             this.holidayList.forEach(h => {
                 this.members.forEach(m => {
                     if (h.dept === 'All' || h.dept === m.dept) {
-                        // FIX: Only apply holiday if the slot is empty
                         if (!this.attendanceData[h.date]?.[m.id]) {
                             if(!this.attendanceData[h.date]) this.attendanceData[h.date] = {};
                             this.attendanceData[h.date][m.id] = 'fh';
@@ -718,6 +733,7 @@ window.attendanceApp = () => {
             });
             
             if (bulkRecords.length > 0) {
+                this.attendanceData = { ...this.attendanceData }; 
                 this.bulkUpsertAttCloud(bulkRecords);
             }
         },
@@ -728,7 +744,7 @@ window.attendanceApp = () => {
             this.holidayList.push(h);
             this.upsertHolidayCloud(h); 
             this.newHoliday = { name: '', date: '', dept: 'All' };
-            this.processAutoHolidays();
+            //this.processAutoHolidays();
             this.showNote("Holiday Processed Successfully");
         },
 
@@ -769,7 +785,6 @@ window.attendanceApp = () => {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     
     const monitorAdmin = this.isAdminAuthenticated;
-    // FIX: Add !this.userOnBreak so it stops monitoring idle time during breaks
     const monitorUser = this.userSession && !this.userSession.captchaEnabled && !this.userOnBreak;
 
     if (monitorAdmin || monitorUser) {
@@ -778,7 +793,6 @@ window.attendanceApp = () => {
                 this.logoutAdmin(); 
                 this.showNote("Vault auto-locked due to inactivity", "error"); 
             }
-            // FIX: Add the check here as well before logging them out
             if (this.userSession && !this.userSession.captchaEnabled && !this.userOnBreak) {
                 this.logoutUser(); 
                 this.showNote("Session expired due to inactivity", "error");
@@ -799,6 +813,7 @@ window.attendanceApp = () => {
             if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks =[];
             
             this.punchLogs[activeDate][uId].breaks.push({ start: startTime, end: '' });
+            this.punchLogs = { ...this.punchLogs };
             
             try {
                 await this.supabase.from('break_logs').insert({
@@ -831,6 +846,7 @@ window.attendanceApp = () => {
 
             if (breaks && breaks.length > 0 && !breaks[breaks.length - 1].end) {
                 breaks[breaks.length - 1].end = endTime;
+                this.punchLogs = { ...this.punchLogs };
                 
                 try {
                     await this.supabase.from('break_logs')
@@ -1017,8 +1033,6 @@ window.attendanceApp = () => {
             });
         },
         get availablePersonnelOptions() { return this.filterDept ? this.members.filter(m => m.dept === this.filterDept) : this.members; },
-        
-        // OPTIMIZATION: Removed .sort() from this getter. Sorting now happens only on initialization/add.
         get filteredMembers() { 
             return this.members.filter(m => (!this.filterName || m.id === this.filterName) && (!this.filterDept || m.dept === this.filterDept)); 
         },
@@ -1029,8 +1043,11 @@ window.attendanceApp = () => {
             if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {}; 
             const newStatus = this.attendanceData[this.currentDate][id] === s ? "" : s;
             this.attendanceData[this.currentDate][id] = newStatus;
+            
+            this.attendanceData = { ...this.attendanceData }; 
             this.upsertAttCloud(this.currentDate, id, newStatus); 
         },
+        
         isMarked(id, s) { return this.attendanceData[this.currentDate]?.[id] === s; },
         getTimeInputVal(tStr) {
             if (!tStr || tStr === '--:--') return '';
@@ -1056,6 +1073,7 @@ window.attendanceApp = () => {
             this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
             this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
             
+            this.punchLogs = { ...this.punchLogs };
             this.upsertPunchCloud(this.currentDate, id); 
             this.showNote("Punch Timings Saved", "success");
             this.editingLogId = null;
@@ -1084,6 +1102,7 @@ window.attendanceApp = () => {
                     });
                     this.showNote("Break Force-Started", "success");
                 }
+                this.punchLogs = { ...this.punchLogs };
             } catch(e) { 
                 console.error("Admin break toggle error", e); 
                 this.showNote("Error saving break", "error");
@@ -1102,6 +1121,9 @@ window.attendanceApp = () => {
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
             
+            this.attendanceData = { ...this.attendanceData };
+            this.punchLogs = { ...this.punchLogs };
+            
             this.upsertAttCloud(activeDate, uId, s); 
             this.upsertPunchCloud(activeDate, uId); 
             this.showNote("Shift Record Updated", "success");
@@ -1117,6 +1139,7 @@ window.attendanceApp = () => {
             if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = this.logoutTimePreview;
             this.punchLogs[activeDate][uId].out = this.logoutTimePreview;
             
+            this.punchLogs = { ...this.punchLogs };
             this.upsertPunchCloud(activeDate, uId); 
             this.showLogoutModal = false; this.logoutUser(); this.showNote("Shift Logged Out", "success");
         },
@@ -1268,11 +1291,10 @@ window.attendanceApp = () => {
             if (this.isEditing) { const idx = this.members.findIndex(m => m.empId === cleanMember.empId); if (idx !== -1) this.members[idx] = cleanMember; }
             else { if (this.members.find(m => m.empId === cleanMember.empId)) return this.showNote("ID exists", "error"); this.members.push(cleanMember); }
             
-            // OPTIMIZATION: Sort exactly once after adding
             this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' })); 
 
             this.upsertMemberCloud(cleanMember); 
-            this.processAutoHolidays(); 
+            //this.processAutoHolidays(); 
             this.resetMemberForm();
         },
         
@@ -1699,8 +1721,8 @@ window.attendanceApp = () => {
                                     </template>
                                     
                                     <template x-if="userOnBreak">
-                                        <button @click="endBreak()" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81] animate-pulse">End Break</button>
-                                    </template>
+    <button @click="endBreak()" class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.8)] animate-pulse">End Break</button>
+</template>
                                     
                                     <button @click="initiateLogout()" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81]">Day Log Out</button>
                                     <button @click="showLeaveModal = true" class="px-5 py-2.5 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border border-[#0f4c81]">Time-Off</button>
@@ -2104,9 +2126,9 @@ window.attendanceApp = () => {
                                                 </div>
                                                 
                                                 <div @click="adminToggleBreak(m.id)" 
-                                                     class="flex-1 border rounded-2xl p-2 flex flex-col items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95"
-                                                     :class="isMemberOnBreak(m.id, currentDate) ? 'bg-amber-500 border-amber-600 shadow-md text-white' : 'bg-amber-50 border-amber-200 hover:bg-amber-100'"
-                                                     title="Admin Override: Click to Start/Stop Break">
+     class="flex-1 border rounded-2xl p-2 flex flex-col items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95"
+     :class="isMemberOnBreak(m.id, currentDate) ? 'bg-amber-500 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.6)] text-white' : 'bg-amber-50 border-amber-200 hover:bg-amber-100'"
+     title="Admin Override: Click to Start/Stop Break">
                                                     <span class="text-[8px] font-black uppercase tracking-[0.2em] mb-1 flex items-center" 
                                                           :class="isMemberOnBreak(m.id, currentDate) ? 'text-amber-100' : 'text-amber-600'">
                                                         <span x-show="isMemberOnBreak(m.id, currentDate)" class="inline-block w-1.5 h-1.5 bg-white rounded-full animate-pulse mr-1 mb-[1px]"></span>
@@ -2266,7 +2288,7 @@ window.attendanceApp = () => {
                                             <div class="relative">
                                                 <input type="checkbox" x-model="newMember.captchaEnabled" class="sr-only">
                                                 <div class="block bg-zinc-200 w-10 h-6 rounded-full transition-colors group-hover:bg-zinc-300" :class="newMember.captchaEnabled ? '!bg-[#f26522]' : ''"></div>
-                                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform" :class="newMember.captchaEnabled ? 'transform translate-x-4' : ''"></div>
+                                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform" :class="newMember.captchaEnabled ? 'transform translate-x-4' :''"></div>
                                             </div>
                                             <span class="text-[10px] font-black uppercase text-zinc-600 tracking-widest group-hover:text-zinc-900 transition-colors">Require Captcha Verification Checks</span>
                                         </label>
@@ -2354,9 +2376,9 @@ window.attendanceApp = () => {
                                                     <td class="px-4 py-6 text-center text-zinc-600 font-black border-b border-zinc-50 bg-zinc-50" x-text="data.prmYTDUsed + 'h'"></td>
                                                     
                                                     <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveMTD)"></td>
-<td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakMTD)"></td>
-<td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveYTD)"></td>
-<td class="px-8 py-6 text-center pr-10 text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakYTD)"></td>
+                                                    <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakMTD)"></td>
+                                                    <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveYTD)"></td>
+                                                    <td class="px-8 py-6 text-center pr-10 text-amber-600 font-black border-b border-zinc-50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakYTD)"></td>
                                                 </tr>
                                             </template>
                                         </tbody>
