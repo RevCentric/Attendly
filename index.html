@@ -181,7 +181,9 @@ window.attendanceApp = () => {
             }, 1000);
             
             // Initial Fetch from DB
-            this.syncInitialConfig();['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
+            this.syncInitialConfig();
+
+            ['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
                 window.addEventListener(evt, () => this.resetIdleTimer());
             });
 
@@ -198,18 +200,14 @@ window.attendanceApp = () => {
             }, 30000);
         },
 
-// 👇 ADD THIS ENTIRE NEW FUNCTION
         setupUserRealtime() {
-            // 1. If there is already an old connection running, kill it first.
             if (this.userSyncChannel) {
                 this.supabase.removeChannel(this.userSyncChannel);
                 this.userSyncChannel = null;
             }
 
-            // 2. If nobody is logged in, do nothing.
             if (!this.userSession && !this.isAdminAuthenticated) return;
 
-            // 3. If a Manager or Vault Admin logs in, they need to see everyone's data.
             if (this.isManagerOrLead || this.isAdminAuthenticated) {
                 this.userSyncChannel = this.supabase.channel('admin-tracking')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, p => this.handleRealtimePayload(p))
@@ -217,7 +215,6 @@ window.attendanceApp = () => {
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'break_logs' }, p => this.handleRealtimePayload(p))
                     .subscribe();
             } 
-            // 4. If a standard employee logs in, ONLY listen to their specific ID.
             else {
                 const myId = this.userSession.id;
                 this.userSyncChannel = this.supabase.channel(`user-${myId}-tracking`)
@@ -228,23 +225,18 @@ window.attendanceApp = () => {
             }
         },
 
-        // FIX 1B: Targeted Realtime Handler Method
         handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
 
             const { table, eventType, new: newRec } = payload;
-            let needsReactivity = false;
 
             if (table === 'attendance' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 if (!this.attendanceData[newRec.date]) this.attendanceData[newRec.date] = {};
                 this.attendanceData[newRec.date][newRec.member_id] = newRec.status;
-                needsReactivity = true;
             } 
             else if (table === 'punch_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 if (!this.punchLogs[newRec.date]) this.punchLogs[newRec.date] = {};
                 
-                // Preserve the breaks and captchas already in local memory, 
-                // just update the IN/OUT times from the cloud payload
                 const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks || [];
                 const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas || [];
 
@@ -254,9 +246,7 @@ window.attendanceApp = () => {
                     breaks: existingBreaks, 
                     captchas: existingCaptchas
                 };
-                needsReactivity = true;
             }
-            // 👇 ADDED: Handle real-time updates from the break_logs table
             else if (table === 'break_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 const date = newRec.log_date;
                 const mId = newRec.member_id;
@@ -268,28 +258,17 @@ window.attendanceApp = () => {
                 let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
 
                 if (breakIdx !== -1) {
-                    // Update existing break (End time)
                     breaks[breakIdx].end = newRec.end_time || '';
                 } else {
-                    // Insert new break (Start time)
                     breaks.push({ start: newRec.start_time, end: newRec.end_time || '' });
                 }
 
                 this.punchLogs[date][mId].breaks = breaks;
-                needsReactivity = true;
-            }
-
-            if (needsReactivity) {
-                if (this.syncTimer) clearTimeout(this.syncTimer);
-                this.syncTimer = setTimeout(() => {
-                    this.attendanceData = { ...this.attendanceData };
-                    this.punchLogs = { ...this.punchLogs };
-                }, 500);
             }
         },
 
         // ==========================================
-        //  ☁️ DIRECT CLOUD DATA OPERATIONS (NEW)
+        //  ☁️ DIRECT CLOUD DATA OPERATIONS
         // ==========================================
         async upsertConfigCloud(key, value) {
             try { await this.supabase.from('system_config').upsert({ key, value }); } 
@@ -313,12 +292,20 @@ window.attendanceApp = () => {
                 if (!status) {
                     await this.supabase.from('attendance').delete().match({ date, member_id: mId });
                 } else {
-                    await this.supabase.from('attendance').upsert({ date, member_id: mId, status });
+                    // 1. Explicitly try to update the existing record first
+                    const { data, error } = await this.supabase.from('attendance')
+                        .update({ status: status })
+                        .match({ date: date, member_id: mId })
+                        .select();
+                    
+                    // 2. If no record was updated (because it doesn't exist yet), insert a new one
+                    if (!data || data.length === 0) {
+                        await this.supabase.from('attendance').insert({ date: date, member_id: mId, status: status });
+                    }
                 }
             } catch(e) { console.error("Attendance save error", e); }
         },
 
-        // FIX 3: Add Bulk Upsert Method for Holidays
         async bulkUpsertAttCloud(recordsArray) {
             if (!recordsArray || recordsArray.length === 0) return;
             try {
@@ -352,11 +339,10 @@ window.attendanceApp = () => {
             catch(e) { console.error("Holiday save error", e); }
         },
 
-        // --- CORE SYNC (SPLIT FOR EGRESS OPTIMIZATION) ---
+        // --- CORE SYNC ---
         async syncInitialConfig() {
             this.isSyncing = true;
             try {
-                // 1. Fetch Config
                 const { data: cData } = await this.supabase.from('system_config').select('*');
                 if (cData) {
                     cData.forEach(row => {
@@ -372,7 +358,6 @@ window.attendanceApp = () => {
                     });
                 }
 
-                // 2. Fetch Members
                 const { data: mData } = await this.supabase.from('members').select('id, emp_id, first_name, last_name, dept, role, shift, pin, captcha_enabled, doj, dob, allowed_pl, allowed_sl, allowed_perm');
                 if (mData) {
                     this.members = mData.map(m => ({
@@ -382,6 +367,8 @@ window.attendanceApp = () => {
                         doj: m.doj, dob: m.dob, allowedPL: m.allowed_pl, allowedSL: m.allowed_sl, 
                         allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled
                     }));
+                    // OPTIMIZATION: Sort exactly once when fetching
+                    this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
                 }
                 this.syncError = false;
             } catch (e) {
@@ -395,7 +382,6 @@ window.attendanceApp = () => {
         async syncUserData(silent = false) {
             this.isSyncing = true;
             try {
-                // Fetch Leaves & Holidays
                 const { data: lData } = await this.supabase.from('leave_requests').select('*');
                 if (lData) {
                     this.leaveRequests = lData.map(l => ({
@@ -407,17 +393,15 @@ window.attendanceApp = () => {
                 const { data: hData } = await this.supabase.from('holidays').select('*');
                 if (hData) {
                     this.holidayList = hData;
-                    this.processAutoHolidays(); // Check holidays here, not on startup
+                    // 1. ❌ REMOVED from here so it doesn't fire too early
                 }
 
-                // Prepare Queries
                 let ytdQuery = this.supabase.from('member_ytd_stats').select('*');
                 let attQuery = this.supabase.from('attendance').select('*').gte('date', this.scopeStartStr);
                 let punchQuery = this.supabase.from('punch_logs').select('*').gte('date', this.scopeStartStr);
                 let breakQuery = this.supabase.from('break_logs').select('*').gte('log_date', this.scopeStartStr);
                 let capQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.scopeStartStr);
 
-                // THE FIX: Filter down to just this user if they aren't a manager or admin
                 if (!this.isAdminAuthenticated && !this.isManagerOrLead) {
                     const myId = this.userSession.id;
                     ytdQuery = ytdQuery.eq('member_id', myId);
@@ -427,12 +411,10 @@ window.attendanceApp = () => {
                     capQuery = capQuery.eq('member_id', myId);
                 }
 
-                // Fire queries concurrently
                 const[ { data: vData }, { data: aData }, { data: pData }, { data: bData }, { data: capData } ] = await Promise.all([
                     ytdQuery, attQuery, punchQuery, breakQuery, capQuery
                 ]);
 
-                // Map YTD Stats
                 let newYtdStats = {};
                 if (vData) {
                     vData.forEach(row => {
@@ -441,7 +423,6 @@ window.attendanceApp = () => {
                 }
                 this.ytdStats = newYtdStats;
 
-                // Map Attendance
                 let newAtt = {};
                 if (aData) {
                     aData.forEach(r => {
@@ -451,7 +432,11 @@ window.attendanceApp = () => {
                 }
                 this.attendanceData = newAtt;
 
-                // Map Punches, Breaks, Captchas
+                // 2. ✅ ADDED right here. Now it runs after 'this.attendanceData' is fully populated.
+                if (this.holidayList && this.holidayList.length > 0) {
+                    this.processAutoHolidays();
+                }
+
                 let newPunch = {};
                 if (pData) {
                     pData.forEach(r => {
@@ -475,7 +460,6 @@ window.attendanceApp = () => {
                 }
                 this.punchLogs = newPunch;
 
-                // Session validation check
                 if (this.userSession && !this.members.find(m => m.id === this.userSession.id)) {
                     this.logoutUser();
                 }
@@ -490,18 +474,15 @@ window.attendanceApp = () => {
             }
         },
 
-        // Legacy compatibility - redirects to manual sync
         async syncToCloud() {
             this.showNote("Syncing is now Realtime. No manual push required.", "success");
         },
 
-        // NEW ON-DEMAND FETCH METHOD
         async fetchHistoricalDate(targetDate) {
             this.isSyncing = true;
             this.fetchedOldDates.add(targetDate); 
             
             try {
-                // 1. Pull Attendance
                 const { data: aData } = await this.supabase.from('attendance').select('*').eq('date', targetDate);
                 if (aData) {
                     if (!this.attendanceData[targetDate]) this.attendanceData[targetDate] = {};
@@ -510,7 +491,6 @@ window.attendanceApp = () => {
                     });
                 }
 
-                // 2. Pull Punches, Breaks, Captchas
                 const { data: pData } = await this.supabase.from('punch_logs').select('*').eq('date', targetDate);
                 const { data: bData } = await this.supabase.from('break_logs').select('*').eq('log_date', targetDate);
                 const { data: capData } = await this.supabase.from('captcha_logs').select('*').eq('log_date', targetDate);
@@ -539,20 +519,15 @@ window.attendanceApp = () => {
                     });
                 }
 
-                // 3. Trigger Alpine Reactivity
-                this.attendanceData = { ...this.attendanceData };
-                this.punchLogs = { ...this.punchLogs };
-                
                 this.showNote(`Historical log loaded for ${this.formatDate(targetDate)}`, "success");
             } catch(e) { 
                 console.error("Historical Pull Error:", e); 
-                this.fetchedOldDates.delete(targetDate); // Let them try again if it failed
+                this.fetchedOldDates.delete(targetDate);
                 this.showNote("Failed to load historical data", "error");
             } finally { 
                 this.isSyncing = false; 
             }
         },
-
 
         // ==========================================
         //  🔄 CAPTCHA & APP LOGIC UPDATED
@@ -566,7 +541,7 @@ window.attendanceApp = () => {
                 this.members[idx].captchaEnabled = !current;
                 this.userSession.captchaEnabled = !current;
                 
-                this.upsertMemberCloud(this.members[idx]); // Targeted Save
+                this.upsertMemberCloud(this.members[idx]); 
 
                 if (this.userSession.captchaEnabled) {
                     if ("Notification" in window && Notification.permission !== "granted") Notification.requestPermission();
@@ -635,7 +610,6 @@ window.attendanceApp = () => {
             if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas = [];
             
             this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status });
-            this.punchLogs = { ...this.punchLogs };
             
             try {
                 await this.supabase.from('captcha_logs').insert({
@@ -692,7 +666,7 @@ window.attendanceApp = () => {
                 reason: this.newLeave.reason, status: 'pending'
             };
             this.leaveRequests.unshift(req);
-            this.upsertLeaveCloud(req); // Targeted Save
+            this.upsertLeaveCloud(req);
             this.showLeaveModal = false;
             this.newLeave = { type: 'a', startDate: '', endDate: '', reason: '' };
             this.showNote("Leave Request Forwarded", "success");
@@ -702,15 +676,14 @@ window.attendanceApp = () => {
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (!req) return;
             req.status = 'approved';
-            this.upsertLeaveCloud(req); // Targeted Save
+            this.upsertLeaveCloud(req); 
 
             for (let d = new Date(req.startDate); d <= new Date(req.endDate); d.setDate(d.getDate() + 1)) {
                 const dStr = getISTString(d);
                 if (!this.attendanceData[dStr]) this.attendanceData[dStr] = {};
                 this.attendanceData[dStr][req.empId] = req.type;
-                this.upsertAttCloud(dStr, req.empId, req.type); // Targeted Save
+                this.upsertAttCloud(dStr, req.empId, req.type); 
             }
-            this.attendanceData = {...this.attendanceData};
             this.showNote(`Approved leave for ${req.name}`);
         },
 
@@ -718,27 +691,22 @@ window.attendanceApp = () => {
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (req) {
                 req.status = 'rejected';
-                this.upsertLeaveCloud(req); // Targeted Save
+                this.upsertLeaveCloud(req); 
                 this.showNote(`Rejected leave for ${req.name}`, "error");
             }
         },
 
-        // FIX 3B: Use Bulk Upsert instead of N+1 API calls
         processAutoHolidays() {
             const bulkRecords =[];
             
             this.holidayList.forEach(h => {
                 this.members.forEach(m => {
                     if (h.dept === 'All' || h.dept === m.dept) {
-                        
-                        // FIX: Only auto-fill 'FH' if the slot is currently blank.
-                        // This prevents overwriting manual admin changes like 'CO'.
-                        if (!this.attendanceData[h.date]?.[m.id]) { 
-                            
+                        // FIX: Only apply holiday if the slot is empty
+                        if (!this.attendanceData[h.date]?.[m.id]) {
                             if(!this.attendanceData[h.date]) this.attendanceData[h.date] = {};
                             this.attendanceData[h.date][m.id] = 'fh';
                             
-                            // Queue it up instead of firing an API call immediately
                             bulkRecords.push({
                                 date: h.date,
                                 member_id: m.id,
@@ -749,9 +717,6 @@ window.attendanceApp = () => {
                 });
             });
             
-            this.attendanceData = {...this.attendanceData};
-            
-            // Fire exactly ONE api call containing all records
             if (bulkRecords.length > 0) {
                 this.bulkUpsertAttCloud(bulkRecords);
             }
@@ -761,7 +726,7 @@ window.attendanceApp = () => {
             if (!this.newHoliday.name || !this.newHoliday.date) return this.showNote("Invalid Details", "error");
             const h = { ...this.newHoliday, id: generateSecureId() };
             this.holidayList.push(h);
-            this.upsertHolidayCloud(h); // Targeted Save
+            this.upsertHolidayCloud(h); 
             this.newHoliday = { name: '', date: '', dept: 'All' };
             this.processAutoHolidays();
             this.showNote("Holiday Processed Successfully");
@@ -801,27 +766,26 @@ window.attendanceApp = () => {
         },
 
         resetIdleTimer() {
-            if (this.idleTimer) clearTimeout(this.idleTimer);
-            
-            // Determine who actually needs to be monitored for inactivity
-            const monitorAdmin = this.isAdminAuthenticated;
-            const monitorUser = this.userSession && !this.userSession.captchaEnabled;
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    
+    const monitorAdmin = this.isAdminAuthenticated;
+    // FIX: Add !this.userOnBreak so it stops monitoring idle time during breaks
+    const monitorUser = this.userSession && !this.userSession.captchaEnabled && !this.userOnBreak;
 
-            // Only start the countdown if the admin is logged in OR a user WITHOUT captcha is logged in
-            if (monitorAdmin || monitorUser) {
-                this.idleTimer = setTimeout(() => { 
-                    if (this.isAdminAuthenticated) { 
-                        this.logoutAdmin(); 
-                        this.showNote("Vault auto-locked due to inactivity", "error"); 
-                    }
-                    // Final safety check before logging out the user
-                    if (this.userSession && !this.userSession.captchaEnabled) {
-                        this.logoutUser(); 
-                        this.showNote("Session expired due to inactivity", "error");
-                    }
-                }, this.idleTimeout); 
+    if (monitorAdmin || monitorUser) {
+        this.idleTimer = setTimeout(() => { 
+            if (this.isAdminAuthenticated) { 
+                this.logoutAdmin(); 
+                this.showNote("Vault auto-locked due to inactivity", "error"); 
             }
-        },
+            // FIX: Add the check here as well before logging them out
+            if (this.userSession && !this.userSession.captchaEnabled && !this.userOnBreak) {
+                this.logoutUser(); 
+                this.showNote("Session expired due to inactivity", "error");
+            }
+        }, this.idleTimeout); 
+    }
+},
 
         async startBreak() {
             if (!this.userSession) return;
@@ -835,7 +799,6 @@ window.attendanceApp = () => {
             if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks =[];
             
             this.punchLogs[activeDate][uId].breaks.push({ start: startTime, end: '' });
-            this.punchLogs = { ...this.punchLogs };
             
             try {
                 await this.supabase.from('break_logs').insert({
@@ -868,7 +831,6 @@ window.attendanceApp = () => {
 
             if (breaks && breaks.length > 0 && !breaks[breaks.length - 1].end) {
                 breaks[breaks.length - 1].end = endTime;
-                this.punchLogs = { ...this.punchLogs };
                 
                 try {
                     await this.supabase.from('break_logs')
@@ -971,7 +933,6 @@ window.attendanceApp = () => {
                 }
             });
 
-            // Grab the true YTD data from the database view
             const dbYTD = this.ytdStats[id] || { leaves: 0, compOffs: 0, permHours: 0 };
 
             return {
@@ -985,7 +946,6 @@ window.attendanceApp = () => {
                     plAllowed: user.allowedPL || 0, 
                     slAllowed: user.allowedSL || 0, 
                     
-                    // UPDATED: Use the DB View for YTD calculations
                     coEarned: dbYTD.compOffs,
                     lvAvailYTD: ((user.allowedPL||0) + dbYTD.compOffs + (user.allowedSL||0)) - dbYTD.leaves,
                     prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
@@ -1034,7 +994,6 @@ window.attendanceApp = () => {
                     }
                 });
 
-                // UPDATED: Grab YTD totals directly from our SQL view state
                 const dbYTD = this.ytdStats[m.id] || { leaves: 0, compOffs: 0, permHours: 0 };
                 d.lvYTD = dbYTD.leaves;
                 d.prmYTDUsed = dbYTD.permHours;
@@ -1058,19 +1017,19 @@ window.attendanceApp = () => {
             });
         },
         get availablePersonnelOptions() { return this.filterDept ? this.members.filter(m => m.dept === this.filterDept) : this.members; },
+        
+        // OPTIMIZATION: Removed .sort() from this getter. Sorting now happens only on initialization/add.
         get filteredMembers() { 
-    return this.members
-        .filter(m => (!this.filterName || m.id === this.filterName) && (!this.filterDept || m.dept === this.filterDept))
-        .sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' })); 
-},
+            return this.members.filter(m => (!this.filterName || m.id === this.filterName) && (!this.filterDept || m.dept === this.filterDept)); 
+        },
+
         handleNameFilterChange() { if (this.filterName) this.filterDept = this.members.find(m => m.id === this.filterName)?.dept; },
 
         markAttendance(id, s) { 
             if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {}; 
             const newStatus = this.attendanceData[this.currentDate][id] === s ? "" : s;
             this.attendanceData[this.currentDate][id] = newStatus;
-            this.attendanceData = { ...this.attendanceData }; 
-            this.upsertAttCloud(this.currentDate, id, newStatus); // Targeted Save
+            this.upsertAttCloud(this.currentDate, id, newStatus); 
         },
         isMarked(id, s) { return this.attendanceData[this.currentDate]?.[id] === s; },
         getTimeInputVal(tStr) {
@@ -1096,8 +1055,8 @@ window.attendanceApp = () => {
             };
             this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
             this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
-            this.punchLogs = { ...this.punchLogs };
-            this.upsertPunchCloud(this.currentDate, id); // Targeted Save
+            
+            this.upsertPunchCloud(this.currentDate, id); 
             this.showNote("Punch Timings Saved", "success");
             this.editingLogId = null;
         },
@@ -1125,7 +1084,6 @@ window.attendanceApp = () => {
                     });
                     this.showNote("Break Force-Started", "success");
                 }
-                this.punchLogs = { ...this.punchLogs };
             } catch(e) { 
                 console.error("Admin break toggle error", e); 
                 this.showNote("Error saving break", "error");
@@ -1144,11 +1102,8 @@ window.attendanceApp = () => {
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
             
-            this.attendanceData = { ...this.attendanceData };
-            this.punchLogs = { ...this.punchLogs };
-            
-            this.upsertAttCloud(activeDate, uId, s); // Targeted Save
-            this.upsertPunchCloud(activeDate, uId); // Targeted Save
+            this.upsertAttCloud(activeDate, uId, s); 
+            this.upsertPunchCloud(activeDate, uId); 
             this.showNote("Shift Record Updated", "success");
             this.scheduleNextCaptcha();
         },
@@ -1161,9 +1116,8 @@ window.attendanceApp = () => {
             const breaks = this.punchLogs[activeDate][uId].breaks;
             if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = this.logoutTimePreview;
             this.punchLogs[activeDate][uId].out = this.logoutTimePreview;
-            this.punchLogs = { ...this.punchLogs };
             
-            this.upsertPunchCloud(activeDate, uId); // Targeted Save
+            this.upsertPunchCloud(activeDate, uId); 
             this.showLogoutModal = false; this.logoutUser(); this.showNote("Shift Logged Out", "success");
         },
 
@@ -1189,10 +1143,8 @@ window.attendanceApp = () => {
                 this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
 		this.setupUserRealtime();
 
-                // Trigger targeted fetch upon logging in
                 await this.syncUserData(true);
 
-                // 👇 NEW: Fetch Exceptions from the View
                 const { data: excData } = await this.supabase
                     .from('member_exceptions_view')
                     .select('date, status')
@@ -1206,20 +1158,18 @@ window.attendanceApp = () => {
                         status: this.statusOptions.find(s => s.id === log.status)
                     }));
                 }
-                // 👆 END NEW FETCH
 
                 const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
                 if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {}; 
                 if (!this.attendanceData[activeDate][uId]) {
                     this.attendanceData[activeDate][uId] = 'p'; 
-                    this.upsertAttCloud(activeDate, uId, 'p'); // Targeted Save
+                    this.upsertAttCloud(activeDate, uId, 'p');
                 }
                 if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                 if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                     this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
-                    this.upsertPunchCloud(activeDate, uId); // Targeted Save
+                    this.upsertPunchCloud(activeDate, uId);
                 }
-                this.attendanceData = { ...this.attendanceData }; this.punchLogs = { ...this.punchLogs };
                 this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
                 this.scheduleNextCaptcha();
             } else { 
@@ -1234,12 +1184,11 @@ window.attendanceApp = () => {
                 const idx = this.members.findIndex(m => m.id === this.tempUser.id); 
                 if (idx !== -1) { 
                     this.members[idx].pin = this.loginPinInput; 
-                    this.upsertMemberCloud(this.members[idx]); // Targeted Save
+                    this.upsertMemberCloud(this.members[idx]); 
                     this.userSession = JSON.parse(JSON.stringify(this.members[idx])); 
-		    this.setupUserRealtime(); // 👇 ADD THIS LINE HERE	
-		    await this.syncUserData(true); // <--- ADD THIS MISSING LINE HERE  	
+		    this.setupUserRealtime();
+		    await this.syncUserData(true); 
 
-                    // 👇 NEW: Fetch Exceptions from the View
                     const { data: excData } = await this.supabase
                         .from('member_exceptions_view')
                         .select('date, status')
@@ -1253,19 +1202,17 @@ window.attendanceApp = () => {
                             status: this.statusOptions.find(s => s.id === log.status)
                         }));
                     }
-                    // 👆 END NEW FETCH
 
                     const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
                     if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {}; 
                     this.attendanceData[activeDate][uId] = 'p'; 
-                    this.upsertAttCloud(activeDate, uId, 'p'); // Targeted Save
+                    this.upsertAttCloud(activeDate, uId, 'p');
 
                     if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                     if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                         this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
-                        this.upsertPunchCloud(activeDate, uId); // Targeted Save
+                        this.upsertPunchCloud(activeDate, uId);
                     }
-                    this.attendanceData = { ...this.attendanceData }; this.punchLogs = { ...this.punchLogs };
                     this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
                     this.scheduleNextCaptcha(); this.showNote("Security Registered", "success"); 
                 } 
@@ -1285,7 +1232,6 @@ window.attendanceApp = () => {
                 this.resetIdleTimer();
                 this.setupUserRealtime(); 
                 
-                // Fetch full admin dashboard data upon logging in
                 this.syncUserData(true);
             } 
             else { 
@@ -1300,7 +1246,6 @@ window.attendanceApp = () => {
             this.view = 'portal'; 
             if(this.idleTimer) clearTimeout(this.idleTimer); 
 
-            // 👇 ADD THIS CHUNK
             if (this.userSyncChannel) {
                 this.supabase.removeChannel(this.userSyncChannel);
                 this.userSyncChannel = null;
@@ -1310,7 +1255,7 @@ window.attendanceApp = () => {
         changeAdminPin() {
             if (this.newPinValue.length === 6) { 
                 this.masterPin = this.newPinValue; 
-                this.upsertConfigCloud('master_pin', this.masterPin); // Targeted Save
+                this.upsertConfigCloud('master_pin', this.masterPin); 
                 this.newPinValue = ''; this.showNote("Master PIN Updated", "success"); 
             } else this.showNote("PIN must be 6 digits", "error");
         },
@@ -1323,8 +1268,10 @@ window.attendanceApp = () => {
             if (this.isEditing) { const idx = this.members.findIndex(m => m.empId === cleanMember.empId); if (idx !== -1) this.members[idx] = cleanMember; }
             else { if (this.members.find(m => m.empId === cleanMember.empId)) return this.showNote("ID exists", "error"); this.members.push(cleanMember); }
             
-            this.members = [...this.members]; 
-            this.upsertMemberCloud(cleanMember); // Targeted Save
+            // OPTIMIZATION: Sort exactly once after adding
+            this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' })); 
+
+            this.upsertMemberCloud(cleanMember); 
             this.processAutoHolidays(); 
             this.resetMemberForm();
         },
@@ -1342,7 +1289,6 @@ window.attendanceApp = () => {
         
         async executeWipe() { 
             if (this.deleteTarget === 'local') { 
-                // Caution: Real Cloud Wipe for the tables
                 try {
                     await this.supabase.from('members').delete().neq('id', '0');
                     await this.supabase.from('attendance').delete().neq('date', '1970-01-01');
@@ -1353,7 +1299,7 @@ window.attendanceApp = () => {
                 } catch(e) { console.error(e); }
             } else if (this.deleteTarget === 'member') { 
                 this.members = this.members.filter(m => m.id !== this.memberToDelete); 
-                try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch(e){} // Targeted Delete
+                try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch(e){} 
             } 
             this.showDeleteModal = false; 
         },
@@ -1400,7 +1346,7 @@ window.attendanceApp = () => {
 
         toggleAutoExport() {
             this.autoExportEnabled = !this.autoExportEnabled;
-            this.upsertConfigCloud('export_settings', { autoExportEnabled: this.autoExportEnabled, autoExportTime: this.autoExportTime, lastAutoExportDate: this.lastAutoExportDate }); // Targeted Save
+            this.upsertConfigCloud('export_settings', { autoExportEnabled: this.autoExportEnabled, autoExportTime: this.autoExportTime, lastAutoExportDate: this.lastAutoExportDate }); 
             this.showNote(this.autoExportEnabled ? `Auto-Export set for ${this.autoExportTime} IST` : "Auto-Export Disabled", "success");
         },
 
@@ -1410,14 +1356,12 @@ window.attendanceApp = () => {
             reader.onload = async (e) => {
                 try {
                     const parsed = JSON.parse(e.target.result);
-                    // Minimal processing for now - to fully support imports, it'd map to the new UPSERT structure.
                     this.showNote("Direct JSON imports are disabled in relational mode. Contact DB Admin.", "error");
                 } catch (err) { this.showNote("Error reading JSON file.", "error"); } finally { event.target.value = ''; }
             }; reader.readAsText(file);
         },
 
         importFromExcel(event) {
-            // Similarly disabled for safety in relational transition.
             this.showNote("Direct Excel restores are disabled in relational mode. Contact DB Admin.", "error");
             event.target.value = '';
         },
@@ -1433,7 +1377,7 @@ window.attendanceApp = () => {
             const idx = this.members.findIndex(m => m.id === id);
             if (idx !== -1) { 
                 this.members[idx].pin = ''; 
-                this.upsertMemberCloud(this.members[idx]); // Targeted Save
+                this.upsertMemberCloud(this.members[idx]); 
                 this.showNote("User security reset"); 
             }
         }
@@ -1465,7 +1409,6 @@ window.attendanceApp = () => {
 </head>
 <body class="text-zinc-900 h-screen w-full flex flex-col overflow-hidden" x-data="attendanceApp()" x-init="init()" x-cloak>
 
-    <!-- CAPTCHA VERIFICATION MODAL -->
     <div x-show="showCaptchaModal" class="fixed inset-0 z-[6000] flex items-center justify-center p-6 bg-zinc-950/80 backdrop-blur-sm" x-transition x-cloak>
         <div class="relative bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center shadow-2xl animate-in zoom-in-95">
             <div class="w-16 h-16 bg-[#0f4c81] text-white rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-lg border-2 border-white">
@@ -1475,7 +1418,6 @@ window.attendanceApp = () => {
             <p class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Enter the code below</p>
             
             <div class="bg-zinc-100 p-4 rounded-xl mb-6 select-none relative overflow-hidden flex items-center justify-center">
-                <!-- Distorted background effect for captcha -->
                 <div class="absolute inset-0 opacity-20 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, #000 0, #000 2px, transparent 2px, transparent 8px);"></div>
                 <span class="text-5xl font-black tracking-[0.3em] pl-3 text-zinc-800 relative z-10 font-mono" x-text="captchaTargetNumber"></span>
             </div>
@@ -1486,7 +1428,6 @@ window.attendanceApp = () => {
         </div>
     </div>
 
-    <!-- ON BREAK LOCK SCREEN -->
     <div x-show="userSession && userOnBreak" class="fixed inset-0 z-[5000] bg-[#0a192f] flex flex-col items-center justify-center text-white" x-transition x-cloak>
         <div x-data="{ activeIcon: 1 }" 
              x-init="setInterval(() => { activeIcon = activeIcon === 7 ? 1 : activeIcon + 1 }, 3000)" 
@@ -1573,7 +1514,6 @@ window.attendanceApp = () => {
         </div>
     </div>
 
-    <!-- UPDATE 1: Replaced background colors and updated logo setup for RevCentric -->
     <nav class="flex flex-col md:flex-row shrink-0 items-center justify-between px-4 md:px-10 py-3 md:py-5 bg-[#0f4c81] border-b border-[#0d406d] z-[2000] gap-4">
         <div class="flex items-center justify-between w-full md:w-auto">
             <div class="flex items-center gap-3 bg-white p-1.5 rounded-xl shadow-lg pr-4">
@@ -1595,7 +1535,6 @@ window.attendanceApp = () => {
         </div>
         
         <div class="flex items-center bg-white/5 p-1 rounded-2xl border border-white/5 w-full md:w-auto overflow-x-auto no-scrollbar">
-            <!-- UPDATE 1: Active item color matches RevCentric Orange and inactive text is transparent white -->
             <template x-for="item in menuItems" :key="item.id">
                 <button x-show="!item.admin || isManagerOrLead || members.length === 0" 
                         @click="view = item.id; resetMemberForm()" 
@@ -1722,7 +1661,6 @@ window.attendanceApp = () => {
                             </div>
                         </div>
                         
-                        <!-- Compact IST Time Widget replaces Time-off Request -->
                         <div class="flex flex-col items-end justify-center shrink-0 bg-transparent px-5 py-3 rounded-[1.5rem] relative overflow-hidden">
                             <div class="flex items-center gap-2 mb-0.5 z-10">
                                 <span class="w-1.5 h-1.5 rounded-full bg-[#f26522] animate-pulse"></span>
@@ -1754,7 +1692,6 @@ window.attendanceApp = () => {
                                     </div>
                                 </div>
                                 
-                                <!-- Unified Quick Actions Panel: Take Break -> Day Log Out -> Time-Off -->
                                 <div class="flex flex-wrap items-center gap-2 shrink-0 bg-zinc-50 p-2 rounded-2xl border border-zinc-100">
                                     
                                     <template x-if="!userOnBreak && punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in && !punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out">
@@ -1770,7 +1707,6 @@ window.attendanceApp = () => {
                                 </div>
                             </div>
                             
-                            <!-- Toggle Captcha Check Section inside Portal -->
                             <div class="mt-6 pt-5 border-t border-zinc-100 flex items-center justify-between">
                                 <div class="flex items-center gap-4">
                                     <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-[0.8rem] flex items-center justify-center">
@@ -1969,24 +1905,24 @@ window.attendanceApp = () => {
                                 <div class="divide-y divide-zinc-50 flex-1 max-h-[320px] overflow-y-auto custom-scrollbar">
                                     
                                     <template x-for="log in userExceptionHistory" :key="log.date">
-    <div class="p-6 flex items-center justify-between hover:bg-zinc-50 transition-colors">
-        <div>
-            <h5 class="text-sm font-black uppercase text-zinc-950 tracking-tight" x-text="log.status.label"></h5>
-            <div class="flex items-center gap-2 mt-1">
-                <span class="text-[10px] font-black text-zinc-500 uppercase tracking-widest" x-text="log.label"></span>
-                <span class="text-zinc-300">•</span>
-                <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest" x-text="log.date"></span>
-            </div>
-        </div>
-        <span :class="log.status.bg + ' ' + log.status.color" class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.display"></span>
-    </div>
-</template>
+                                        <div class="p-6 flex items-center justify-between hover:bg-zinc-50 transition-colors">
+                                            <div>
+                                                <h5 class="text-sm font-black uppercase text-zinc-950 tracking-tight" x-text="log.status.label"></h5>
+                                                <div class="flex items-center gap-2 mt-1">
+                                                    <span class="text-[10px] font-black text-zinc-500 uppercase tracking-widest" x-text="log.label"></span>
+                                                    <span class="text-zinc-300">•</span>
+                                                    <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest" x-text="log.date"></span>
+                                                </div>
+                                            </div>
+                                            <span :class="log.status.bg + ' ' + log.status.color" class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.display"></span>
+                                        </div>
+                                    </template>
 
-<template x-if="userExceptionHistory.length === 0">
-    <div class="p-12 text-center text-zinc-400 font-bold uppercase tracking-widest text-xs">
-        No absences, permissions, or exceptions found on record.
-    </div>
-</template>
+                                    <template x-if="userExceptionHistory.length === 0">
+                                        <div class="p-12 text-center text-zinc-400 font-bold uppercase tracking-widest text-xs">
+                                            No absences, permissions, or exceptions found on record.
+                                        </div>
+                                    </template>
                                     
                                 </div>
                             </div>
@@ -2070,9 +2006,9 @@ window.attendanceApp = () => {
                                     <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
                                 </div>
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-sm flex flex-col justify-between h-full portal-card">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-4">Confirmed Presents (Incl. WFH)</p>
-                                    <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="(dashboardStats.totals['p'] || 0) + (dashboardStats.totals['wfh'] || 0)"></h3>
-                                </div>
+    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-4">Confirmed Presents (Incl. WFH & Perms)</p>
+    <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="(dashboardStats.totals['p'] || 0) + (dashboardStats.totals['wfh'] || 0) + (dashboardStats.totals['1p'] || 0) + (dashboardStats.totals['2p'] || 0)"></h3>
+</div>
                                 <div class="bg-white p-8 rounded-[2rem] border border-zinc-100 shadow-sm flex flex-col justify-between h-full portal-card">
                                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-4">Confirmed Absents</p>
                                     <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="dashboardStats.totals['a'] || 0"></h3>
