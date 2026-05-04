@@ -65,9 +65,11 @@ window.attendanceApp = () => {
 
         captchaTimer: null,
         captchaTimeoutTimer: null,
+        titleFlashInterval: null,
         showCaptchaModal: false,
         captchaTargetNumber: '',
         captchaInput: '',
+        currentCaptchaTime: null,
 
         adminFailedAttempts: 0,
         adminLockoutUntil: 0,
@@ -191,6 +193,18 @@ window.attendanceApp = () => {
                     }
                 }
             }, 30000);
+
+            // Listen for captcha triggers broadcast from other open tabs
+            try {
+                const bc = new BroadcastChannel('revcentric_captcha');
+                bc.onmessage = (e) => {
+                    if (e.data?.type === 'CAPTCHA_TRIGGERED' && this.userSession && e.data.userId === this.userSession.id) {
+                        // Another tab fired the captcha — bring this tab to attention too
+                        try { window.focus(); } catch(err) {}
+                        if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+                    }
+                };
+            } catch(e) {}
         },
 
         setupUserRealtime() {
@@ -490,11 +504,7 @@ window.attendanceApp = () => {
             }
         },
 
-        async syncToCloud() {
-            this.showNote("Syncing is now Realtime. No manual push required.", "success");
-        },
-
-        async fetchHistoricalDate(targetDate) {
+            async fetchHistoricalDate(targetDate) {
             this.isSyncing = true;
             this.fetchedOldDates.add(targetDate); 
             
@@ -551,7 +561,7 @@ window.attendanceApp = () => {
             if (!this.userSession) return;
             const idx = this.members.findIndex(m => m.id === this.userSession.id);
             if (idx > -1) {
-                let current = this.members[idx].captchaEnabled;
+                const current = !!this.members[idx].captchaEnabled;
                 this.members[idx].captchaEnabled = !current;
                 this.userSession.captchaEnabled = !current;
                 
@@ -569,8 +579,34 @@ window.attendanceApp = () => {
         },
 
         clearCaptchaTimers() {
-            if (this.captchaTimer) clearTimeout(this.captchaTimer);
-            if (this.captchaTimeoutTimer) clearTimeout(this.captchaTimeoutTimer);
+            if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
+            if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
+
+            // Stop looping audio alarm
+            if (this._captchaAudio) {
+                try { this._captchaAudio.pause(); this._captchaAudio.currentTime = 0; } catch(e) {}
+                this._captchaAudio = null;
+            }
+
+            // Stop vibration
+            try { if (navigator.vibrate) navigator.vibrate(0); } catch(e) {}
+
+            // Remove visibility / focus listeners
+            if (this._captchaVisibilityHandler) {
+                document.removeEventListener('visibilitychange', this._captchaVisibilityHandler);
+                window.removeEventListener('focus', this._captchaVisibilityHandler);
+                this._captchaVisibilityHandler = null;
+            }
+
+            // Exit fullscreen (only if we triggered it — safe to call regardless)
+            try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch(e) {}
+
+            // Stop the tab from flashing and restore original title
+            if (this.titleFlashInterval) {
+                clearInterval(this.titleFlashInterval);
+                this.titleFlashInterval = null;
+                document.title = "RevCentric Solutions";
+            }
         },
 
         scheduleNextCaptcha() {
@@ -579,26 +615,114 @@ window.attendanceApp = () => {
             const activeDate = this.getActiveShiftDate();
             const log = this.punchLogs[activeDate]?.[this.userSession.id];
             if (!log || !log.in || log.out) return;
-            const interval = Math.floor(Math.random() * (35 * 60000 - 20 * 60000 + 1)) + 20 * 60000;
-            this.captchaTimer = setTimeout(() => this.triggerCaptcha(), interval);
+            const minMs = 20 * 60 * 1000;
+            const maxMs = 35 * 60 * 1000;
+            const interval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+            this.captchaTimer = setTimeout(() => {
+                // Re-check conditions at fire time in case user has since punched out
+                const currentLog = this.punchLogs[this.getActiveShiftDate()]?.[this.userSession?.id];
+                if (this.userSession && this.userSession.captchaEnabled && !this.userOnBreak && currentLog?.in && !currentLog?.out) {
+                    this.triggerCaptcha();
+                }
+            }, interval);
         },
 
         triggerCaptcha() {
-            // Generate a single-digit code (0-9)
+            // ── HARD ENTRY GUARD — never fire if user is inactive ─────────────────
+            if (!this.userSession || !this.userSession.captchaEnabled) return;
+            if (this.userOnBreak) return;
+            const _guardDate = this.getActiveShiftDate();
+            const _guardLog = this.punchLogs[_guardDate]?.[this.userSession.id];
+            if (!_guardLog?.in || _guardLog?.out) return;
+            // ─────────────────────────────────────────────────────────────────────
+
             this.captchaTargetNumber = Math.floor(Math.random() * 10).toString();
             this.captchaInput = '';
             this.showCaptchaModal = true;
-            
-            // Enhanced Push Notification (requires interaction and persists until closed)
+
+            // Log "Pending" immediately
+            this.currentCaptchaTime = this.getCurrentTimeIST();
+            this.recordCaptchaResult('Pending', this.currentCaptchaTime);
+
+            // ── 1. SYSTEM PUSH NOTIFICATION (shows outside the browser) ──────────
             if ("Notification" in window && Notification.permission === "granted") {
-                new Notification("Verification Required", { 
-                    body: "Action needed immediately: Please verify your identity.", 
-                    icon: "logo.png",
-                    requireInteraction: true,
-                    vibrate: [200, 100, 200]
-                });
+                try {
+                    new Notification("🚨 Identity Verification Required", {
+                        body: "Return to RevCentric NOW and enter your code. Failure will lock your session.",
+                        icon: "logo.png",
+                        requireInteraction: true,   // stays until user clicks
+                        vibrate: [300, 100, 300, 100, 300],
+                        tag: "captcha-alert",       // replaces previous if already showing
+                        renotify: true
+                    });
+                } catch(e) {}
             }
-            this.captchaTimeoutTimer = setTimeout(() => this.handleCaptchaTimeout(), 120000);
+
+            // ── 2. FORCE WINDOW FOCUS (brings browser to front) ──────────────────
+            try { window.focus(); } catch(e) {}
+
+            // ── 3. FULLSCREEN (steals focus on mobile / kiosk devices) ────────────
+            try {
+                const el = document.documentElement;
+                if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+                else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+            } catch(e) {}
+
+            // ── 4. REPEATING AUDIO ALARM (loops until captcha is dismissed) ───────
+            try {
+                this._captchaAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                this._captchaAudio.loop = true;
+                this._captchaAudio.volume = 1.0;
+                this._captchaAudio.play().catch(() => {
+                    // If autoplay blocked (user hasn't interacted yet), retry once on next user gesture
+                    const unlockAudio = () => {
+                        this._captchaAudio?.play().catch(() => {});
+                        document.removeEventListener('click', unlockAudio);
+                        document.removeEventListener('keydown', unlockAudio);
+                    };
+                    document.addEventListener('click', unlockAudio, { once: true });
+                    document.addEventListener('keydown', unlockAudio, { once: true });
+                });
+            } catch(e) {}
+
+            // ── 5. DEVICE VIBRATION (mobile) ──────────────────────────────────────
+            try {
+                if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
+            } catch(e) {}
+
+            // ── 6. TAB TITLE FLASHING ─────────────────────────────────────────────
+            const originalTitle = document.title || "RevCentric Solutions";
+            let isFlashing = false;
+            this.titleFlashInterval = setInterval(() => {
+                document.title = isFlashing ? "🚨 VERIFY NOW 🚨" : originalTitle;
+                isFlashing = !isFlashing;
+            }, 800);
+
+            // ── 7. BROADCAST TO ALL OPEN TABS (multi-tab environments) ────────────
+            try {
+                const bc = new BroadcastChannel('revcentric_captcha');
+                bc.postMessage({ type: 'CAPTCHA_TRIGGERED', userId: this.userSession?.id });
+                bc.close();
+            } catch(e) {}
+
+            // ── 8. RE-FOCUS INPUT EVERY TIME USER RETURNS TO THIS TAB ─────────────
+            this._captchaVisibilityHandler = () => {
+                if (!document.hidden && this.showCaptchaModal) {
+                    try { window.focus(); } catch(e) {}
+                    setTimeout(() => {
+                        const el = document.querySelector('[x-ref="captchaInputRef"]') ||
+                                   document.getElementById('captcha-input-field');
+                        if (el) el.focus();
+                    }, 100);
+                }
+            };
+            document.addEventListener('visibilitychange', this._captchaVisibilityHandler);
+            window.addEventListener('focus', this._captchaVisibilityHandler);
+
+            // ── 9. THE 2-MINUTE TIMEOUT ───────────────────────────────────────────
+            this.captchaTimeoutTimer = setTimeout(() => {
+                this.handleCaptchaTimeout();
+            }, 120000);
         },
 
         submitCaptcha() {
@@ -608,6 +732,7 @@ window.attendanceApp = () => {
             
             const passed = this.captchaInput === this.captchaTargetNumber;
             this.recordCaptchaResult(passed ? 'Passed' : 'Failed');
+            this.currentCaptchaTime = null;
             
             if (passed) {
                 this.showNote("Verified Successfully", "success");
@@ -625,29 +750,44 @@ window.attendanceApp = () => {
             this.clearCaptchaTimers();
             
             this.recordCaptchaResult('Missed');
+            this.currentCaptchaTime = null;
             
             // Auto-initiate break upon missing the timeout window
             this.showNote("Verification Missed. Auto-initiating break.", "error");
             this.startBreak();
         },
 
-        async recordCaptchaResult(status) {
+        async recordCaptchaResult(status, timeOverride = null) {
             if (!this.userSession) return;
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
-            const checkTime = this.getCurrentTimeIST();
+            const checkTime = timeOverride || this.currentCaptchaTime || this.getCurrentTimeIST();
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas: [] };
-            if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas =[];
+            if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas = [];
             
-            this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status });
+            // Update local state: if a record exists for this time, update it. Else, push a new one.
+            const existingIdx = this.punchLogs[activeDate][uId].captchas.findIndex(c => c.time === checkTime);
+            if (existingIdx > -1) {
+                this.punchLogs[activeDate][uId].captchas[existingIdx].status = status;
+            } else {
+                this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status });
+            }
             this.punchLogs = { ...this.punchLogs };
             
             try {
-                await this.supabase.from('captcha_logs').insert({
-                    member_id: uId, log_date: activeDate, check_time: checkTime, status: status
-                });
+                if (status === 'Pending') {
+                    // 1. Insert the trap
+                    await this.supabase.from('captcha_logs').insert({
+                        member_id: uId, log_date: activeDate, check_time: checkTime, status: status
+                    });
+                } else {
+                    // 2. Update the trap (User passed/failed/missed legitimately)
+                    await this.supabase.from('captcha_logs')
+                        .update({ status: status })
+                        .match({ member_id: uId, log_date: activeDate, check_time: checkTime });
+                }
             } catch(e) { console.error("Captcha log error", e); }
         },
 
@@ -882,13 +1022,15 @@ window.attendanceApp = () => {
             if(!t1 || !t2) return 0;
             const p = (str) => {
                 const m = str.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                if(!m) return new Date();
+                if(!m) return null;
                 let h = parseInt(m[1], 10);
                 if(m[3].toUpperCase() === 'PM' && h < 12) h += 12;
                 if(m[3].toUpperCase() === 'AM' && h === 12) h = 0;
                 const d = new Date(); d.setHours(h, parseInt(m[2], 10), 0, 0); return d;
             };
-            let diff = (p(t2) - p(t1)) / 60000;
+            const d1 = p(t1), d2 = p(t2);
+            if (!d1 || !d2) return 0;
+            let diff = (d2 - d1) / 60000;
             return Math.floor(diff < 0 ? diff + 1440 : diff);
         },
         calculateTotalBreakMins(breaks) {
@@ -1150,6 +1292,9 @@ window.attendanceApp = () => {
         
         initiateLogout() { if (!this.userSession) return; this.logoutTimePreview = this.getCurrentTimeIST(); this.showLogoutModal = true; },
         confirmLogoutPortal() {
+            // Kill captcha immediately — must be first, before any state writes
+            this.clearCaptchaTimers();
+
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas:[] };
@@ -1172,19 +1317,59 @@ window.attendanceApp = () => {
         
         handleIdEntry() { 
             const found = this.members.find(m => m.empId.trim().toUpperCase() === this.loginIdInput.trim().toUpperCase()); 
-            if (found) { this.tempUser = JSON.parse(JSON.stringify(found)); this.loginStep = !found.pin ? 'setup' : 'pin'; setTimeout(() => document.getElementById(this.loginStep === 'pin' ? 'login-pin-input' : 'setup-pin-input')?.focus(), 50); } 
-            else this.showNote("Invalid ID", "error"); 
+            if (found) {
+                this.tempUser = JSON.parse(JSON.stringify(found));
+                this.loginStep = !found.pin ? 'setup' : 'pin';
+                // Request notification permission now (user gesture = browser will actually prompt)
+                if ("Notification" in window && Notification.permission === "default") {
+                    Notification.requestPermission().catch(() => {});
+                }
+                setTimeout(() => document.getElementById(this.loginStep === 'pin' ? 'login-pin-input' : 'setup-pin-input')?.focus(), 50);
+            } else this.showNote("Invalid ID", "error"); 
         },
         
         async handlePinVerification() { 
             const uid = this.tempUser.id;
             if (this.userLockoutUntil[uid] && Date.now() < this.userLockoutUntil[uid]) { this.loginPinInput = ''; return this.showNote(`Account locked. Try again later`, "error"); }
+            
             if (this.loginPinInput === this.tempUser.pin) { 
                 this.userFailedAttempts[uid] = 0; 
                 this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
-		this.setupUserRealtime();
+                this.setupUserRealtime();
 
                 await this.syncUserData(true);
+
+                // ==========================================
+                // 🚨 RETROACTIVE PENALTY TRAP 🚨
+                // ==========================================
+                const trapDate = this.getActiveShiftDate(); // <-- FIXED: Renamed to trapDate
+                
+                // Look for any 'Pending' captchas in today's log
+                const todaysCaptchas = this.punchLogs[trapDate]?.[uid]?.captchas || [];
+                const pendingCaptchas = todaysCaptchas.filter(c => c.status === 'Pending');
+
+                if (pendingCaptchas.length > 0) {
+                    this.showNote("Window closed during verification. Penalty applied.", "error");
+                    
+                    // Mark all abandoned captchas as 'Missed' in the Cloud
+                    for (const cap of pendingCaptchas) {
+                        cap.status = 'Missed';
+                        await this.supabase.from('captcha_logs')
+                            .update({ status: 'Missed' })
+                            .match({ member_id: uid, log_date: trapDate, check_time: cap.time });
+                    }
+                    this.punchLogs = { ...this.punchLogs }; 
+                    
+                    // Force the user into a locked break state immediately
+                    this.startBreak();
+                    
+                    // Reset login screen and abort the rest of the normal login flow
+                    this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
+                    return; 
+                }
+                // ==========================================
+                // END TRAP
+                // ==========================================
 
                 const { data: excData } = await this.supabase
                     .from('member_exceptions_view')
@@ -1260,7 +1445,7 @@ window.attendanceApp = () => {
             } else this.showNote("PIN must be 6 digits", "error"); 
         },
 
-        logoutUser() { this.clearCaptchaTimers(); this.userSession = null; if (this.userSyncChannel) {this.supabase.removeChannel(this.userSyncChannel);this.userSyncChannel = null;} this.loginStep = 'id'; setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); },
+        logoutUser() { this.clearCaptchaTimers(); this.currentCaptchaTime = null; this.userSession = null; if (this.userSyncChannel) {this.supabase.removeChannel(this.userSyncChannel);this.userSyncChannel = null;} this.loginStep = 'id'; setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); },
 
         cancelLogin() { this.loginStep = 'id'; this.tempUser = null; this.loginIdInput = ''; this.loginPinInput = ''; setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); },
 
@@ -1333,6 +1518,8 @@ window.attendanceApp = () => {
                     await this.supabase.from('members').delete().neq('id', '0');
                     await this.supabase.from('attendance').delete().neq('date', '1970-01-01');
                     await this.supabase.from('punch_logs').delete().neq('date', '1970-01-01');
+                    await this.supabase.from('break_logs').delete().neq('log_date', '1970-01-01');
+                    await this.supabase.from('captcha_logs').delete().neq('log_date', '1970-01-01');
                     await this.supabase.from('leave_requests').delete().neq('id', '0');
                     await this.supabase.from('holidays').delete().neq('id', '0');
                     window.location.reload(); 
@@ -1565,28 +1752,7 @@ async fetchReportDataRange() {
             this.showNote(this.autoExportEnabled ? `Auto-Export set for ${this.autoExportTime} IST` : "Auto-Export Disabled", "success");
         },
 
-        importFromJson(event) {
-            const file = event.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const parsed = JSON.parse(e.target.result);
-                    this.showNote("Direct JSON imports are disabled in relational mode. Contact DB Admin.", "error");
-                } catch (err) { this.showNote("Error reading JSON file.", "error"); } finally { event.target.value = ''; }
-            }; reader.readAsText(file);
-        },
-
-        importFromExcel(event) {
-            this.showNote("Direct Excel restores are disabled in relational mode. Contact DB Admin.", "error");
-            event.target.value = '';
-        },
-        
-        exportBackupJSON() {
-            const payload = { members: this.members, attendanceData: this.attendanceData, punchLogs: this.punchLogs, roles: this.roles, departments: this.departments, holidayList: this.holidayList };
-            const dlAnchorElem = document.createElement('a'); dlAnchorElem.setAttribute("href", "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload))); dlAnchorElem.setAttribute("download", `Attendly_Backup_${getISTString()}.json`); dlAnchorElem.click();
-        },
-
-        openNewMemberForm() { this.isAddingMember = true; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
+         openNewMemberForm() { this.isAddingMember = true; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
         removeMember(id) { this.memberToDelete = id; this.confirmWipe('member'); },
         resetUserPin(id) {
             const idx = this.members.findIndex(m => m.id === id);
@@ -1737,13 +1903,18 @@ async fetchReportDataRange() {
             <div class="flex items-center gap-3 bg-white p-1.5 rounded-xl shadow-lg pr-4">
                 <img src="logo.png" alt="RevCentric Solutions" class="h-8 md:h-10 object-contain" onerror="this.style.display='none';">
                 <h1 class="text-xl md:text-2xl font-black tracking-tighter text-[#f26522]">
-  <span class="text-[#0f4c81]">Rev</span>Centric <span class="text-[#0f4c81]">Solutions</span>
-</h1>
+                    <span class="text-[#0f4c81]">Rev</span>Centric <span class="text-[#0f4c81]">Solutions</span>
+                </h1>
             </div>
             <div class="flex items-center gap-3 md:hidden">
                 <div class="flex items-center px-3 py-1 bg-black/20 border border-white/5 rounded-full transition-colors" :class="syncError ? 'bg-rose-950/40 border-rose-900/50' : ''">
                     <span class="cloud-indicator m-0" :class="syncError ? 'bg-rose-500' : (isSyncing ? 'status-syncing' : 'status-synced')"></span>
                 </div>
+                
+                <button @click="syncUserData(false)" title="Refresh Data" class="relative w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors" :class="isSyncing ? 'animate-spin' : ''">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                </button>
+
                 <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                     <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-zinc-950" x-text="pendingLeaveCount + todayEvents.length"></span>
@@ -1768,6 +1939,11 @@ async fetchReportDataRange() {
                 <span class="cloud-indicator" :class="syncError ? 'bg-rose-500' : (isSyncing ? 'status-syncing' : 'status-synced')"></span>
                 <p class="text-[10px] font-black uppercase tracking-widest transition-colors" :class="syncError ? 'text-rose-400' : 'text-white/70'" x-text="syncError ? 'OFFLINE' : (isSyncing ? 'SYNC' : 'ACTIVE')"></p>
             </div>
+
+            <button @click="syncUserData(false)" title="Refresh Data" class="relative w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors" :class="isSyncing ? 'animate-spin' : ''">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+            </button>
+
             <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#0f4c81]" x-text="pendingLeaveCount + todayEvents.length"></span>
