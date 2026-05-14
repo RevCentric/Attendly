@@ -46,6 +46,7 @@ window.attendanceApp = () => {
         newPinValue: '',
 
         userSession: null,
+        localSessionToken: null, // <-- ADDED: Tracks this device's unique session
         userSyncChannel: null, 
         loginIdInput: '',
         loginPinInput: '',
@@ -155,6 +156,7 @@ window.attendanceApp = () => {
             }   
 
             this.userSession = null;
+            this.localSessionToken = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
 
             await this.syncInitialConfig();
@@ -242,7 +244,8 @@ window.attendanceApp = () => {
                                     name: `${dbMember.first_name} ${dbMember.last_name || ''}`.trim(),
                                     dept: dbMember.dept, role: dbMember.role, shift: dbMember.shift, pin: dbMember.pin,
                                     doj: dbMember.doj, doe: dbMember.doe, dob: dbMember.dob, allowedPL: dbMember.allowed_pl, allowedSL: dbMember.allowed_sl, 
-                                    allowedPerm: dbMember.allowed_perm, captchaEnabled: dbMember.captcha_enabled, auth_id: dbMember.auth_id
+                                    allowedPerm: dbMember.allowed_perm, captchaEnabled: dbMember.captcha_enabled, auth_id: dbMember.auth_id,
+                                    current_session: dbMember.current_session
                                 };
                             }
                         }
@@ -253,6 +256,8 @@ window.attendanceApp = () => {
                                 await this.supabase.auth.signOut();
                                 return;
                             }
+                            // Store locally to check against Realtime updates
+                            this.localSessionToken = matchedMember.current_session;
                             this.userSession = JSON.parse(JSON.stringify(matchedMember));
                             this.setupUserRealtime();
                             this.syncUserData(true);
@@ -265,7 +270,6 @@ window.attendanceApp = () => {
         },
 
         async fetchDeviceAndNetworkInfo() {
-            // 1. Detect OS and Version from User Agent
             const ua = navigator.userAgent;
             let os = "Unknown OS";
             
@@ -291,22 +295,16 @@ window.attendanceApp = () => {
                 os = "Linux";
             }
 
-            // 2. Fetch IP and Geolocation
             try {
-                // Using ipapi.co for geolocation (supports https out of the box)
                 const res = await fetch('https://ipapi.co/json/');
                 const data = await res.json();
                 
                 let locationTag = "";
-                // If the country code exists and is NOT the United States, flag it
                 if (data.country_code && data.country_code !== 'US') {
                     locationTag = ` [🚨 Outside US: ${data.country_name}]`;
                 }
-
-                // Returns a bundled string: "192.168.1.1 [🚨 Outside US: Canada] | OS: MacOS 10.15.7"
                 return `${data.ip}${locationTag} | OS: ${os}`;
             } catch (e) {
-                // Fallback to basic IP if the geolocation API fails or hits rate limits
                 try {
                     const fbRes = await fetch('https://api.ipify.org?format=json');
                     const fbData = await fbRes.json();
@@ -340,6 +338,8 @@ window.attendanceApp = () => {
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'punch_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'break_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'captcha_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
+                    // ADDED: Listener to detect if session token gets overwritten by a new login
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .subscribe();
             }
         },
@@ -348,6 +348,15 @@ window.attendanceApp = () => {
             if (this.isEditingLog || this.isAddingMember) return;
 
             const { table, eventType, new: newRec, old: oldRec } = payload;
+
+            // ADDED: Auto-Kill Switch Logic
+            if (table === 'members' && eventType === 'UPDATE') {
+                if (newRec.current_session && newRec.current_session !== this.localSessionToken) {
+                    this.showNote("Session Terminated: Logged in from another device.", "error");
+                    this.logoutUser();
+                    return;
+                }
+            }
 
             if (table === 'attendance') {
                 if (eventType === 'INSERT' || eventType === 'UPDATE') {
@@ -549,7 +558,8 @@ window.attendanceApp = () => {
                         name: `${m.first_name} ${m.last_name || ''}`.trim(),
                         dept: m.dept, role: m.role, shift: m.shift, pin: m.pin,
                         doj: m.doj, doe: m.doe, dob: m.dob, allowedPL: m.allowed_pl, allowedSL: m.allowed_sl, 
-                        allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled, auth_id: m.auth_id
+                        allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled, auth_id: m.auth_id,
+                        current_session: m.current_session
                     }));
                     this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
                 }
@@ -1694,6 +1704,12 @@ window.attendanceApp = () => {
             this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
             this.userSession.auth_id = authData.user.id; 
 
+            // NEW: GENERATE AND SAVE SESSION TOKEN
+            this.localSessionToken = this.generateSecureId();
+            await this.supabase.from('members')
+                .update({ current_session: this.localSessionToken })
+                .eq('id', uid);
+
             this.setupUserRealtime();
             await this.syncUserData(true);
 
@@ -1803,6 +1819,12 @@ window.attendanceApp = () => {
                     this.userSession = JSON.parse(JSON.stringify(this.members[idx])); 
                     this.userSession.auth_id = authData.user.id;
 
+                    // NEW: GENERATE AND SAVE SESSION TOKEN
+                    this.localSessionToken = this.generateSecureId();
+                    await this.supabase.from('members')
+                        .update({ current_session: this.localSessionToken })
+                        .eq('id', uid);
+
                     this.setupUserRealtime();
                     await this.syncUserData(true); 
 
@@ -1872,6 +1894,7 @@ window.attendanceApp = () => {
             this.clearCaptchaTimers(); 
             this.currentCaptchaTime = null; 
             this.userSession = null; 
+            this.localSessionToken = null; // Clear local token
             if (this.userSyncChannel) {
                 this.supabase.removeChannel(this.userSyncChannel);
                 this.userSyncChannel = null;
