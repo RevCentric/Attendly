@@ -128,59 +128,41 @@
         </div>
     </div>
 
-    <nav class="flex flex-col md:flex-row shrink-0 items-center justify-between px-4 md:px-10 py-3 md:py-5 bg-[#0f4c81] border-b border-[#0d406d] z-[2000] gap-4">
-        <div class="flex items-center justify-between w-full md:w-auto">
-            <div class="flex items-center gap-3 bg-white p-1.5 rounded-xl shadow-lg pr-4">
-                <img src="logo.png" alt="RevCentric Solutions" class="h-8 md:h-10 object-contain" onerror="this.style.display='none';">
-                <h1 class="text-xl md:text-2xl font-black tracking-tighter text-[#f26522]">
-                    <span class="text-[#0f4c81]">Rev</span>Centric <span class="text-[#0f4c81]">Solutions</span>
-                </h1>
+    <nav class="flex items-center justify-between px-4 md:px-8 py-3 bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] m-4 md:mx-10 rounded-full z-[2000] sticky top-4 transition-all">
+    <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#0f4c81] to-[#f26522] flex items-center justify-center shadow-inner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
             </div>
-            <div class="flex items-center gap-3 md:hidden">
-                <div class="flex items-center px-3 py-1 bg-black/20 border border-white/5 rounded-full transition-colors" :class="syncError ? 'bg-rose-950/40 border-rose-900/50' : ''">
-                    <span class="cloud-indicator m-0" :class="syncError ? 'bg-rose-500' : (isSyncing ? 'status-syncing' : 'status-synced')"></span>
-                </div>
-                
-                <button @click="syncUserData(false)" title="Refresh Data" class="relative w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors" :class="isSyncing ? 'animate-spin' : ''">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
-                </button>
-
-                <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-8 h-8 flex items-center justify-center text-white/70 hover:text-white transition-colors">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                    <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-0 right-0 w-3.5 h-3.5 bg-rose-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border border-zinc-950" x-text="pendingLeaveCount + todayEvents.length"></span>
-                </button>
-                <button x-show="isAdminAuthenticated" @click="logoutAdmin()" class="px-3 py-1.5 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase shadow-xl">Lock</button>
-            </div>
+            <h1 class="hidden md:block text-lg font-black tracking-tighter text-zinc-900">
+                Rev<span class="text-[#f26522]">Centric</span>
+            </h1>
         </div>
-        
-        <div class="flex items-center bg-white/5 p-1 rounded-2xl border border-white/5 w-full md:w-auto overflow-x-auto no-scrollbar">
-            <template x-for="item in menuItems" :key="item.id">
-                <button x-show="!item.admin || isManagerOrLead || members.length === 0" 
-                        @click="view = item.id; resetMemberForm()" 
-                        :class="view === item.id ? 'bg-[#f26522] text-white shadow-2xl' : 'text-white/70 hover:text-white'" 
-                        class="px-4 md:px-6 py-2 md:py-2.5 rounded-xl transition-all font-bold text-[13px] md:text-[14px] flex items-center gap-2 whitespace-nowrap">
-                    <span x-html="item.icon" class="scale-90 md:scale-100"></span><span x-text="item.label" class="hidden sm:inline"></span>
-                </button>
-            </template>
-        </div>
-        
-        <div class="hidden md:flex items-center gap-4">
-            <div class="flex items-center px-4 py-1.5 bg-black/20 border border-white/5 rounded-full transition-colors" :class="syncError ? 'bg-rose-950/40 border-rose-900/50' : ''">
-                <span class="cloud-indicator" :class="syncError ? 'bg-rose-500' : (isSyncing ? 'status-syncing' : 'status-synced')"></span>
-                <p class="text-[10px] font-black uppercase tracking-widest transition-colors" :class="syncError ? 'text-rose-400' : 'text-white/70'" x-text="syncError ? 'OFFLINE' : (isSyncing ? 'SYNC' : 'ACTIVE')"></p>
-            </div>
-
-            <button @click="syncUserData(false)" title="Refresh Data" class="relative w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors" :class="isSyncing ? 'animate-spin' : ''">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+    </div>
+    
+    <div class="flex items-center bg-zinc-900/5 p-1 rounded-full border border-zinc-900/10 overflow-x-auto no-scrollbar mx-auto">
+        <template x-for="item in menuItems" :key="item.id">
+            <button x-show="!item.admin || isManagerOrLead || members.length === 0" 
+                    @click="view = item.id; resetMemberForm()" 
+                    :class="view === item.id ? 'bg-white text-zinc-950 shadow-md' : 'text-zinc-500 hover:text-zinc-900'" 
+                    class="px-4 py-2 rounded-full transition-all font-black text-[12px] flex items-center gap-2 whitespace-nowrap">
+                <span x-html="item.icon" class="scale-90"></span>
+                <span x-text="item.label" class="hidden sm:inline"></span>
             </button>
-
-            <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-10 h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-1 right-1 w-4 h-4 bg-rose-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#0f4c81]" x-text="pendingLeaveCount + todayEvents.length"></span>
-            </button>
-            <button x-show="isAdminAuthenticated" @click="logoutAdmin()" class="px-4 py-1.5 bg-rose-500 text-white rounded-full text-[10px] font-black uppercase shadow-xl">Lock Vault</button>
-        </div>
-    </nav>
+        </template>
+    </div>
+    
+    <div class="flex items-center gap-3">
+        <button @click="syncUserData(false)" title="Refresh Data" class="relative w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:shadow-md transition-all" :class="isSyncing ? 'animate-spin' : ''">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+        </button>
+        <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="relative w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:shadow-md transition-all">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-[#f26522] text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm" x-text="pendingLeaveCount + todayEvents.length"></span>
+        </button>
+        <button x-show="isAdminAuthenticated" @click="logoutAdmin()" class="hidden md:block px-5 py-2.5 bg-zinc-900 text-white rounded-full text-[10px] font-black uppercase shadow-lg hover:scale-105 transition-transform">Lock Vault</button>
+    </div>
+</nav>
 
     <main class="flex-1 flex flex-col overflow-hidden relative">
         <header class="shrink-0 px-4 md:px-10 pt-4 md:pt-6 pb-4 flex flex-col gap-4 no-print z-[1000] relative">
@@ -300,7 +282,9 @@
 
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 border border-zinc-100 p-3 rounded-2xl shadow-sm w-full backdrop-blur-sm">
                         <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-[#0f4c81] flex items-center justify-center text-white text-xl font-black shadow-md border-2 border-white shrink-0" x-text="userSession?.firstName.charAt(0)"></div>
+                            <img :src="`https://api.dicebear.com/7.x/adventurer-neutral/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+     alt="Daily Avatar" 
+     class="w-14 h-14 rounded-2xl bg-[#0f4c81]/10 border border-[#0f4c81]/20 shadow-sm shrink-0 object-cover" />
                             <div class="space-y-0.5">
                                 <h3 class="text-2xl font-black tracking-tighter leading-none" x-text="'Hello ' + userSession?.firstName"></h3>
                                 <p class="text-[9px] text-zinc-500 font-bold uppercase tracking-[0.1em]" x-text="(userSession?.role || 'Staff') + ' • ' + (userSession?.dept || 'General')"></p>
@@ -620,158 +604,172 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col h-full">
-                            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
-                                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Last 15 Days</h5>
+                    <div class="relative group w-full" x-data="{
+    scroll(dir) {
+        const slider = $refs.cardSlider;
+        const scrollAmount = slider.querySelector('.snap-start').offsetWidth + 24; 
+        slider.scrollBy({ left: dir * scrollAmount, behavior: 'smooth' });
+    }
+}">
+    
+    <button @click="scroll(-1)" class="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-14 h-14 bg-white rounded-full shadow-[0_0_20px_rgba(0,0,0,0.1)] border border-zinc-100 flex items-center justify-center text-zinc-900 hover:scale-110 transition-all opacity-0 group-hover:opacity-100 -ml-5 hidden md:flex">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+
+    <div x-ref="cardSlider" class="flex overflow-x-auto gap-6 pb-6 snap-x snap-mandatory scroll-smooth w-full px-1" style="scrollbar-width: none;">
+
+        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px]">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
+                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Last 15 Days</h5>
+            </div>
+            <div class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                <template x-for="log in individualStats?.history" :key="log.date">
+                    <div class="flex items-center justify-between p-3 rounded-xl border transition-all" :class="log.status.id === '-' ? 'bg-zinc-50/50 border-zinc-100 opacity-60' : 'bg-white border-zinc-200 hover:shadow-sm'">
+                        <div class="flex flex-col"><span class="text-sm font-black text-zinc-900" x-text="log.label"></span><span class="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5" x-text="log.date"></span></div>
+                        <div class="flex items-center gap-3">
+                            <div x-show="log.status.id !== '-'" class="flex flex-col text-[8px] font-black uppercase text-zinc-400 tracking-widest text-right">
+                                <span x-text="'IN: ' + (log.punch?.in || '--:--')"></span>
+                                <span x-text="'OUT: ' + (log.punch?.out || '--:--')"></span>
+                                <span x-show="calculateTotalBreakMins(log.punch?.breaks) > 0" x-text="'BRK: ' + formatBreakDisplay(calculateTotalBreakMins(log.punch?.breaks))" class="text-amber-500 mt-0.5"></span>
                             </div>
-                            <div class="space-y-2 flex-1 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-                                <template x-for="log in individualStats?.history" :key="log.date">
-                                    <div class="flex items-center justify-between p-3 rounded-xl border transition-all" :class="log.status.id === '-' ? 'bg-zinc-50/50 border-zinc-100 opacity-60' : 'bg-white border-zinc-200 hover:shadow-sm'">
-                                        <div class="flex flex-col"><span class="text-sm font-black text-zinc-900" x-text="log.label"></span><span class="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5" x-text="log.date"></span></div>
-                                        <div class="flex items-center gap-3">
-                                            <div x-show="log.status.id !== '-'" class="flex flex-col text-[8px] font-black uppercase text-zinc-400 tracking-widest text-right">
-                                                <span x-text="'IN: ' + (log.punch?.in || '--:--')"></span>
-                                                <span x-text="'OUT: ' + (log.punch?.out || '--:--')"></span>
-                                                <span x-show="calculateTotalBreakMins(log.punch?.breaks) > 0" x-text="'BRK: ' + formatBreakDisplay(calculateTotalBreakMins(log.punch?.breaks))" class="text-amber-500 mt-0.5"></span>
-                                            </div>
-                                            <span :class="log.status.bg + ' ' + log.status.color" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.label"></span>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col h-full">
-                            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
-                                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Break Log</h5>
-                                <span class="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black tracking-widest uppercase border border-amber-200" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks)) + ' Total'"></span>
-                            </div>
-                            <div class="flex-1 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar relative z-10 pt-2">
-                                <template x-if="!punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks || punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks.length === 0">
-                                    <div class="flex flex-col items-center justify-center h-full text-zinc-400 opacity-70 pb-4">
-                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mb-3"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                                        <span class="text-[10px] font-black uppercase tracking-widest text-center">No Breaks<br>Recorded Today</span>
-                                    </div>
-                                </template>
-                                
-                                <div class="relative" x-show="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks?.length > 0">
-                                    <div class="absolute left-[11px] top-2 bottom-2 w-0.5 bg-zinc-100"></div>
-                                    <div class="space-y-4">
-                                        <template x-for="(brk, index) in punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks" :key="index">
-                                            <div class="relative pl-8 flex items-center group">
-                                                <div class="absolute left-1.5 w-3 h-3 rounded-full bg-white border-[2px] border-amber-400 z-10 flex items-center justify-center transition-transform group-hover:scale-125" :class="!brk.end ? 'shadow-[0_0_10px_rgba(251,191,36,0.6)]' : ''">
-                                                    <div x-show="!brk.end" class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
-                                                </div>
-                                                <div class="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 transition-all hover:bg-white hover:border-zinc-200 hover:shadow-sm">
-                                                    <div class="flex items-start justify-between">
-                                                        <div class="flex flex-col">
-                                                            <div class="flex items-center gap-2 mb-1">
-                                                                <span class="text-[9px] font-black text-amber-600 uppercase tracking-widest" x-text="'Session ' + (index + 1)"></span>
-                                                                <span x-show="!brk.end" class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[8px] font-black uppercase tracking-widest animate-pulse border border-amber-200">Active</span>
-                                                            </div>
-                                                            <div class="flex items-center gap-2 text-zinc-800 font-bold text-xs">
-                                                                <span x-text="brk.start"></span>
-                                                                <svg class="w-3 h-3 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                                                                <span x-text="brk.end || '--:--'" :class="!brk.end ? 'text-amber-500 animate-pulse' : ''"></span>
-                                                            </div>
-                                                        </div>
-                                                        <div x-show="brk.end" class="text-right flex flex-col items-end">
-                                                            <span class="text-lg font-black text-zinc-900 leading-none" x-text="diffInMins(brk.start, brk.end)"></span>
-                                                            <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400 mt-0.5">Mins</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
-                            </div>
+                            <span :class="log.status.bg + ' ' + log.status.color" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.label"></span>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col h-full">
-                            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
-                                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Exception Log</h5>
-                            </div>
-                            <div class="flex-1 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-                                <div class="space-y-2">
-                                    <template x-for="log in userExceptionHistory" :key="log.date">
-                                        <div class="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center justify-between hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all">
-                                            <div>
-                                                <h5 class="text-xs font-black uppercase text-zinc-900 tracking-tight" x-text="log.status.label"></h5>
-                                                <div class="flex items-center gap-2 mt-0.5">
-                                                    <span class="text-[9px] font-black text-zinc-500 uppercase tracking-widest" x-text="log.label"></span>
-                                                    <span class="text-zinc-300">•</span>
-                                                    <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest" x-text="log.date"></span>
-                                                </div>
-                                            </div>
-                                            <span :class="log.status.bg + ' ' + log.status.color" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.display"></span>
-                                        </div>
-                                    </template>
-                                    <template x-if="userExceptionHistory.length === 0">
-                                        <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">
-                                            No exceptions found.
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
+                </template>
+            </div>
+        </div>
 
-                        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col h-full">
-                            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
-                                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Holiday Schedule</h5>
-                            </div>
-                            <div class="flex-1 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-                                <div class="space-y-2">
-                                    <template x-for="h in individualStats?.holidays" :key="h.id">
-                                        <div class="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center gap-4 hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all">
-                                            <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center font-black text-sm shadow-sm shrink-0">FH</div>
-                                            <div class="flex-1">
-                                                <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="h.name"></h5>
-                                                <p class="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em] mt-0.5" x-text="formatDate(h.date) + ' • ' + h.dept"></p>
-                                            </div>
-                                        </div>
-                                    </template>
-                                    <template x-if="individualStats?.holidays.length === 0">
-                                        <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No assigned holidays.</div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
+        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px]">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
+                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Break Log</h5>
+                <span class="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black tracking-widest uppercase border border-amber-200" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks)) + ' Total'"></span>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar relative z-10 pt-2">
+                <template x-if="!punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks || punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks.length === 0">
+                    <div class="flex flex-col items-center justify-center h-full text-zinc-400 opacity-70 pb-4">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mb-3"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-center">No Breaks<br>Recorded Today</span>
                     </div>
-
-                    <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col h-full">
-                        <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
-                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Time-off Requests</h5>
-                        </div>
-                        <div class="flex-1 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-                            <div class="space-y-2">
-                                <template x-for="r in leaveRequests.filter(req => req.empId === userSession?.id)" :key="r.id">
-                                    <div class="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center justify-between hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all">
-                                        <div>
-                                            <h5 class="text-xs font-black uppercase text-zinc-900 tracking-tight">
-                                                <span x-text="statusOptions.find(s => s.id === r.type)?.label || 'Leave'"></span>
-                                                <span class="text-zinc-400 font-bold ml-2 text-[9px]" x-text="formatDate(r.startDate) + (r.startDate !== r.endDate ? ' to ' + formatDate(r.endDate) : '')"></span>
-                                            </h5>
-                                            <p class="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em] mt-0.5" x-text="r.reason"></p>
+                </template>
+                
+                <div class="relative" x-show="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks?.length > 0">
+                    <div class="absolute left-[11px] top-2 bottom-2 w-0.5 bg-zinc-100"></div>
+                    <div class="space-y-4">
+                        <template x-for="(brk, index) in punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks" :key="index">
+                            <div class="relative pl-8 flex items-center group">
+                                <div class="absolute left-1.5 w-3 h-3 rounded-full bg-white border-[2px] border-amber-400 z-10 flex items-center justify-center transition-transform group-hover:scale-125" :class="!brk.end ? 'shadow-[0_0_10px_rgba(251,191,36,0.6)]' : ''">
+                                    <div x-show="!brk.end" class="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
+                                </div>
+                                <div class="flex-1 bg-zinc-50 border border-zinc-100 rounded-xl p-3 transition-all hover:bg-white hover:border-zinc-200 hover:shadow-sm">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex flex-col">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <span class="text-[9px] font-black text-amber-600 uppercase tracking-widest" x-text="'Session ' + (index + 1)"></span>
+                                                <span x-show="!brk.end" class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[8px] font-black uppercase tracking-widest animate-pulse border border-amber-200">Active</span>
+                                            </div>
+                                            <div class="flex items-center gap-2 text-zinc-800 font-bold text-xs">
+                                                <span x-text="brk.start"></span>
+                                                <svg class="w-3 h-3 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                                <span x-text="brk.end || '--:--'" :class="!brk.end ? 'text-amber-500 animate-pulse' : ''"></span>
+                                            </div>
                                         </div>
-                                        <span :class="{
-                                            'bg-amber-50 text-amber-700 border-amber-200': r.status === 'pending',
-                                            'bg-emerald-50 text-emerald-700 border-emerald-200': r.status === 'approved',
-                                            'bg-rose-50 text-rose-700 border-rose-200': r.status === 'rejected'
-                                        }" class="px-2.5 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest shadow-sm" x-text="r.status"></span>
+                                        <div x-show="brk.end" class="text-right flex flex-col items-end">
+                                            <span class="text-lg font-black text-zinc-900 leading-none" x-text="diffInMins(brk.start, brk.end)"></span>
+                                            <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400 mt-0.5">Mins</span>
+                                        </div>
                                     </div>
-                                </template>
-                                <template x-if="leaveRequests.filter(req => req.empId === userSession?.id).length === 0">
-                                    <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No time-off requests.</div>
-                                </template>
+                                </div>
                             </div>
-                        </div>
+                        </template>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <template x-if="menuItems.find(i => i.id === view)?.admin">
+        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px]">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
+                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Exception Log</h5>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                <div class="space-y-2">
+                    <template x-for="log in userExceptionHistory" :key="log.date">
+                        <div class="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center justify-between hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all">
+                            <div>
+                                <h5 class="text-xs font-black uppercase text-zinc-900 tracking-tight" x-text="log.status.label"></h5>
+                                <div class="flex items-center gap-2 mt-0.5">
+                                    <span class="text-[9px] font-black text-zinc-500 uppercase tracking-widest" x-text="log.label"></span>
+                                    <span class="text-zinc-300">•</span>
+                                    <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest" x-text="log.date"></span>
+                                </div>
+                            </div>
+                            <span :class="log.status.bg + ' ' + log.status.color" class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.display"></span>
+                        </div>
+                    </template>
+                    <template x-if="userExceptionHistory.length === 0">
+                        <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">
+                            No exceptions found.
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px]">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
+                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Holiday Schedule</h5>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                <div class="space-y-2">
+                    <template x-for="h in individualStats?.holidays" :key="h.id">
+                        <div class="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center gap-4 hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all">
+                            <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center font-black text-sm shadow-sm shrink-0">FH</div>
+                            <div class="flex-1">
+                                <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="h.name"></h5>
+                                <p class="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em] mt-0.5" x-text="formatDate(h.date) + ' • ' + h.dept"></p>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="individualStats?.holidays.length === 0">
+                        <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No assigned holidays.</div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px]">
+            <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-100 shrink-0">
+                <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Time-off Requests</h5>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                <div class="space-y-2">
+                    <template x-for="r in leaveRequests.filter(req => req.empId === userSession?.id)" :key="r.id">
+                        <div class="p-3 bg-zinc-50 rounded-xl border border-zinc-100 flex items-center justify-between hover:bg-white hover:border-zinc-200 hover:shadow-sm transition-all">
+                            <div>
+                                <h5 class="text-xs font-black uppercase text-zinc-900 tracking-tight">
+                                    <span x-text="statusOptions.find(s => s.id === r.type)?.label || 'Leave'"></span>
+                                    <span class="text-zinc-400 font-bold ml-2 text-[9px]" x-text="formatDate(r.startDate) + (r.startDate !== r.endDate ? ' to ' + formatDate(r.endDate) : '')"></span>
+                                </h5>
+                                <p class="text-[9px] font-black text-zinc-400 uppercase tracking-[0.2em] mt-0.5" x-text="r.reason"></p>
+                            </div>
+                            <span :class="{
+                                'bg-amber-50 text-amber-700 border-amber-200': r.status === 'pending',
+                                'bg-emerald-50 text-emerald-700 border-emerald-200': r.status === 'approved',
+                                'bg-rose-50 text-rose-700 border-rose-200': r.status === 'rejected'
+                            }" class="px-2.5 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest shadow-sm" x-text="r.status"></span>
+                        </div>
+                    </template>
+                    <template x-if="leaveRequests.filter(req => req.empId === userSession?.id).length === 0">
+                        <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No time-off requests.</div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div> <button @click="scroll(1)" class="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-14 h-14 bg-white rounded-full shadow-[0_0_20px_rgba(0,0,0,0.1)] border border-zinc-100 flex items-center justify-center text-zinc-900 hover:scale-110 transition-all opacity-0 group-hover:opacity-100 -mr-5 hidden md:flex">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+</div>
+            </div> </div> <template x-if="menuItems.find(i => i.id === view)?.admin">
                 <div class="space-y-8 pb-10">
                     <div x-show="!isAdminAuthenticated" class="max-w-md mx-auto py-16 space-y-6 animate-in fade-in relative group">
                         <div class="absolute inset-0 bg-gradient-to-r from-zinc-900 to-zinc-800 rounded-[2.5rem] blur opacity-10 group-hover:opacity-20 transition duration-500"></div>
