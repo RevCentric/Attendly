@@ -8,7 +8,7 @@ window.attendanceApp = () => {
 
     const getISTDateObject = (date = new Date()) => {
         const s = getISTString(date);
-        const[y, m, d] = s.split('-').map(Number);
+        const [y, m, d] = s.split('-').map(Number);
         return new Date(y, m - 1, d);
     };
 
@@ -85,16 +85,16 @@ window.attendanceApp = () => {
         supabase: null,
         
         // APP STATE (Hydrated from Relational DB)
-        members:[],
+        members: [],
         attendanceData: {}, 
         punchLogs: {}, 
         ytdStats: {}, 
-        userExceptionHistory:[], 
-        leaveRequests:[], 
-        roles:[],
+        userExceptionHistory: [], 
+        leaveRequests: [], 
+        roles: [],
         departments: [],
-        shifts:[],
-        holidayList:[],
+        shifts: [],
+        holidayList: [],
         
         newRoleName: '',
         newDeptName: '',
@@ -122,7 +122,7 @@ window.attendanceApp = () => {
         newMember: { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false },
         newLeave: { type: 'a', startDate: '', endDate: '', reason: '' },
 
-        statusOptions:[
+        statusOptions: [
             { id: 'p', display: 'P', label: 'Present', color: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-500', hex: '#10b981' },
             { id: 'wfh', display: 'WFH', label: 'Work From Home', color: 'text-blue-700', bg: 'bg-blue-50', ring: 'ring-blue-500', hex: '#3b82f6', value: 1 },
             { id: '1p', display: '1P', label: '1HR Perm.', color: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-500', hex: '#f59e0b', value: 1 },
@@ -135,7 +135,7 @@ window.attendanceApp = () => {
             { id: 'co', display: 'CO', label: 'Comp Off', color: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-500', hex: '#0f766e', value: 1 }
         ],
 
-        menuItems:[
+        menuItems: [
             { id: 'portal', label: 'Personnel', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
             { id: 'dashboard', label: 'Stats', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>', admin: true },
             { id: 'record', label: 'Log', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>', admin: true },
@@ -145,19 +145,23 @@ window.attendanceApp = () => {
             { id: 'import', label: 'Hub', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>', admin: true }
         ],
 
-        init() {
+        async init() {
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission()
                     .then(permission => {
-                        if (permission === "granted") {
-                            console.log("Notifications enabled on launch.");
-                        }
+                        if (permission === "granted") console.log("Notifications enabled on launch.");
                     })
                     .catch(e => console.warn("Auto-prompt blocked:", e));
             }   
 
             this.userSession = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
+
+            // Fetch the configuration first (We need the members list to restore sessions properly)
+            await this.syncInitialConfig();
+
+            // Try to restore session from Supabase Auth
+            await this.restoreSession();
 
             const todayRef = getISTDateObject();
             const initScopeDate = new Date(todayRef.getFullYear(), todayRef.getMonth(), todayRef.getDate() - 31);
@@ -194,8 +198,6 @@ window.attendanceApp = () => {
                 }
             }, 1000);
             
-            this.syncInitialConfig();
-            
             ['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
                 window.addEventListener(evt, () => this.resetIdleTimer());
             });
@@ -223,6 +225,56 @@ window.attendanceApp = () => {
                     }
                 };
             } catch(e) {}
+        },
+
+        async restoreSession() {
+            try {
+                const { data: { session } } = await this.supabase.auth.getSession();
+                if (session) {
+                    if (session.user.email === 'master@revcentric.local') {
+                        this.isAdminAuthenticated = true;
+                        this.setupUserRealtime();
+                        this.syncUserData(true);
+                    } else {
+                        // Find user by auth_id in our local hydrated array or fetch directly
+                        let matchedMember = this.members.find(m => m.auth_id === session.user.id);
+                        
+                        if (!matchedMember) {
+                            const { data: dbMember } = await this.supabase.from('members').select('*').eq('auth_id', session.user.id).single();
+                            if (dbMember) {
+                                matchedMember = {
+                                    id: dbMember.id, empId: dbMember.emp_id, firstName: dbMember.first_name, lastName: dbMember.last_name,
+                                    name: `${dbMember.first_name} ${dbMember.last_name || ''}`.trim(),
+                                    dept: dbMember.dept, role: dbMember.role, shift: dbMember.shift, pin: dbMember.pin,
+                                    doj: dbMember.doj, dob: dbMember.dob, allowedPL: dbMember.allowed_pl, allowedSL: dbMember.allowed_sl, 
+                                    allowedPerm: dbMember.allowed_perm, captchaEnabled: dbMember.captcha_enabled, auth_id: dbMember.auth_id
+                                };
+                            }
+                        }
+
+                        if (matchedMember) {
+                            this.userSession = JSON.parse(JSON.stringify(matchedMember));
+                            this.setupUserRealtime();
+                            this.syncUserData(true);
+                        } else {
+                            // Session exists but member is deleted/unlinked
+                            await this.supabase.auth.signOut();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Session restore failed", e);
+            }
+        },
+
+        async fetchIP() {
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const data = await res.json();
+                return data.ip;
+            } catch (e) {
+                return 'Unknown IP';
+            }
         },
 
         setupUserRealtime() {
@@ -272,12 +324,14 @@ window.attendanceApp = () => {
             else if (table === 'punch_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 if (!this.punchLogs[newRec.date]) this.punchLogs[newRec.date] = {};
                 
-                const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks ||[];
-                const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas ||[];
+                const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks || [];
+                const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas || [];
 
                 this.punchLogs[newRec.date][newRec.member_id] = {
                     in: newRec.in_time || '', 
                     out: newRec.out_time || '',
+                    in_ip: newRec.in_ip || '',
+                    out_ip: newRec.out_ip || '',
                     breaks: existingBreaks, 
                     captchas: existingCaptchas
                 };
@@ -288,9 +342,9 @@ window.attendanceApp = () => {
                 const mId = newRec.member_id;
 
                 if (!this.punchLogs[date]) this.punchLogs[date] = {};
-                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks:[], captchas:[] };
+                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
-                let breaks = this.punchLogs[date][mId].breaks ||[];
+                let breaks = this.punchLogs[date][mId].breaks || [];
                 let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
 
                 if (breakIdx !== -1) {
@@ -307,15 +361,16 @@ window.attendanceApp = () => {
                 const mId = newRec.member_id;
 
                 if (!this.punchLogs[date]) this.punchLogs[date] = {};
-                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', breaks:[], captchas:[] };
+                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
-                let captchas = this.punchLogs[date][mId].captchas ||[];
+                let captchas = this.punchLogs[date][mId].captchas || [];
                 let capIdx = captchas.findIndex(c => c.time === newRec.check_time);
 
                 if (capIdx !== -1) {
                     captchas[capIdx].status = newRec.status;
+                    if (newRec.ip_address) captchas[capIdx].ip = newRec.ip_address;
                 } else {
-                    captchas.push({ time: newRec.check_time, status: newRec.status });
+                    captchas.push({ time: newRec.check_time, status: newRec.status, ip: newRec.ip_address || '' });
                 }
 
                 this.punchLogs[date][mId].captchas = captchas;
@@ -345,13 +400,15 @@ window.attendanceApp = () => {
         
         async upsertMemberCloud(m) {
             try {
-                await this.supabase.from('members').upsert({
+                const payload = {
                     id: m.id, emp_id: m.empId, first_name: m.firstName, last_name: m.lastName,
                     dept: m.dept, role: m.role, shift: m.shift, pin: m.pin,
                     doj: m.doj || null, dob: m.dob || null,
                     allowed_pl: m.allowedPL, allowed_sl: m.allowedSL, allowed_perm: m.allowedPerm,
                     captcha_enabled: m.captchaEnabled
-                });
+                };
+                if (m.auth_id) payload.auth_id = m.auth_id;
+                await this.supabase.from('members').upsert(payload);
             } catch(e) { console.error("Member save error", e); }
         },
 
@@ -394,13 +451,20 @@ window.attendanceApp = () => {
                 if (!log) return;
                 
                 const { data, error } = await this.supabase.from('punch_logs')
-                    .update({ in_time: log.in || null, out_time: log.out || null, breaks: log.breaks ||[] })
+                    .update({ 
+                        in_time: log.in || null, out_time: log.out || null, 
+                        in_ip: log.in_ip || null, out_ip: log.out_ip || null, 
+                        breaks: log.breaks || [] 
+                    })
                     .match({ date, member_id: mId })
                     .select();
                     
                 if (!error && (!data || data.length === 0)) {
                     await this.supabase.from('punch_logs').insert({
-                        date, member_id: mId, in_time: log.in || null, out_time: log.out || null, breaks: log.breaks ||[]
+                        date, member_id: mId, 
+                        in_time: log.in || null, out_time: log.out || null, 
+                        in_ip: log.in_ip || null, out_ip: log.out_ip || null, 
+                        breaks: log.breaks || []
                     });
                 }
             } catch(e) { console.error("Punch save error", e); }
@@ -438,14 +502,14 @@ window.attendanceApp = () => {
                     });
                 }
 
-                const { data: mData } = await this.supabase.from('members').select('id, emp_id, first_name, last_name, dept, role, shift, pin, captcha_enabled, doj, dob, allowed_pl, allowed_sl, allowed_perm');
+                const { data: mData } = await this.supabase.from('members').select('*');
                 if (mData) {
                     this.members = mData.map(m => ({
                         id: m.id, empId: m.emp_id, firstName: m.first_name, lastName: m.last_name,
                         name: `${m.first_name} ${m.last_name || ''}`.trim(),
                         dept: m.dept, role: m.role, shift: m.shift, pin: m.pin,
                         doj: m.doj, dob: m.dob, allowedPL: m.allowed_pl, allowedSL: m.allowed_sl, 
-                        allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled
+                        allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled, auth_id: m.auth_id
                     }));
                     this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
                 }
@@ -489,7 +553,7 @@ window.attendanceApp = () => {
                     capQuery = capQuery.eq('member_id', myId);
                 }
 
-                const[ { data: vData }, { data: aData }, { data: pData }, { data: bData }, { data: capData } ] = await Promise.all([
+                const [ { data: vData }, { data: aData }, { data: pData }, { data: bData }, { data: capData } ] = await Promise.all([
                     ytdQuery, attQuery, punchQuery, breakQuery, capQuery
                 ]);
 
@@ -514,29 +578,25 @@ window.attendanceApp = () => {
                 if (pData) {
                     pData.forEach(r => {
                         if(!newPunch[r.date]) newPunch[r.date] = {};
-                        newPunch[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', breaks: [], captchas:[] };
+                        newPunch[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', in_ip: r.in_ip || '', out_ip: r.out_ip || '', breaks: [], captchas: [] };
                     });
                 }
                 if (bData) {
                     bData.forEach(b => {
                         if (!newPunch[b.log_date]) newPunch[b.log_date] = {};
-                        if (!newPunch[b.log_date][b.member_id]) newPunch[b.log_date][b.member_id] = { in: '', out: '', breaks: [], captchas:[] };
+                        if (!newPunch[b.log_date][b.member_id]) newPunch[b.log_date][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         newPunch[b.log_date][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '' });
                     });
                 }
                 if (capData) {
                     capData.forEach(c => {
                         if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
-                        if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', breaks:[], captchas:[] };
+                        if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         if (!newPunch[c.log_date][c.member_id].captchas) newPunch[c.log_date][c.member_id].captchas = [];
-                        newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status });
+                        newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
                     });
                 }
                 this.punchLogs = newPunch;
-
-                if (this.userSession && !this.members.find(m => m.id === this.userSession.id)) {
-                    this.logoutUser();
-                }
                 
                 this.checkExpiredCaptchas();
                 
@@ -573,23 +633,23 @@ window.attendanceApp = () => {
                 if (pData) {
                     pData.forEach(r => {
                         this.punchLogs[targetDate][r.member_id] = { 
-                            in: r.in_time || '', out: r.out_time || '', breaks: [], captchas:[] 
+                            in: r.in_time || '', out: r.out_time || '', in_ip: r.in_ip || '', out_ip: r.out_ip || '', breaks: [], captchas: [] 
                         };
                     });
                 }
                 
                 if (bData) {
                     bData.forEach(b => {
-                        if (!this.punchLogs[targetDate][b.member_id]) this.punchLogs[targetDate][b.member_id] = { in: '', out: '', breaks: [], captchas:[] };
+                        if (!this.punchLogs[targetDate][b.member_id]) this.punchLogs[targetDate][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         this.punchLogs[targetDate][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '' });
                     });
                 }
 
                 if (capData) {
                     capData.forEach(c => {
-                        if (!this.punchLogs[targetDate][c.member_id]) this.punchLogs[targetDate][c.member_id] = { in: '', out: '', breaks:[], captchas: [] };
-                        if (!this.punchLogs[targetDate][c.member_id].captchas) this.punchLogs[targetDate][c.member_id].captchas =[];
-                        this.punchLogs[targetDate][c.member_id].captchas.push({ time: c.check_time, status: c.status });
+                        if (!this.punchLogs[targetDate][c.member_id]) this.punchLogs[targetDate][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                        if (!this.punchLogs[targetDate][c.member_id].captchas) this.punchLogs[targetDate][c.member_id].captchas = [];
+                        this.punchLogs[targetDate][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
                     });
                 }
 
@@ -697,7 +757,7 @@ window.attendanceApp = () => {
                         body: "Return to RevCentric NOW and enter your code. Failure will lock your session.",
                         icon: "logo.png",
                         requireInteraction: true,
-                        vibrate:[300, 100, 300, 100, 300],
+                        vibrate: [300, 100, 300, 100, 300],
                         tag: "captcha-alert",
                         renotify: true
                     });
@@ -797,27 +857,29 @@ window.attendanceApp = () => {
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             const checkTime = timeOverride || this.currentCaptchaTime || this.getCurrentTimeIST();
+            const currentIp = await this.fetchIP();
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas:[] };
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas = [];
             
             const existingIdx = this.punchLogs[activeDate][uId].captchas.findIndex(c => c.time === checkTime);
             if (existingIdx > -1) {
                 this.punchLogs[activeDate][uId].captchas[existingIdx].status = status;
+                this.punchLogs[activeDate][uId].captchas[existingIdx].ip = currentIp;
             } else {
-                this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status });
+                this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status, ip: currentIp });
             }
             this.punchLogs = { ...this.punchLogs };
             
             try {
                 if (status === 'Pending') {
                     await this.supabase.from('captcha_logs').insert({
-                        member_id: uId, log_date: activeDate, check_time: checkTime, status: status
+                        member_id: uId, log_date: activeDate, check_time: checkTime, status: status, ip_address: currentIp
                     });
                 } else {
                     await this.supabase.from('captcha_logs')
-                        .update({ status: status })
+                        .update({ status: status, ip_address: currentIp })
                         .match({ member_id: uId, log_date: activeDate, check_time: checkTime });
                 }
             } catch(e) { console.error("Captcha log error", e); }
@@ -826,6 +888,7 @@ window.attendanceApp = () => {
         async forceCaptcha(mId) {
             if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
             const checkTime = this.getCurrentTimeIST();
+            const currentIp = await this.fetchIP();
             
             const todayStr = getISTString();
             
@@ -843,18 +906,18 @@ window.attendanceApp = () => {
             }
             
             if (!this.punchLogs[dateKey]) this.punchLogs[dateKey] = {};
-            if (!this.punchLogs[dateKey][mId]) this.punchLogs[dateKey][mId] = { in: '', out: '', breaks:[], captchas:[] };
+            if (!this.punchLogs[dateKey][mId]) this.punchLogs[dateKey][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             if (!this.punchLogs[dateKey][mId].captchas) this.punchLogs[dateKey][mId].captchas = [];
             
             const exists = this.punchLogs[dateKey][mId].captchas.find(c => c.time === checkTime);
             if (!exists) {
-                this.punchLogs[dateKey][mId].captchas.push({ time: checkTime, status: 'Pending' });
+                this.punchLogs[dateKey][mId].captchas.push({ time: checkTime, status: 'Pending', ip: currentIp });
                 this.punchLogs = { ...this.punchLogs };
             }
 
             try {
                 await this.supabase.from('captcha_logs').insert({
-                    member_id: mId, log_date: dateKey, check_time: checkTime, status: 'Pending'
+                    member_id: mId, log_date: dateKey, check_time: checkTime, status: 'Pending', ip_address: currentIp
                 });
                 this.showNote(`Verification Forced on ${dateKey} log`, "success");
             } catch(e) {
@@ -876,7 +939,7 @@ window.attendanceApp = () => {
         },
 
         get activeTeamOnBreak() {
-            if (!this.isManagerOrLead) return[];
+            if (!this.isManagerOrLead) return [];
             const activeDate = this.getActiveShiftDate();
             return this.members.filter(m => this.isMemberOnBreak(m.id, activeDate));
         },
@@ -890,7 +953,7 @@ window.attendanceApp = () => {
         
         get todayEvents() {
             const curM = getISTDateObject().getMonth() + 1, curD = getISTDateObject().getDate();
-            const events =[];
+            const events = [];
             this.members.forEach(m => {
                 if (m.dob && parseInt(m.dob.split('-')[1]) === curM && parseInt(m.dob.split('-')[2]) === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
                 if (m.doj && parseInt(m.doj.split('-')[1]) === curM && parseInt(m.doj.split('-')[2]) === curD) {
@@ -950,7 +1013,7 @@ window.attendanceApp = () => {
         },
 
         processAutoHolidays() {
-            const bulkRecords =[];
+            const bulkRecords = [];
             this.holidayList.forEach(h => {
                 this.members.forEach(m => {
                     if (h.dept === 'All' || h.dept === m.dept) {
@@ -987,7 +1050,7 @@ window.attendanceApp = () => {
         },
         formatTimeDisplay(time24) {
             if (!time24) return '--:--';
-            const[h, m] = time24.split(':');
+            const [h, m] = time24.split(':');
             let hNum = parseInt(h, 10);
             const ampm = hNum >= 12 ? 'PM' : 'AM';
             return `${(hNum % 12 || 12).toString().padStart(2, '0')}:${m} ${ampm}`;
@@ -1093,7 +1156,7 @@ window.attendanceApp = () => {
                                         .update({ status: 'Missed' })
                                         .match({ member_id: mId, log_date: checkDate, check_time: cap.time }).then();
                                     
-                                    const breaks = log.breaks ||[];
+                                    const breaks = log.breaks || [];
                                     if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
                                         breaks.push({ start: cap.time, end: '' });
                                         this.supabase.from('break_logs').insert({
@@ -1121,8 +1184,8 @@ window.attendanceApp = () => {
             const startTime = (typeof timeOverride === 'string') ? timeOverride : this.getCurrentTimeIST();
 
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas:[] };
-            if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks =[];
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+            if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
             
             const breaks = this.punchLogs[activeDate][uId].breaks;
             
@@ -1237,7 +1300,7 @@ window.attendanceApp = () => {
             if (!this.userSession) return null;
             const user = this.members.find(m => m.id === this.userSession.id) || this.userSession;
             const id = user.id, curRef = getISTDateObject(), curY = curRef.getFullYear(), curM = curRef.getMonth() + 1, curD = curRef.getDate();
-            const stats = { periodTotals: {}, history:[] };
+            const stats = { periodTotals: {}, history: [] };
             this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
 
             for (let i = 0; i < 15; i++) {
@@ -1253,7 +1316,7 @@ window.attendanceApp = () => {
             Object.keys(this.attendanceData).forEach(dk => {
                 const s = this.attendanceData[dk][id];
                 if (!s) return;
-                const[dy, dm] = dk.split('-').map(Number);
+                const [dy, dm] = dk.split('-').map(Number);
                 if (dy === curY) {
                     if (s === 'co') ytd.co += 1;
                     if (s === 'a') ytd.lv += 1; if (s === 'h') ytd.lv += 0.5;
@@ -1270,7 +1333,7 @@ window.attendanceApp = () => {
             Object.keys(this.punchLogs).forEach(dk => {
                 const log = this.punchLogs[dk]?.[id];
                 if (!log || !log.in) return;
-                const[dy, dm] = dk.split('-').map(Number);
+                const [dy, dm] = dk.split('-').map(Number);
                 if (dy === curY) {
                     ytd.breakMins += this.calculateTotalBreakMins(log.breaks);
                     ytd.activeMins += this.getActiveMinsForLog(log, dk);
@@ -1360,7 +1423,7 @@ window.attendanceApp = () => {
         getFilteredDatesByPeriod(p) {
             const ist = getISTDateObject();
             return Object.keys(this.attendanceData).filter(d => {
-                const[y, m, day] = d.split('-').map(Number);
+                const [y, m, day] = d.split('-').map(Number);
                 if (p === 'day') return y === ist.getFullYear() && m === (ist.getMonth() + 1) && day === ist.getDate();
                 if (p === 'month') return y === ist.getFullYear() && m === (ist.getMonth() + 1);
                 return y === ist.getFullYear();
@@ -1398,10 +1461,10 @@ window.attendanceApp = () => {
             if (!this.editingLogId) return;
             const id = this.editingLogId;
             if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-            if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', breaks:[], captchas:[] };
+            if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             
             const formatT = (t) => {
-                if(!t) return ''; const[h, m] = t.split(':');
+                if(!t) return ''; const [h, m] = t.split(':');
                 return `${(parseInt(h,10)%12||12).toString().padStart(2,'0')}:${m} ${parseInt(h,10)>=12?'PM':'AM'}`;
             };
             this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
@@ -1416,7 +1479,7 @@ window.attendanceApp = () => {
         async adminToggleBreak(mId) {
             if (!this.isAdminAuthenticated) return;
             if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-            if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', breaks:[], captchas:[] };
+            if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             
             const breaks = this.punchLogs[this.currentDate][mId].breaks;
             const currentTime = this.getCurrentTimeIST();
@@ -1447,13 +1510,18 @@ window.attendanceApp = () => {
         changeDate(n) { const dt = new Date(this.currentDate.split('-').map(Number)[0], this.currentDate.split('-').map(Number)[1] - 1, this.currentDate.split('-').map(Number)[2]); dt.setDate(dt.getDate() + n); this.currentDate = getISTString(dt); },
         isMarkedPortal(s) { return this.attendanceData[this.getActiveShiftDate()]?.[this.userSession?.id] === s; },
         
-        markPortalAttendance(s) {
+        async markPortalAttendance(s) {
             if (!this.userSession) return;
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
+            const currentIp = await this.fetchIP();
+
             if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
             this.attendanceData[activeDate][uId] = s;
+            
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
+            if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
+                this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
+            }
             
             this.attendanceData = { ...this.attendanceData };
             this.punchLogs = { ...this.punchLogs };
@@ -1465,19 +1533,26 @@ window.attendanceApp = () => {
         },
         
         initiateLogout() { if (!this.userSession) return; this.logoutTimePreview = this.getCurrentTimeIST(); this.showLogoutModal = true; },
-        confirmLogoutPortal() {
+        
+        async confirmLogoutPortal() {
             this.clearCaptchaTimers();
 
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', breaks:[], captchas:[] };
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+            
             const breaks = this.punchLogs[activeDate][uId].breaks;
             if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = this.logoutTimePreview;
+            
+            const currentIp = await this.fetchIP();
             this.punchLogs[activeDate][uId].out = this.logoutTimePreview;
+            this.punchLogs[activeDate][uId].out_ip = currentIp;
             
             this.punchLogs = { ...this.punchLogs };
             this.upsertPunchCloud(activeDate, uId); 
-            this.showLogoutModal = false; this.logoutUser(); this.showNote("Shift Logged Out", "success");
+            this.showLogoutModal = false; 
+            this.logoutUser(); 
+            this.showNote("Shift Logged Out", "success");
         },
 
         toggleEditLog(id) {
@@ -1502,101 +1577,168 @@ window.attendanceApp = () => {
         
         async handlePinVerification() { 
             const uid = this.tempUser.id;
-            if (this.userLockoutUntil[uid] && Date.now() < this.userLockoutUntil[uid]) { this.loginPinInput = ''; return this.showNote(`Account locked. Try again later`, "error"); }
+            const empId = this.tempUser.empId.toUpperCase();
+            const ghostEmail = `${empId}@revcentric.local`; 
+            const pinPassword = this.loginPinInput; 
+
+            if (this.userLockoutUntil[uid] && Date.now() < this.userLockoutUntil[uid]) { 
+                this.loginPinInput = ''; 
+                return this.showNote(`Account locked. Try again later`, "error"); 
+            }
             
-            if (this.loginPinInput === this.tempUser.pin) { 
-                this.userFailedAttempts[uid] = 0; 
-                this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
-                this.setupUserRealtime();
+            // 1. Attempt to Sign In via Supabase Auth
+            let { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
+                email: ghostEmail,
+                password: pinPassword
+            });
 
-                await this.syncUserData(true);
-
-                const { data: excData } = await this.supabase
-                    .from('member_exceptions_view')
-                    .select('date, status')
-                    .eq('member_id', this.userSession.id)
-                    .order('date', { ascending: false });
-
-                if (excData) {
-                    this.userExceptionHistory = excData.map(log => ({
-                        date: log.date,
-                        label: this.formatDate(log.date),
-                        status: this.statusOptions.find(s => s.id === log.status)
-                    }));
-                }
-
-                const trapDate = this.getActiveShiftDate(); 
+            // 2. MIGRATION STEP: If they don't exist yet, Sign Them Up automatically!
+            if (authError && authError.message.includes("Invalid login credentials")) {
+                const { data: signUpData, error: signUpError } = await this.supabase.auth.signUp({
+                    email: ghostEmail,
+                    password: pinPassword
+                });
                 
-                const todaysCaptchas = this.punchLogs[trapDate]?.[uid]?.captchas ||[];
-                const pendingCaptchas = todaysCaptchas.filter(c => c.status === 'Pending');
-
-                if (pendingCaptchas.length > 0) {
-                    this.showNote("Window closed during verification. Penalty applied.", "error");
-                    
-                    let penaltyTime = pendingCaptchas[0].time;
-                    
-                    for (const cap of pendingCaptchas) {
-                        cap.status = 'Missed';
-                        await this.supabase.from('captcha_logs')
-                            .update({ status: 'Missed' })
-                            .match({ member_id: uid, log_date: trapDate, check_time: cap.time });
-                        
-                        if (cap.time < penaltyTime) penaltyTime = cap.time;
-                    }
-                    this.punchLogs = { ...this.punchLogs }; 
-                    
-                    this.startBreak(penaltyTime);
-                    
-                    this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
-                    return; 
+                if (!signUpError && signUpData.user) {
+                    authData = signUpData;
+                    authError = null;
+                    // Link the new Auth ID to your members table
+                    await this.supabase.from('members').update({ auth_id: authData.user.id }).eq('id', uid);
+                } else if (signUpError && signUpError.message.includes("already registered")) {
+                    authError = signUpError; 
                 }
+            }
 
-                const reopenLog = this.punchLogs[trapDate]?.[uid];
-                const alreadyOnBreak = reopenLog?.breaks?.length > 0 && !reopenLog.breaks[reopenLog.breaks.length - 1].end;
-                if (this.userSession.captchaEnabled && reopenLog?.in && !reopenLog?.out && !alreadyOnBreak) {
-                    const missedTime = this.getCurrentTimeIST();
-                    if (!this.punchLogs[trapDate][uid].captchas) this.punchLogs[trapDate][uid].captchas = [];
-                    this.punchLogs[trapDate][uid].captchas.push({ time: missedTime, status: 'Missed' });
-                    this.punchLogs = { ...this.punchLogs };
-                    try {
-                        await this.supabase.from('captcha_logs').insert({
-                            member_id: uid, log_date: trapDate, check_time: missedTime, status: 'Missed'
-                        });
-                    } catch(e) { console.error("Session-close captcha log error", e); }
+            // 3. Handle Login Success/Failure
+            if (authError) {
+                this.userFailedAttempts[uid] = (this.userFailedAttempts[uid] || 0) + 1; 
+                this.loginPinInput = '';
+                if (this.userFailedAttempts[uid] >= 3) { 
+                    this.userLockoutUntil[uid] = Date.now() + 30000; 
+                    this.userFailedAttempts[uid] = 0; 
+                    this.showNote("Too many failed attempts. Locked for 30s.", "error"); 
+                } else {
+                    this.showNote(`Invalid PIN (${3 - this.userFailedAttempts[uid]} attempts left)`, "error"); 
+                }
+                return;
+            }
 
-                    this.showNote("Session closed during active shift. Break initiated.", "error");
-                    this.startBreak(missedTime);
-                    this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
-                    return;
-                }
+            // SUCCESS: The user is now securely authenticated with Supabase!
+            this.userFailedAttempts[uid] = 0; 
+            
+            // Attach the auth_id to your session so we can use it later
+            this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
+            this.userSession.auth_id = authData.user.id; 
 
-                const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
-                if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {}; 
-                if (!this.attendanceData[activeDate][uId]) {
-                    this.attendanceData[activeDate][uId] = 'p'; 
-                    this.upsertAttCloud(activeDate, uId, 'p');
+            this.setupUserRealtime();
+            await this.syncUserData(true);
+
+            const { data: excData } = await this.supabase
+                .from('member_exceptions_view')
+                .select('date, status')
+                .eq('member_id', this.userSession.id)
+                .order('date', { ascending: false });
+
+            if (excData) {
+                this.userExceptionHistory = excData.map(log => ({
+                    date: log.date,
+                    label: this.formatDate(log.date),
+                    status: this.statusOptions.find(s => s.id === log.status)
+                }));
+            }
+
+            const trapDate = this.getActiveShiftDate(); 
+            
+            const todaysCaptchas = this.punchLogs[trapDate]?.[uid]?.captchas || [];
+            const pendingCaptchas = todaysCaptchas.filter(c => c.status === 'Pending');
+
+            if (pendingCaptchas.length > 0) {
+                this.showNote("Window closed during verification. Penalty applied.", "error");
+                
+                let penaltyTime = pendingCaptchas[0].time;
+                const currentIp = await this.fetchIP();
+                
+                for (const cap of pendingCaptchas) {
+                    cap.status = 'Missed';
+                    await this.supabase.from('captcha_logs')
+                        .update({ status: 'Missed', ip_address: currentIp })
+                        .match({ member_id: uid, log_date: trapDate, check_time: cap.time });
+                    
+                    if (cap.time < penaltyTime) penaltyTime = cap.time;
                 }
-                if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-                if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
-                    this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
-                    this.upsertPunchCloud(activeDate, uId);
-                }
-                this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
-                this.scheduleNextCaptcha();
-            } else { 
-                this.userFailedAttempts[uid] = (this.userFailedAttempts[uid] || 0) + 1; this.loginPinInput = '';
-                if (this.userFailedAttempts[uid] >= 3) { this.userLockoutUntil[uid] = Date.now() + 30000; this.userFailedAttempts[uid] = 0; this.showNote("Too many failed attempts. Locked for 30s.", "error"); } 
-                else this.showNote(`Invalid PIN (${3 - this.userFailedAttempts[uid]} attempts left)`, "error"); 
-            } 
+                this.punchLogs = { ...this.punchLogs }; 
+                
+                this.startBreak(penaltyTime);
+                
+                this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
+                return; 
+            }
+
+            const reopenLog = this.punchLogs[trapDate]?.[uid];
+            const alreadyOnBreak = reopenLog?.breaks?.length > 0 && !reopenLog.breaks[reopenLog.breaks.length - 1].end;
+            if (this.userSession.captchaEnabled && reopenLog?.in && !reopenLog?.out && !alreadyOnBreak) {
+                const missedTime = this.getCurrentTimeIST();
+                const currentIp = await this.fetchIP();
+                
+                if (!this.punchLogs[trapDate][uid].captchas) this.punchLogs[trapDate][uid].captchas = [];
+                this.punchLogs[trapDate][uid].captchas.push({ time: missedTime, status: 'Missed', ip: currentIp });
+                this.punchLogs = { ...this.punchLogs };
+                try {
+                    await this.supabase.from('captcha_logs').insert({
+                        member_id: uid, log_date: trapDate, check_time: missedTime, status: 'Missed', ip_address: currentIp
+                    });
+                } catch(e) { console.error("Session-close captcha log error", e); }
+
+                this.showNote("Session closed during active shift. Break initiated.", "error");
+                this.startBreak(missedTime);
+                this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
+                return;
+            }
+
+            const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
+            if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {}; 
+            if (!this.attendanceData[activeDate][uId]) {
+                this.attendanceData[activeDate][uId] = 'p'; 
+                this.upsertAttCloud(activeDate, uId, 'p');
+            }
+            if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+            
+            if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
+                const currentIp = await this.fetchIP();
+                this.punchLogs[activeDate][uId] = { 
+                    in: this.getCurrentTimeIST(), out: '', 
+                    in_ip: currentIp, out_ip: '', 
+                    breaks: [], captchas: [] 
+                };
+                this.upsertPunchCloud(activeDate, uId);
+            }
+            this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
+            this.scheduleNextCaptcha();
         },
 
         async handlePinSetup() { 
             if (this.loginPinInput.length === 6) { 
+                const uid = this.tempUser.id;
+                const empId = this.tempUser.empId.toUpperCase();
+                const ghostEmail = `${empId}@revcentric.local`;
+                const pinPassword = this.loginPinInput;
+
+                // Sign up in Supabase
+                const { data: authData, error: authError } = await this.supabase.auth.signUp({
+                    email: ghostEmail, password: pinPassword
+                });
+
+                if (authError) return this.showNote("Auth Error: " + authError.message, "error");
+
                 const idx = this.members.findIndex(m => m.id === this.tempUser.id); 
                 if (idx !== -1) { 
-                    this.members[idx].pin = this.loginPinInput; 
+                    this.members[idx].pin = pinPassword; 
+                    this.members[idx].auth_id = authData.user.id;
                     this.upsertMemberCloud(this.members[idx]); 
+
                     this.userSession = JSON.parse(JSON.stringify(this.members[idx])); 
+                    this.userSession.auth_id = authData.user.id;
+
                     this.setupUserRealtime();
                     await this.syncUserData(true); 
 
@@ -1616,18 +1758,19 @@ window.attendanceApp = () => {
 
                     const setupTrapDate = this.getActiveShiftDate();
                     const setupUid = this.userSession.id;
-                    const setupTodaysCaptchas = this.punchLogs[setupTrapDate]?.[setupUid]?.captchas ||[];
+                    const setupTodaysCaptchas = this.punchLogs[setupTrapDate]?.[setupUid]?.captchas || [];
                     const setupPendingCaptchas = setupTodaysCaptchas.filter(c => c.status === 'Pending');
 
                     if (setupPendingCaptchas.length > 0) {
                         this.showNote("Window closed during verification. Penalty applied.", "error");
                         
                         let penaltyTime = setupPendingCaptchas[0].time;
+                        const currentIp = await this.fetchIP();
                         
                         for (const cap of setupPendingCaptchas) {
                             cap.status = 'Missed';
                             await this.supabase.from('captcha_logs')
-                                .update({ status: 'Missed' })
+                                .update({ status: 'Missed', ip_address: currentIp })
                                 .match({ member_id: setupUid, log_date: setupTrapDate, check_time: cap.time });
                                 
                             if (cap.time < penaltyTime) penaltyTime = cap.time;
@@ -1647,7 +1790,12 @@ window.attendanceApp = () => {
 
                     if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                     if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
-                        this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', breaks:[], captchas:[] };
+                        const currentIp = await this.fetchIP();
+                        this.punchLogs[activeDate][uId] = { 
+                            in: this.getCurrentTimeIST(), out: '', 
+                            in_ip: currentIp, out_ip: '', 
+                            breaks: [], captchas: [] 
+                        };
                         this.upsertPunchCloud(activeDate, uId);
                     }
                     this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
@@ -1656,13 +1804,37 @@ window.attendanceApp = () => {
             } else this.showNote("PIN must be 6 digits", "error"); 
         },
 
-        logoutUser() { this.clearCaptchaTimers(); this.currentCaptchaTime = null; this.userSession = null; if (this.userSyncChannel) {this.supabase.removeChannel(this.userSyncChannel);this.userSyncChannel = null;} this.loginStep = 'id'; setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); },
+        async logoutUser() { 
+            this.clearCaptchaTimers(); 
+            this.currentCaptchaTime = null; 
+            this.userSession = null; 
+            if (this.userSyncChannel) {
+                this.supabase.removeChannel(this.userSyncChannel);
+                this.userSyncChannel = null;
+            } 
+            this.loginStep = 'id'; 
+            await this.supabase.auth.signOut();
+            setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); 
+        },
 
         cancelLogin() { this.loginStep = 'id'; this.tempUser = null; this.loginIdInput = ''; this.loginPinInput = ''; setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); },
 
-        verifyAdmin() { 
+        async verifyAdmin() { 
             if (Date.now() < this.adminLockoutUntil) { this.adminPinInput = ''; return this.showNote(`Vault locked.`, "error"); }
             if (this.adminPinInput === this.masterPin) { 
+                // Login Master Admin via Auth to bypass RLS
+                let { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
+                    email: 'master@revcentric.local',
+                    password: this.adminPinInput
+                });
+
+                if (authError && authError.message.includes("Invalid login credentials")) {
+                    await this.supabase.auth.signUp({
+                        email: 'master@revcentric.local',
+                        password: this.adminPinInput
+                    });
+                }
+
                 this.isAdminAuthenticated = true; 
                 this.adminPinInput = ''; 
                 this.adminFailedAttempts = 0; 
@@ -1678,7 +1850,7 @@ window.attendanceApp = () => {
             } 
         },
 
-        logoutAdmin() { 
+        async logoutAdmin() { 
             this.isAdminAuthenticated = false; 
             this.view = 'portal'; 
             if(this.idleInterval) clearInterval(this.idleInterval); 
@@ -1687,12 +1859,14 @@ window.attendanceApp = () => {
                 this.supabase.removeChannel(this.userSyncChannel);
                 this.userSyncChannel = null;
             }
+            await this.supabase.auth.signOut();
         },
         
         changeAdminPin() {
             if (this.newPinValue.length === 6) { 
                 this.masterPin = this.newPinValue; 
                 this.upsertConfigCloud('master_pin', this.masterPin); 
+                // Note: Changing Master Pin will require updating the Auth password too if we want it fully synced
                 this.newPinValue = ''; this.showNote("Master PIN Updated", "success"); 
             } else this.showNote("PIN must be 6 digits", "error");
         },
@@ -1712,8 +1886,8 @@ window.attendanceApp = () => {
         },
         
         addRole() { if (this.newRoleName.trim() && !this.roles.includes(this.newRoleName.trim())) { this.roles = [...this.roles, this.newRoleName.trim()]; this.upsertConfigCloud('roles', this.roles); this.newRoleName = ''; this.showNote("Role added", "success"); } },
-        addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments =[...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
-        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts =[...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
+        addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments = [...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
+        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts = [...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
 
         removeDept(dept) { this.departments = this.departments.filter(d => d !== dept); this.upsertConfigCloud('departments', this.departments); },
         removeRole(role) { this.roles = this.roles.filter(r => r !== role); this.upsertConfigCloud('roles', this.roles); },
@@ -1761,7 +1935,7 @@ window.attendanceApp = () => {
                 let breakQuery = this.supabase.from('break_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
                 let capQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
 
-                const[{ data: aData }, { data: pData }, { data: bData }, { data: capData }] = await Promise.all([
+                const [{ data: aData }, { data: pData }, { data: bData }, { data: capData }] = await Promise.all([
                     attQuery, punchQuery, breakQuery, capQuery
                 ]);
 
@@ -1777,10 +1951,12 @@ window.attendanceApp = () => {
                     pData.forEach(r => {
                         if (!this.punchLogs[r.date]) this.punchLogs[r.date] = {};
                         if (!this.punchLogs[r.date][r.member_id]) {
-                            this.punchLogs[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', breaks: [], captchas:[] };
+                            this.punchLogs[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', in_ip: r.in_ip || '', out_ip: r.out_ip || '', breaks: [], captchas: [] };
                         } else {
                             this.punchLogs[r.date][r.member_id].in = r.in_time || '';
                             this.punchLogs[r.date][r.member_id].out = r.out_time || '';
+                            this.punchLogs[r.date][r.member_id].in_ip = r.in_ip || '';
+                            this.punchLogs[r.date][r.member_id].out_ip = r.out_ip || '';
                         }
                     });
                 }
@@ -1788,7 +1964,7 @@ window.attendanceApp = () => {
                 if (bData) {
                     bData.forEach(b => {
                         if (!this.punchLogs[b.log_date]) this.punchLogs[b.log_date] = {};
-                        if (!this.punchLogs[b.log_date][b.member_id]) this.punchLogs[b.log_date][b.member_id] = { in: '', out: '', breaks: [], captchas:[] };
+                        if (!this.punchLogs[b.log_date][b.member_id]) this.punchLogs[b.log_date][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         
                         const breaks = this.punchLogs[b.log_date][b.member_id].breaks;
                         if (!breaks.find(existing => existing.start === b.start_time)) {
@@ -1800,12 +1976,12 @@ window.attendanceApp = () => {
                 if (capData) {
                     capData.forEach(c => {
                         if (!this.punchLogs[c.log_date]) this.punchLogs[c.log_date] = {};
-                        if (!this.punchLogs[c.log_date][c.member_id]) this.punchLogs[c.log_date][c.member_id] = { in: '', out: '', breaks: [], captchas:[] };
-                        if (!this.punchLogs[c.log_date][c.member_id].captchas) this.punchLogs[c.log_date][c.member_id].captchas =[];
+                        if (!this.punchLogs[c.log_date][c.member_id]) this.punchLogs[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                        if (!this.punchLogs[c.log_date][c.member_id].captchas) this.punchLogs[c.log_date][c.member_id].captchas = [];
                         
                         const captchas = this.punchLogs[c.log_date][c.member_id].captchas;
                         if (!captchas.find(existing => existing.time === c.check_time)) {
-                            captchas.push({ time: c.check_time, status: c.status });
+                            captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
                         }
                     });
                 }
@@ -1827,20 +2003,20 @@ window.attendanceApp = () => {
 
         exportDetailedExcel() {
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Invalid date range", "error");
-            const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), detailedRows =[];
+            const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), detailedRows = [];
             this.filteredMembers.forEach(m => {
                 for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
                     const dateStr = getISTString(d), statusId = this.attendanceData[dateStr]?.[m.id] || '-';
-                    const punchLog = this.punchLogs[dateStr]?.[m.id] || { in: '', out: '', breaks:[], captchas:[] };
+                    const punchLog = this.punchLogs[dateStr]?.[m.id] || { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     let notes = '';
                     if (statusId === 'fh') { const h = this.holidayList.find(hol => hol.date === dateStr && (hol.dept === 'All' || hol.dept === m.dept)); if (h) notes = `Holiday: ${h.name}`; } 
                     else if (['a', 'h', '1p', '2p', 'lop', 'wfh'].includes(statusId)) { const leave = this.leaveRequests.find(l => l.empId === m.id && l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
-                    detailedRows.push({ 'Date': dateStr, 'Emp ID': m.empId, 'Name': m.name, 'Department': m.dept, 'Shift': m.shift, 'Status': this.statusOptions.find(s => s.id === statusId)?.label || 'Unrecorded', 'Punch In': punchLog.in || '', 'Punch Out': punchLog.out || '', 'Active (Mins)': this.getActiveMinsForLog(punchLog, dateStr), 'Break (Mins)': this.calculateTotalBreakMins(punchLog.breaks), 'Captcha Fails': punchLog.captchas?.filter(c => c.status !== 'Passed').length || 0, 'Notes': notes });
+                    detailedRows.push({ 'Date': dateStr, 'Emp ID': m.empId, 'Name': m.name, 'Department': m.dept, 'Shift': m.shift, 'Status': this.statusOptions.find(s => s.id === statusId)?.label || 'Unrecorded', 'Punch In': punchLog.in || '', 'Punch In IP': punchLog.in_ip || '', 'Punch Out': punchLog.out || '', 'Punch Out IP': punchLog.out_ip || '', 'Active (Mins)': this.getActiveMinsForLog(punchLog, dateStr), 'Break (Mins)': this.calculateTotalBreakMins(punchLog.breaks), 'Captcha Fails': punchLog.captchas?.filter(c => c.status !== 'Passed').length || 0, 'Notes': notes });
                 }
             });
             if (detailedRows.length === 0) return this.showNote("No data", "error");
             const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(detailedRows);
-            ws['!cols'] =[{wch: 12}, {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 10}, {wch: 18}, {wch: 18}, {wch: 15}, {wch: 30}];
+            ws['!cols'] = [{wch: 12}, {wch: 10}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 10}, {wch: 15}, {wch: 10}, {wch: 15}, {wch: 18}, {wch: 18}, {wch: 15}, {wch: 30}];
             XLSX.utils.book_append_sheet(wb, ws, "Detailed_Logs"); XLSX.writeFile(wb, `Detailed_Log_Report_${this.summaryStartDate}_to_${this.summaryEndDate}.xlsx`); this.showNote("Report Downloaded", "success");
         },
 
@@ -1860,7 +2036,7 @@ window.attendanceApp = () => {
                 'Verification Required': m.captchaEnabled ? 'Yes' : 'No'
             }));
             const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(detailedRows);
-            ws['!cols'] =[{wch: 12}, {wch: 25}, {wch: 18}, {wch: 18}, {wch: 18}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 20}];
+            ws['!cols'] = [{wch: 12}, {wch: 25}, {wch: 18}, {wch: 18}, {wch: 18}, {wch: 12}, {wch: 12}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 20}];
             XLSX.utils.book_append_sheet(wb, ws, "Roster_Report");
             XLSX.writeFile(wb, `Roster_Report_${getISTString()}.xlsx`);
             this.showNote("Roster Report Downloaded", "success");
@@ -1888,7 +2064,7 @@ window.attendanceApp = () => {
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personnelRows), "Personnel_Master"); 
 
             // SHEET 2: Attendance Registry
-            const attendanceRows =[]; 
+            const attendanceRows = []; 
             Object.keys(this.attendanceData).sort().forEach(date => {
                 Object.keys(this.attendanceData[date]).forEach(empId => { 
                     if (this.attendanceData[date][empId]) {
@@ -1904,18 +2080,20 @@ window.attendanceApp = () => {
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceRows), "Attendance_Registry");
 
             // SHEET 3: Detailed Punch & Break Logs
-            const punchRows =[]; 
+            const punchRows = []; 
             Object.keys(this.punchLogs).sort().forEach(date => {
                 Object.keys(this.punchLogs[date]).forEach(empId => { 
                     const log = this.punchLogs[date][empId]; 
-                    const captchaFails = (log.captchas ||[]).filter(c => c.status !== 'Passed').length;
+                    const captchaFails = (log.captchas || []).filter(c => c.status !== 'Passed').length;
                     
                     punchRows.push({ 
                         'Date': date, 
                         'Emp ID': empId, 
                         'Name': this.members.find(m => m.id === empId)?.name || 'Unknown', 
                         'Punch In': log.in || 'Missing', 
+                        'Punch In IP': log.in_ip || 'N/A',
                         'Punch Out': log.out || 'Missing', 
+                        'Punch Out IP': log.out_ip || 'N/A',
                         'Active (Mins)': this.getActiveMinsForLog(log, date), 
                         'Break (Mins)': this.calculateTotalBreakMins(log.breaks),
                         'Failed Verifications': captchaFails
