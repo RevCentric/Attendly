@@ -46,13 +46,19 @@ window.attendanceApp = () => {
         newPinValue: '',
 
         userSession: null,
-        localSessionToken: null, // <-- ADDED: Tracks this device's unique session
+        localSessionToken: null, 
         userSyncChannel: null, 
         loginIdInput: '',
         loginPinInput: '',
         breakPinInput: '',
         loginStep: 'id', 
         tempUser: null,
+
+        // Chat State Variables
+        showChatPanel: false,
+        chatMessages: [],
+        newChatMessage: '',
+        chatTarget: 'All', 
 
         captchaTimer: null,
         captchaTimeoutTimer: null,
@@ -159,6 +165,15 @@ window.attendanceApp = () => {
             this.localSessionToken = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
 
+            this.supabase.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+                    this.userSession = null;
+                    this.localSessionToken = null;
+                    localStorage.clear(); 
+                    sessionStorage.clear();
+                }
+            });
+
             await this.syncInitialConfig();
             await this.restoreSession();
 
@@ -228,7 +243,14 @@ window.attendanceApp = () => {
 
         async restoreSession() {
             try {
-                const { data: { session } } = await this.supabase.auth.getSession();
+                const { data: { session }, error } = await this.supabase.auth.getSession();
+                
+                if (error || !session) {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    return;
+                }
+
                 if (session) {
                     if (session.user.email === 'master@revcentric.local') {
                         this.isAdminAuthenticated = true;
@@ -256,7 +278,6 @@ window.attendanceApp = () => {
                                 await this.supabase.auth.signOut();
                                 return;
                             }
-                            // Store locally to check against Realtime updates
                             this.localSessionToken = matchedMember.current_session;
                             this.userSession = JSON.parse(JSON.stringify(matchedMember));
                             this.setupUserRealtime();
@@ -266,7 +287,46 @@ window.attendanceApp = () => {
                         }
                     }
                 }
-            } catch (e) { console.error("Session restore failed", e); }
+            } catch (e) { 
+                console.error("Session restore failed", e); 
+                localStorage.clear(); 
+            }
+        },
+
+        async sendTeamMessage() {
+            if (!this.newChatMessage.trim() || !this.userSession && !this.isAdminAuthenticated) return;
+            if (!this.isManagerOrLead && !this.isAdminAuthenticated) return this.showNote("Unauthorized", "error");
+
+            try {
+                await this.supabase.from('team_messages').insert({
+                    sender_id: this.userSession?.id || 'ADMIN',
+                    sender_name: this.userSession?.name || 'System Admin',
+                    target_audience: this.chatTarget,
+                    message: this.newChatMessage.trim()
+                });
+                this.newChatMessage = '';
+                this.showNote("Message Dispatched", "success");
+            } catch (e) {
+                console.error("Chat error", e);
+                this.showNote("Failed to send message", "error");
+            }
+        },
+
+        async fetchMessages() {
+            const myDept = this.userSession?.dept;
+            const myId = this.userSession?.id;
+            
+            let query = this.supabase.from('team_messages')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+            
+            if (!this.isManagerOrLead && !this.isAdminAuthenticated) {
+                query = query.in('target_audience', ['All', myDept, myId]);
+            }
+
+            const { data } = await query;
+            if (data) this.chatMessages = data;
         },
 
         async fetchDeviceAndNetworkInfo() {
@@ -298,11 +358,8 @@ window.attendanceApp = () => {
             try {
                 const res = await fetch('https://ipapi.co/json/');
                 const data = await res.json();
-                
                 let locationTag = "";
-                if (data.country_code && data.country_code !== 'US') {
-                    locationTag = ` [🚨 Outside US: ${data.country_name}]`;
-                }
+                if (data.country_code && data.country_code !== 'US') locationTag = ` [🚨 Outside US: ${data.country_name}]`;
                 return `${data.ip}${locationTag} | OS: ${os}`;
             } catch (e) {
                 try {
@@ -315,6 +372,30 @@ window.attendanceApp = () => {
             }
         },
 
+        async checkSecurityFlag(netString, memberName) {
+            if (!netString || !memberName) return;
+            const isAndroid = netString.includes('OS: Android');
+            const isOutsideUS = netString.includes('[🚨 Outside US:');
+            
+            if (isAndroid || isOutsideUS) {
+                const issues = [];
+                if (isOutsideUS) issues.push('Foreign IP');
+                if (isAndroid) issues.push('Android Device');
+                
+                const timeStr = this.getCurrentTimeIST();
+                const message = `🚨 SECURITY ALERT: ${memberName} detected on ${issues.join(' & ')} at ${timeStr}. Details: ${netString}`;
+                
+                try {
+                    await this.supabase.from('team_messages').insert({
+                        sender_id: 'SYSTEM',
+                        sender_name: 'Security Bot',
+                        target_audience: 'Managers',
+                        message: message
+                    });
+                } catch(e) { console.error("Alert error", e); }
+            }
+        },
+
         setupUserRealtime() {
             if (this.userSyncChannel) {
                 this.supabase.removeChannel(this.userSyncChannel);
@@ -323,14 +404,28 @@ window.attendanceApp = () => {
 
             if (!this.userSession && !this.isAdminAuthenticated) return;
 
+            const msgHandler = (payload) => {
+                const msg = payload.new;
+                const myDept = this.userSession?.dept;
+                const myId = this.userSession?.id;
+                
+                if (this.isManagerOrLead || this.isAdminAuthenticated || ['All', myDept, myId].includes(msg.target_audience)) {
+                    this.chatMessages.unshift(msg);
+                    if ("Notification" in window && Notification.permission === "granted" && !this.showChatPanel) {
+                        new Notification("New Team Message", { body: `${msg.sender_name}: ${msg.message}` });
+                    }
+                    if (!this.showChatPanel) this.showNote(`New message from ${msg.sender_name}`);
+                }
+            };
+
             if (this.isManagerOrLead || this.isAdminAuthenticated) {
                 this.userSyncChannel = this.supabase.channel('admin-tracking')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'punch_logs' }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'break_logs' }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'captcha_logs' }, p => this.handleRealtimePayload(p))
-                    // ADDED: Managers now listen to member updates so their kill-switch works too
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, p => this.handleRealtimePayload(p))
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, msgHandler)
                     .subscribe();
             } 
             else {
@@ -341,28 +436,21 @@ window.attendanceApp = () => {
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'break_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'captcha_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `id=eq.${myId}` }, p => this.handleRealtimePayload(p))
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, msgHandler)
                     .subscribe();
             }
         },
 
-handleRealtimePayload(payload) {
+        handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
 
             const { table, eventType, new: newRec, old: oldRec } = payload;
 
-            // FIXED: Ensure the update is for the CURRENTLY logged-in user before checking the token
             if (table === 'members' && eventType === 'UPDATE') {
                 if (this.userSession && newRec.id === this.userSession.id) {
                     if (newRec.current_session && newRec.current_session !== this.localSessionToken) {
-                        
-                        // Show the error message
                         this.showNote("Session Terminated: Logged in from another device.", "error");
-                        
-                        // Wait 2.5 seconds so they can read it, then execute the hard wipe
-                        setTimeout(() => {
-                            this.logoutUser();
-                        }, 2500); 
-                        
+                        setTimeout(() => this.logoutUser(), 2500); 
                         return;
                     }
                 }
@@ -382,7 +470,6 @@ handleRealtimePayload(payload) {
             } 
             else if (table === 'punch_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
                 if (!this.punchLogs[newRec.date]) this.punchLogs[newRec.date] = {};
-                
                 const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks || [];
                 const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas || [];
 
@@ -649,26 +736,27 @@ handleRealtimePayload(payload) {
                     });
                 }
                 if (capData) {
-                    capData.forEach(c => {
-                        if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
-                        if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-                        if (!newPunch[c.log_date][c.member_id].captchas) newPunch[c.log_date][c.member_id].captchas = [];
-                        newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
-                    });
-                }
-                this.punchLogs = newPunch;
-                
-                this.checkExpiredCaptchas();
-                
-                this.syncError = false;
-                if (!silent) this.showNote("Database Synced", "success");
-            } catch (e) {
-                console.error("Cloud Pull Error:", e);
-                this.syncError = true;
-            } finally {
-                this.isSyncing = false;
-            }
-        },
+                    capData.forEach(
+                            c => {
+                                if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
+                                if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                                if (!newPunch[c.log_date][c.member_id].captchas) newPunch[c.log_date][c.member_id].captchas = [];
+                                newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
+                            });
+                        }
+                        this.punchLogs = newPunch;
+                        
+                        this.checkExpiredCaptchas();
+                        
+                        this.syncError = false;
+                        if (!silent) this.showNote("Database Synced", "success");
+                    } catch (e) {
+                        console.error("Cloud Pull Error:", e);
+                        this.syncError = true;
+                    } finally {
+                        this.isSyncing = false;
+                    }
+                },
 
         async fetchHistoricalDate(targetDate) {
             this.isSyncing = true;
@@ -918,6 +1006,9 @@ handleRealtimePayload(payload) {
             const uId = this.userSession.id;
             const checkTime = timeOverride || this.currentCaptchaTime || this.getCurrentTimeIST();
             const currentIp = await this.fetchDeviceAndNetworkInfo();
+            
+            // SECURITY CHECK: Report if foreign or android
+            this.checkSecurityFlag(currentIp, this.userSession.name);
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
@@ -1593,6 +1684,9 @@ handleRealtimePayload(payload) {
             if (!this.userSession) return;
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
+            
+            // SECURITY CHECK: Report if foreign or android
+            this.checkSecurityFlag(currentIp, this.userSession.name);
 
             if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
             this.attendanceData[activeDate][uId] = s;
@@ -1624,6 +1718,10 @@ handleRealtimePayload(payload) {
             if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = this.logoutTimePreview;
             
             const currentIp = await this.fetchDeviceAndNetworkInfo();
+            
+            // SECURITY CHECK: Report if foreign or android
+            this.checkSecurityFlag(currentIp, this.userSession.name);
+            
             this.punchLogs[activeDate][uId].out = this.logoutTimePreview;
             this.punchLogs[activeDate][uId].out_ip = currentIp;
             
@@ -1670,13 +1768,11 @@ handleRealtimePayload(payload) {
                 return this.showNote(`Account locked. Try again later`, "error"); 
             }
             
-            // 1. Attempt to Sign In via Supabase Auth
             let { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
                 email: ghostEmail,
                 password: pinPassword
             });
 
-            // 2. MIGRATION STEP: If they don't exist yet, Sign Them Up automatically!
             if (authError && authError.message.includes("Invalid login credentials")) {
                 const { data: signUpData, error: signUpError } = await this.supabase.auth.signUp({
                     email: ghostEmail,
@@ -1686,14 +1782,12 @@ handleRealtimePayload(payload) {
                 if (!signUpError && signUpData.user) {
                     authData = signUpData;
                     authError = null;
-                    // Link the new Auth ID to your members table
                     await this.supabase.from('members').update({ auth_id: authData.user.id }).eq('id', uid);
                 } else if (signUpError && signUpError.message.includes("already registered")) {
                     authError = signUpError; 
                 }
             }
 
-            // 3. Handle Login Success/Failure
             if (authError) {
                 this.userFailedAttempts[uid] = (this.userFailedAttempts[uid] || 0) + 1; 
                 this.loginPinInput = '';
@@ -1707,15 +1801,11 @@ handleRealtimePayload(payload) {
                 return;
             }
 
-            // SUCCESS: The user is now securely authenticated with Supabase!
             this.userFailedAttempts[uid] = 0; 
-            
-            // Attach the auth_id to your session so we can use it later
             this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
             this.userSession.auth_id = authData.user.id; 
 
-            // NEW: GENERATE AND SAVE SESSION TOKEN
-            this.localSessionToken = generateSecureId(); // <-- FIXED (Removed "this.")
+            this.localSessionToken = generateSecureId(); 
             await this.supabase.from('members')
                 .update({ current_session: this.localSessionToken })
                 .eq('id', uid);
@@ -1748,6 +1838,9 @@ handleRealtimePayload(payload) {
                 let penaltyTime = pendingCaptchas[0].time;
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
                 
+                // SECURITY CHECK: Report if foreign or android
+                this.checkSecurityFlag(currentIp, this.userSession.name);
+                
                 for (const cap of pendingCaptchas) {
                     cap.status = 'Missed';
                     await this.supabase.from('captcha_logs')
@@ -1769,6 +1862,9 @@ handleRealtimePayload(payload) {
             if (this.userSession.captchaEnabled && reopenLog?.in && !reopenLog?.out && !alreadyOnBreak) {
                 const missedTime = this.getCurrentTimeIST();
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
+                
+                // SECURITY CHECK: Report if foreign or android
+                this.checkSecurityFlag(currentIp, this.userSession.name);
                 
                 if (!this.punchLogs[trapDate][uid].captchas) this.punchLogs[trapDate][uid].captchas = [];
                 this.punchLogs[trapDate][uid].captchas.push({ time: missedTime, status: 'Missed', ip: currentIp });
@@ -1795,6 +1891,10 @@ handleRealtimePayload(payload) {
             
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
+                
+                // SECURITY CHECK: Report if foreign or android
+                this.checkSecurityFlag(currentIp, this.userSession.name);
+                
                 this.punchLogs[activeDate][uId] = { 
                     in: this.getCurrentTimeIST(), out: '', 
                     in_ip: currentIp, out_ip: '', 
@@ -1813,7 +1913,6 @@ handleRealtimePayload(payload) {
                 const ghostEmail = `${empId}@revcentric.local`;
                 const pinPassword = this.loginPinInput;
 
-                // Sign up in Supabase
                 const { data: authData, error: authError } = await this.supabase.auth.signUp({
                     email: ghostEmail, password: pinPassword
                 });
@@ -1829,11 +1928,10 @@ handleRealtimePayload(payload) {
                     this.userSession = JSON.parse(JSON.stringify(this.members[idx])); 
                     this.userSession.auth_id = authData.user.id;
 
-                   // NEW: GENERATE AND SAVE SESSION TOKEN
-            this.localSessionToken = generateSecureId(); // <-- FIXED
-            await this.supabase.from('members')
-                .update({ current_session: this.localSessionToken })
-                .eq('id', uid);
+                    this.localSessionToken = generateSecureId(); 
+                    await this.supabase.from('members')
+                        .update({ current_session: this.localSessionToken })
+                        .eq('id', uid);
 
                     this.setupUserRealtime();
                     await this.syncUserData(true); 
@@ -1863,6 +1961,9 @@ handleRealtimePayload(payload) {
                         let penaltyTime = setupPendingCaptchas[0].time;
                         const currentIp = await this.fetchDeviceAndNetworkInfo();
                         
+                        // SECURITY CHECK: Report if foreign or android
+                        this.checkSecurityFlag(currentIp, this.userSession.name);
+                        
                         for (const cap of setupPendingCaptchas) {
                             cap.status = 'Missed';
                             await this.supabase.from('captcha_logs')
@@ -1887,6 +1988,10 @@ handleRealtimePayload(payload) {
                     if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                     if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                         const currentIp = await this.fetchDeviceAndNetworkInfo();
+                        
+                        // SECURITY CHECK: Report if foreign or android
+                        this.checkSecurityFlag(currentIp, this.userSession.name);
+                        
                         this.punchLogs[activeDate][uId] = { 
                             in: this.getCurrentTimeIST(), out: '', 
                             in_ip: currentIp, out_ip: '', 
@@ -1901,7 +2006,6 @@ handleRealtimePayload(payload) {
         },
 
         async logoutUser() { 
-            // 1. Clear all running timers and local state
             this.clearCaptchaTimers(); 
             this.currentCaptchaTime = null; 
             this.userSession = null; 
@@ -1914,19 +2018,14 @@ handleRealtimePayload(payload) {
             
             this.loginStep = 'id'; 
             
-            // 2. Tell Supabase to invalidate the session on the server
             try {
                 await this.supabase.auth.signOut();
             } catch(e) {
                 console.warn("Supabase signout skipped or failed:", e);
             }
 
-            // 3. NUCLEAR OPTION: Destroy all local storage to prevent ghost sessions
             localStorage.clear();
             sessionStorage.clear();
-
-            // 4. Reload the page to clear the Javascript memory completely 
-            // (This ensures the next user sees a 100% fresh login screen)
             window.location.reload(); 
         },
 
