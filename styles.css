@@ -32,3 +32,45 @@ body { font-family: 'Outfit', sans-serif; background-color: #f4f4f5; }
 }
 
 .date-trigger::-webkit-calendar-picker-indicator { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+/* Portal Card Base Transition */
+.portal-card { 
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.4s ease; 
+}
+.portal-card:hover { transform: translateY(-4px); }
+
+/* Card 1: Brand Blue Glow */
+.portal-card:nth-child(1):hover {
+    box-shadow: 0 10px 40px -10px rgba(15, 76, 129, 0.4), 0 0 20px 0 rgba(15, 76, 129, 0.2); 
+    border-color: rgba(15, 76, 129, 0.6) !important;
+}
+
+/* Card 2: Emerald Glow */
+.portal-card:nth-child(2):hover {
+    box-shadow: 0 10px 40px -10px rgba(16, 185, 129, 0.25), 0 0 20px 0 rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.5) !important;
+}
+
+/* Card 3: Amber Glow */
+.portal-card:nth-child(3):hover {
+    box-shadow: 0 10px 40px -10px rgba(245, 158, 11, 0.25), 0 0 20px 0 rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.5) !important;
+}
+
+/* Card 4: Rose Glow */
+.portal-card:nth-child(4):hover {
+    box-shadow: 0 10px 40px -10px rgba(225, 29, 72, 0.25), 0 0 20px 0 rgba(225, 29, 72, 0.15);
+    border-color: rgba(225, 29, 72, 0.5) !important;
+}
+
+/* Main Dashboard Panels Hover Glow - Updated */
+.panel-glow {
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease, border-color 0.4s ease;
+}
+
+.panel-glow:hover {
+    transform: translateY(-2px) !important; 
+    /* Increased the opacity and added !important to force it past Tailwind */
+    box-shadow: 0 12px 40px -10px rgba(15, 76, 129, 0.3), 0 0 24px 0 rgba(15, 76, 129, 0.15) !important;
+    border-color: rgba(15, 76, 129, 0.5) !important;
+}
