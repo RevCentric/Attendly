@@ -1,5 +1,5 @@
 window.attendanceApp = () => {
-    // FIXED STRICT IST HELPERS
+    // STRICT IST HELPERS
     const getISTString = (date = new Date()) => {
         return new Intl.DateTimeFormat('en-CA', {
             timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -43,7 +43,6 @@ window.attendanceApp = () => {
         isAdminAuthenticated: false,
         adminPinInput: '',
         masterPin: '000000', 
-        newPinValue: '',
 
         userSession: null,
         localSessionToken: null, 
@@ -53,13 +52,6 @@ window.attendanceApp = () => {
         breakPinInput: '',
         loginStep: 'id', 
         tempUser: null,
-
-        // Chat State Variables
-        showChatPanel: false,
-        chatMessages: [],
-        newChatMessage: '',
-        chatTarget: 'All', 
-        unreadMessages: 0,
 
         captchaTimer: null,
         captchaTimeoutTimer: null,
@@ -80,10 +72,6 @@ window.attendanceApp = () => {
         summaryStartDate: firstDayStr,
         summaryEndDate: lastDayStr,
 
-        autoExportEnabled: false,
-        autoExportTime: '18:00',
-        lastAutoExportDate: '',
-
         scopeStartStr: '',
         fetchedOldDates: new Set(),
 
@@ -92,7 +80,7 @@ window.attendanceApp = () => {
         supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwdGh6a25qem14d3Vrd3B2aGlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMzczMDksImV4cCI6MjA5MDgxMzMwOX0.C3uuAVuw3kQWFYcwAFa37bTYbVGOC3DIAgqYpw2osbs',
         supabase: null,
         
-        // APP STATE (Hydrated from Relational DB)
+        // APP STATE
         members: [],
         attendanceData: {}, 
         punchLogs: {}, 
@@ -123,7 +111,6 @@ window.attendanceApp = () => {
         logoutTimePreview: '',
         editingLogId: null,
         tempPunches: { in: '', out: '' },
-        deleteTarget: null, 
         memberToDelete: null,
         notification: null,
 
@@ -144,22 +131,17 @@ window.attendanceApp = () => {
         ],
 
         menuItems: [
-            { id: 'portal', label: 'Personnel', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
-            { id: 'dashboard', label: 'Stats', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>', admin: true },
-            { id: 'record', label: 'Log', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>', admin: true },
-            { id: 'members', label: 'Roster', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>', admin: true },
-            { id: 'summary', label: 'Reports', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>', admin: true },
-            { id: 'master', label: 'Master', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', admin: true },
-            { id: 'import', label: 'Hub', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>', admin: true }
+            { id: 'portal', label: 'Personnel', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
+            { id: 'dashboard', label: 'Stats', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>', admin: true },
+            { id: 'record', label: 'Log', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>', admin: true },
+            { id: 'members', label: 'Roster', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>', admin: true },
+            { id: 'summary', label: 'Reports', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>', admin: true },
+            { id: 'master', label: 'Master', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', admin: true }
         ],
 
         async init() {
             if ("Notification" in window && Notification.permission === "default") {
-                Notification.requestPermission()
-                    .then(permission => {
-                        if (permission === "granted") console.log("Notifications enabled on launch.");
-                    })
-                    .catch(e => console.warn("Auto-prompt blocked:", e));
+                Notification.requestPermission().catch(e => console.warn("Auto-prompt blocked:", e));
             }   
 
             this.userSession = null;
@@ -218,18 +200,6 @@ window.attendanceApp = () => {
             });
 
             window.addEventListener('focus', () => this.checkExpiredCaptchas());
-
-            setInterval(() => {
-                if (this.autoExportEnabled && this.autoExportTime) {
-                    const todayStr = getISTString();
-                    const istTimeStr = getISTTime24();
-                    if (this.lastAutoExportDate !== todayStr && istTimeStr >= this.autoExportTime) {
-                        this.executeFullSystemExport(true);
-                        this.lastAutoExportDate = todayStr;
-                        this.upsertConfigCloud('export_settings', { autoExportEnabled: true, autoExportTime: this.autoExportTime, lastAutoExportDate: todayStr });
-                    }
-                }
-            }, 30000);
 
             try {
                 const bc = new BroadcastChannel('revcentric_captcha');
@@ -294,40 +264,9 @@ window.attendanceApp = () => {
             }
         },
 
-        async sendTeamMessage() {
-            if (!this.newChatMessage.trim() || !this.userSession && !this.isAdminAuthenticated) return;
-            if (!this.isManagerOrLead && !this.isAdminAuthenticated) return this.showNote("Unauthorized", "error");
-
-            try {
-                await this.supabase.from('team_messages').insert({
-                    sender_id: this.userSession?.id || 'ADMIN',
-                    sender_name: this.userSession?.name || 'System Admin',
-                    target_audience: this.chatTarget,
-                    message: this.newChatMessage.trim()
-                });
-                this.newChatMessage = '';
-                this.showNote("Message Dispatched", "success");
-            } catch (e) {
-                console.error("Chat error", e);
-                this.showNote("Failed to send message", "error");
-            }
-        },
-
-        async fetchMessages() {
-            const myDept = this.userSession?.dept;
-            const myId = this.userSession?.id;
-            
-            let query = this.supabase.from('team_messages')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
-            
-            if (!this.isManagerOrLead && !this.isAdminAuthenticated) {
-                query = query.in('target_audience', ['All', myDept, myId]);
-            }
-
-            const { data } = await query;
-            if (data) this.chatMessages = data;
+        killSession() {
+            if (this.isAdminAuthenticated) this.logoutAdmin();
+            if (this.userSession) this.logoutUser();
         },
 
         async fetchDeviceAndNetworkInfo() {
@@ -386,14 +325,7 @@ window.attendanceApp = () => {
                 const timeStr = this.getCurrentTimeIST();
                 const message = `🚨 SECURITY ALERT: ${memberName} detected on ${issues.join(' & ')} at ${timeStr}. Details: ${netString}`;
                 
-                try {
-                    await this.supabase.from('team_messages').insert({
-                        sender_id: 'SYSTEM',
-                        sender_name: 'Security Bot',
-                        target_audience: 'Managers',
-                        message: message
-                    });
-                } catch(e) { console.error("Alert error", e); }
+                console.warn(message);
             }
         },
 
@@ -405,23 +337,6 @@ window.attendanceApp = () => {
 
             if (!this.userSession && !this.isAdminAuthenticated) return;
 
-            const msgHandler = (payload) => {
-                const msg = payload.new;
-                const myDept = this.userSession?.dept;
-                const myId = this.userSession?.id;
-                
-                if (this.isManagerOrLead || this.isAdminAuthenticated || ['All', myDept, myId].includes(msg.target_audience)) {
-                    this.chatMessages.unshift(msg);
-                    if ("Notification" in window && Notification.permission === "granted" && !this.showChatPanel) {
-                        new Notification("New Team Message", { body: `${msg.sender_name}: ${msg.message}` });
-                    }
-                    if (!this.showChatPanel) {
-                        this.showNote(`New message from ${msg.sender_name}`);
-                        this.unreadMessages++;
-                    }
-                }
-            };
-
             if (this.isManagerOrLead || this.isAdminAuthenticated) {
                 this.userSyncChannel = this.supabase.channel('admin-tracking')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, p => this.handleRealtimePayload(p))
@@ -429,7 +344,6 @@ window.attendanceApp = () => {
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'break_logs' }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'captcha_logs' }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, p => this.handleRealtimePayload(p))
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, msgHandler)
                     .subscribe();
             } 
             else {
@@ -440,7 +354,6 @@ window.attendanceApp = () => {
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'break_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'captcha_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `id=eq.${myId}` }, p => this.handleRealtimePayload(p))
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_messages' }, msgHandler)
                     .subscribe();
             }
         },
@@ -644,11 +557,6 @@ window.attendanceApp = () => {
                         if(row.key === 'departments') this.departments = row.value;
                         if(row.key === 'shifts') this.shifts = row.value;
                         if(row.key === 'master_pin') this.masterPin = row.value;
-                        if(row.key === 'export_settings') {
-                            this.autoExportEnabled = row.value.autoExportEnabled;
-                            this.autoExportTime = row.value.autoExportTime;
-                            this.lastAutoExportDate = row.value.lastAutoExportDate;
-                        }
                     });
                 }
 
@@ -741,26 +649,26 @@ window.attendanceApp = () => {
                 }
                 if (capData) {
                     capData.forEach(
-                            c => {
-                                if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
-                                if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-                                if (!newPunch[c.log_date][c.member_id].captchas) newPunch[c.log_date][c.member_id].captchas = [];
-                                newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
-                            });
-                        }
-                        this.punchLogs = newPunch;
-                        
-                        this.checkExpiredCaptchas();
-                        
-                        this.syncError = false;
-                        if (!silent) this.showNote("Database Synced", "success");
-                    } catch (e) {
-                        console.error("Cloud Pull Error:", e);
-                        this.syncError = true;
-                    } finally {
-                        this.isSyncing = false;
-                    }
-                },
+                        c => {
+                            if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
+                            if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                            if (!newPunch[c.log_date][c.member_id].captchas) newPunch[c.log_date][c.member_id].captchas = [];
+                            newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
+                        });
+                }
+                this.punchLogs = newPunch;
+                
+                this.checkExpiredCaptchas();
+                
+                this.syncError = false;
+                if (!silent) this.showNote("Database Synced", "success");
+            } catch (e) {
+                console.error("Cloud Pull Error:", e);
+                this.syncError = true;
+            } finally {
+                this.isSyncing = false;
+            }
+        },
 
         async fetchHistoricalDate(targetDate) {
             this.isSyncing = true;
@@ -816,24 +724,25 @@ window.attendanceApp = () => {
             }
         },
 
-        toggleCaptcha() {
-            if (!this.userSession) return;
-            const idx = this.members.findIndex(m => m.id === this.userSession.id);
+        toggleMemberVerification(mId) {
+            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            const idx = this.members.findIndex(m => m.id === mId);
             if (idx > -1) {
                 const current = !!this.members[idx].captchaEnabled;
                 this.members[idx].captchaEnabled = !current;
-                this.userSession.captchaEnabled = !current;
+                
+                if (this.userSession && this.userSession.id === mId) {
+                    this.userSession.captchaEnabled = !current;
+                    if (this.userSession.captchaEnabled) {
+                        if ("Notification" in window && Notification.permission !== "granted") Notification.requestPermission();
+                        this.scheduleNextCaptcha();
+                    } else {
+                        this.clearCaptchaTimers();
+                    }
+                }
                 
                 this.upsertMemberCloud(this.members[idx]); 
-
-                if (this.userSession.captchaEnabled) {
-                    if ("Notification" in window && Notification.permission !== "granted") Notification.requestPermission();
-                    this.scheduleNextCaptcha();
-                    this.showNote("Verification Mode Enabled", "success");
-                } else {
-                    this.clearCaptchaTimers();
-                    this.showNote("Verification Mode Disabled", "success");
-                }
+                this.showNote(`Verification for ${this.members[idx].firstName} ${!current ? 'Enabled' : 'Disabled'}`, "success");
             }
         },
 
@@ -1612,11 +1521,9 @@ window.attendanceApp = () => {
 
         markAttendance(id, s) { 
             if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {}; 
-            const newStatus = this.attendanceData[this.currentDate][id] === s ? "" : s;
-            this.attendanceData[this.currentDate][id] = newStatus;
-            
+            this.attendanceData[this.currentDate][id] = s;
             this.attendanceData = { ...this.attendanceData }; 
-            this.upsertAttCloud(this.currentDate, id, newStatus); 
+            this.upsertAttCloud(this.currentDate, id, s); 
         },
         
         isMarked(id, s) { return this.attendanceData[this.currentDate]?.[id] === s; },
@@ -1730,10 +1637,13 @@ window.attendanceApp = () => {
             this.punchLogs[activeDate][uId].out_ip = currentIp;
             
             this.punchLogs = { ...this.punchLogs };
-            this.upsertPunchCloud(activeDate, uId); 
+            
+            await this.upsertPunchCloud(activeDate, uId); 
+            
             this.showLogoutModal = false; 
-            this.logoutUser(); 
             this.showNote("Shift Logged Out", "success");
+
+            await this.logoutUser(); 
         },
 
         toggleEditLog(id) {
@@ -2076,14 +1986,6 @@ window.attendanceApp = () => {
             }
             await this.supabase.auth.signOut();
         },
-        
-        changeAdminPin() {
-            if (this.newPinValue.length === 6) { 
-                this.masterPin = this.newPinValue; 
-                this.upsertConfigCloud('master_pin', this.masterPin); 
-                this.newPinValue = ''; this.showNote("Master PIN Updated", "success"); 
-            } else this.showNote("PIN must be 6 digits", "error");
-        },
 
         addMember() {
             if (!this.newMember.firstName || !this.newMember.empId) return this.showNote("Fields missing", "error");
@@ -2108,25 +2010,14 @@ window.attendanceApp = () => {
         removeShift(s) { this.shifts = this.shifts.filter(x => x.name !== s); this.upsertConfigCloud('shifts', this.shifts); },
         
         showNote(msg, type = 'success') { this.notification = { msg, type }; setTimeout(() => this.notification = null, 3000); },
-        confirmWipe(t) { this.deleteTarget = t; this.showDeleteModal = true; },
         
         async executeWipe() { 
-            if (this.deleteTarget === 'local') { 
-                try {
-                    await this.supabase.from('members').delete().neq('id', '0');
-                    await this.supabase.from('attendance').delete().neq('date', '1970-01-01');
-                    await this.supabase.from('punch_logs').delete().neq('date', '1970-01-01');
-                    await this.supabase.from('break_logs').delete().neq('log_date', '1970-01-01');
-                    await this.supabase.from('captcha_logs').delete().neq('log_date', '1970-01-01');
-                    await this.supabase.from('leave_requests').delete().neq('id', '0');
-                    await this.supabase.from('holidays').delete().neq('id', '0');
-                    window.location.reload(); 
-                } catch(e) { console.error(e); }
-            } else if (this.deleteTarget === 'member') { 
+            if (this.memberToDelete) { 
                 this.members = this.members.filter(m => m.id !== this.memberToDelete); 
                 try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch(e){} 
             } 
             this.showDeleteModal = false; 
+            this.memberToDelete = null;
         },
         
         exportToPDF() { 
@@ -2305,10 +2196,10 @@ window.attendanceApp = () => {
             this.showNote("Roster Report Downloaded", "success");
         },
 
-        async executeFullSystemExport(isAuto = false) { 
+        async executeFullSystemExport() { 
             if (!this.members || this.members.length === 0) return this.showNote("No data available to export", "error");
 
-            this.showNote("Compiling System Export...", "success");
+            this.showNote("Compiling Database Snapshot...", "success");
             const wb = XLSX.utils.book_new(); 
 
             // SHEET 1: Personnel Master List
@@ -2424,35 +2315,14 @@ window.attendanceApp = () => {
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(securityRows), "Security_Audit");
 
-            // SHEET 7: Team Messages
-            try {
-                const { data: allMessages } = await this.supabase.from('team_messages').select('*').order('created_at', { ascending: false });
-                if (allMessages && allMessages.length > 0) {
-                    const msgRows = allMessages.map(m => ({
-                        'Date & Time': new Date(m.created_at).toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-                        'Sender ID': m.sender_id,
-                        'Sender Name': m.sender_name,
-                        'Target Audience': m.target_audience,
-                        'Message': m.message
-                    }));
-                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(msgRows), "Team_Messages");
-                }
-            } catch(e) { console.error("Error fetching messages for export", e); }
-
             // Generate and Download
-            const fileName = `RevCentric_System_Export_${isAuto ? 'Automated' : 'Manual'}_${getISTString()}.xlsx`;
+            const fileName = `RevCentric_DB_Snapshot_${getISTString()}.xlsx`;
             XLSX.writeFile(wb, fileName); 
-            this.showNote(isAuto ? "Automated DB Export Completed" : "Comprehensive Export Downloaded", "success");
-        },
-
-        toggleAutoExport() {
-            this.autoExportEnabled = !this.autoExportEnabled;
-            this.upsertConfigCloud('export_settings', { autoExportEnabled: this.autoExportEnabled, autoExportTime: this.autoExportTime, lastAutoExportDate: this.lastAutoExportDate }); 
-            this.showNote(this.autoExportEnabled ? `Auto-Export set for ${this.autoExportTime} IST` : "Auto-Export Disabled", "success");
+            this.showNote("Snapshot Downloaded Successfully", "success");
         },
 
         openNewMemberForm() { this.isAddingMember = true; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
-        removeMember(id) { this.memberToDelete = id; this.confirmWipe('member'); },
+        removeMember(id) { this.memberToDelete = id; this.showDeleteModal = true; },
         resetUserPin(id) {
             const idx = this.members.findIndex(m => m.id === id);
             if (idx !== -1) { 
