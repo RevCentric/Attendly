@@ -132,66 +132,88 @@
     <div class="flex flex-1 h-full w-full overflow-hidden relative z-[2000]">
 
         <!-- Compact Sidebar Navigation -->
-        <aside class="w-20 h-full bg-transparent z-[2000] flex flex-col py-6 shrink-0 relative items-center justify-between">        
-            <div class="shrink-0 mb-6">
-                <img src="logo.png" alt="Logo" class="h-9 object-contain drop-shadow-sm" onerror="this.style.display='none';">
-            </div>
+<aside class="w-16 h-full bg-transparent border-r border-zinc-200/50 z-[2000] flex flex-col py-6 shrink-0 relative items-center justify-between">           
+    <div class="shrink-0 mb-6 px-2">
+        <img src="logo.png" alt="Logo" class="w-full object-contain drop-shadow-sm" onerror="this.style.display='none';">
+    </div>
 
-            <div class="flex-1 flex flex-col w-full px-3 overflow-y-auto no-scrollbar custom-scrollbar items-center gap-y-3 py-2">
-                <template x-for="item in menuItems" :key="item.id">
-                    <button x-show="!item.admin || isManagerOrLead" 
-                            @click="view = item.id; resetMemberForm()" 
-                            :title="item.label"
-                            :class="view === item.id ? 'bg-[#f26522] text-white shadow-[0_4px_20px_rgba(242,101,34,0.4)] scale-105' : 'text-zinc-400 hover:bg-zinc-50 hover:text-[#f26522]'" 
-                            class="w-12 h-12 rounded-xl transition-all duration-200 flex items-center justify-center group relative shrink-0 active:scale-95">
-                        <span x-html="item.icon" class="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:stroke-[2]"></span>
-                        <div class="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap hidden md:block" x-text="item.label"></div>
-                    </button>
-                </template>
-            </div>
-
-            <div class="mt-auto w-full px-3 flex flex-col items-center gap-y-3 pt-4 border-t border-zinc-200/60">
-
-<button x-show="userSession" 
-            @click="toggleMemberVerification(userSession.id)"
-            :title="isManagerOrLead ? 'Toggle Security Check' : 'Your Security Status'"
-            :class="userSession?.captchaEnabled ? 'text-emerald-600 bg-emerald-50/80 border border-emerald-200/60 shadow-[0_2px_10px_rgba(16,185,129,0.15)]' : 'text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50'" 
-            class="w-12 h-12 rounded-xl flex items-center justify-center transition-all group relative active:scale-95 shrink-0">
-        
-        <div class="relative flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform group-hover:scale-105">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            <span x-show="userSession?.captchaEnabled" 
-                  class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white animate-pulse"></span>
-        </div>
-
-        <div class="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap hidden md:block">
-            <span x-text="userSession?.captchaEnabled ? 'Verification: Active' : 'Verification: Off'"></span>
-        </div>
-    </button>              
-                <button x-show="userSession" @click="showLeaveModal = true" title="Request Time-Off" class="w-12 h-12 rounded-xl flex items-center justify-center text-zinc-400 hover:text-amber-500 hover:bg-amber-50 transition-all group relative active:scale-95">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                    <div class="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap hidden md:block">Time-Off</div>
-                </button>
-
-                <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" title="Notifications" class="w-12 h-12 rounded-xl flex items-center justify-center text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 transition-all relative group active:scale-95">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                    <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-[#f26522] rounded-full border-2 border-white animate-pulse"></span>
-                    <div class="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap hidden md:block">Alerts</div>
-                </button>
+    <div class="flex-1 flex flex-col w-full px-2 overflow-y-auto no-scrollbar custom-scrollbar items-center gap-y-3 py-2">
+        <template x-for="item in menuItems" :key="item.id">
+            <button x-show="!item.admin || isManagerOrLead" 
+                    @click="view = item.id; resetMemberForm()" 
+                    :class="view === item.id ? 'bg-[#f26522] text-white shadow-[0_4px_20px_rgba(242,101,34,0.4)] scale-105' : 'text-zinc-400 hover:bg-zinc-50 hover:text-[#f26522]'" 
+                    class="w-10 h-10 rounded-xl transition-all duration-200 flex items-center justify-center group relative shrink-0 active:scale-95">
+                <span x-html="item.icon" class="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:stroke-[2]"></span>
                 
-                <button x-show="userSession" @click="initiateLogout()" title="Punch Out" class="w-12 h-12 rounded-xl flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 transition-all group relative active:scale-95">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    <div class="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap hidden md:block">Punch Out</div>
-                </button>
+                <div class="absolute top-1/2 -translate-y-1/2 left-full ml-3 px-2.5 py-1.5 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap hidden md:block shadow-lg origin-left scale-95 group-hover:scale-100">
+                    <div class="absolute top-1/2 -translate-y-1/2 -left-1 border-[5px] border-transparent border-r-zinc-900"></div>
+                    <span x-text="item.label"></span>
+                </div>
+            </button>
+        </template>
+    </div>
 
-                <button x-show="userSession || isAdminAuthenticated" @click="killSession()" title="Exit Portal" class="w-12 h-12 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-all group relative active:scale-95">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <div class="absolute left-full ml-4 px-3 py-2 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap hidden md:block">Exit Portal</div>
-                </button>
+    <div class="mt-auto w-full px-2 flex flex-col items-center gap-y-3 pt-4 border-t border-zinc-200/60">
+
+        <button x-show="userSession" @click="toggleMemberVerification(userSession.id)"
+                :class="userSession?.captchaEnabled ? 'text-emerald-600 bg-emerald-50/80 border border-emerald-200/60' : 'text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50'" 
+                class="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative active:scale-95 shrink-0">
+            <div class="relative flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform group-hover:scale-105"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span x-show="userSession?.captchaEnabled" class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white animate-pulse"></span>
             </div>
-        </aside>
+            
+            <div class="absolute top-1/2 -translate-y-1/2 left-full ml-3 px-2.5 py-1.5 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap hidden md:block shadow-lg origin-left scale-95 group-hover:scale-100">
+                <div class="absolute top-1/2 -translate-y-1/2 -left-1 border-[5px] border-transparent border-r-zinc-900"></div>
+                <span x-text="userSession?.captchaEnabled ? 'Verification: Active' : 'Verification: Off'"></span>
+            </div>
+        </button>              
+        
+        <button x-show="userSession" @click="showLeaveModal = true" class="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-amber-500 hover:bg-amber-50 transition-all group relative active:scale-95">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            
+            <div class="absolute top-1/2 -translate-y-1/2 left-full ml-3 px-2.5 py-1.5 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap hidden md:block shadow-lg origin-left scale-95 group-hover:scale-100">
+                <div class="absolute top-1/2 -translate-y-1/2 -left-1 border-[5px] border-transparent border-r-zinc-900"></div>
+                Time-Off
+            </div>
+        </button>
+
+        <button x-show="isAdminAuthenticated || isManagerOrLead" @click="showNotifications = !showNotifications" class="w-10 h-10 rounded-xl flex items-center justify-center text-zinc-400 hover:text-indigo-500 hover:bg-indigo-50 transition-all relative group active:scale-95">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span x-show="(pendingLeaveCount + todayEvents.length) > 0" class="absolute top-2 right-2 w-2 h-2 bg-[#f26522] rounded-full border border-white animate-pulse"></span>
+            
+            <div class="absolute top-1/2 -translate-y-1/2 left-full ml-3 px-2.5 py-1.5 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap hidden md:block shadow-lg origin-left scale-95 group-hover:scale-100">
+                <div class="absolute top-1/2 -translate-y-1/2 -left-1 border-[5px] border-transparent border-r-zinc-900"></div>
+                Alerts
+            </div>
+        </button>
+
+        <div x-show="userSession" class="relative group mt-2 pt-2 border-t border-zinc-200/60 w-full flex justify-center">
+            <img :src="`https://api.dicebear.com/7.x/avataaars/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+                 alt="User Profile" 
+                 class="w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 shadow-sm object-cover cursor-pointer hover:ring-2 hover:ring-[#0f4c81]/30 transition-all" />
+            
+            <div class="absolute bottom-0 left-full ml-3 p-4 bg-zinc-900 text-white rounded-[1.25rem] opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all duration-200 z-50 whitespace-nowrap min-w-[200px] shadow-2xl origin-bottom-left scale-95 group-hover:scale-100">
+                <div class="space-y-1 mb-4 pb-4 border-b border-zinc-800">
+                    <h3 class="text-sm font-black tracking-tight leading-none text-white" x-text="'Hello, ' + userSession?.firstName"></h3>
+                    <p class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1" x-text="(userSession?.role || 'Staff') + ' • ' + (userSession?.dept || 'General')"></p>
+                </div>
+                
+                <div class="flex flex-col gap-2">
+                    <button @click="initiateLogout()" class="w-full py-2.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-3 px-3">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        Punch Out
+                    </button>
+                    <button @click="killSession()" class="w-full py-2.5 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-3 px-3">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Exit Portal
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</aside>
 
         <main class="flex-1 flex flex-col overflow-hidden relative h-full">
             <header class="shrink-0 px-4 md:px-10 pt-2 md:pt-3 pb-2 flex flex-col gap-4 no-print z-[1000] relative">
@@ -308,19 +330,6 @@
                                 <div class="px-6 py-3 bg-white text-pink-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0">Birthday Celebration</div>
                             </div>
                         </template>
-
-                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/70 backdrop-blur-xl border border-zinc-200/50 p-4 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] w-full panel-glow">
-                            <div class="flex items-center gap-4">
-                                <img :src="`https://api.dicebear.com/7.x/avataaars/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
-     alt="Daily Avatar" 
-     class="w-14 h-14 rounded-2xl bg-[#0f4c81]/10 border border-[#0f4c81]/20 shadow-sm shrink-0 object-cover" />
-                                <div class="space-y-0.5">
-                                    <h3 class="text-2xl font-black tracking-tighter leading-none text-zinc-950" x-text="'Hello ' + userSession?.firstName"></h3>
-                                    <p class="text-[10px] md:text-xs text-zinc-500 font-bold uppercase tracking-[0.1em]" x-text="(userSession?.role || 'Staff') + ' • ' + (userSession?.dept || 'General')"></p>
-                                </div>
-                            </div>
-                        </div> 
-
                         <div class="flex flex-col gap-6 w-full">
                            
     <div class="relative flex-1 overflow-hidden rounded-[2rem] bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between w-full panel-glow">
@@ -482,27 +491,41 @@
 
                 <div class="shrink-0 flex items-stretch mt-4 2xl:mt-0 2xl:w-[180px]">
                     <template x-if="userOnBreak">
-                        <button @click="endBreak()"
-                                class="group relative overflow-hidden w-full rounded-xl bg-[#f26522] hover:bg-[#de5a1d] text-white font-black text-[11px] uppercase tracking-[0.15em] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 px-4 py-3">
-                            <div class="absolute inset-0 before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:-translate-x-full group-hover:before:translate-x-full before:transition-transform before:duration-700"></div>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="relative z-10">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
-                            <span class="relative z-10">Resume</span>
-                        </button>
-                    </template>
-
+    <button @click="endBreak()"
+            class="group relative overflow-hidden w-full rounded-xl bg-white border border-zinc-200 hover:border-[#f26522]/40 hover:bg-[#f26522]/5 hover:shadow-md text-zinc-600 hover:text-[#f26522] font-black text-xl tracking-tight shadow-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 px-4 py-3">
+        
+        <div class="absolute -left-6 -top-6 w-16 h-16 bg-[#f26522]/10 rounded-full blur-2xl group-hover:bg-[#f26522]/30 transition-colors duration-500 pointer-events-none"></div>
+        <div class="absolute -right-6 -bottom-6 w-16 h-16 bg-[#f26522]/10 rounded-full blur-2xl group-hover:bg-[#f26522]/20 transition-colors duration-500 pointer-events-none"></div>
+        
+        <div class="relative z-10 flex items-center justify-center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:scale-110 transition-transform duration-300">
+                <polygon points="7 4 17 12 7 20 7 4"></polygon>
+                <path d="M21 8a6 6 0 0 1 0 8" class="animate-[pulse_1s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+            </svg>
+        </div>
+        
+        <span class="relative z-10 transition-colors leading-none">Resume</span>
+    </button>
+</template>
                     <template x-if="!userOnBreak && punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in && !punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out">
-                        <button @click="startBreak()"
-                                class="group relative overflow-hidden w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] uppercase tracking-[0.15em] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2 px-4 py-3">
-                            <div class="absolute inset-0 before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:-translate-x-full group-hover:before:translate-x-full before:transition-transform before:duration-700"></div>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="relative z-10">
-                                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                            </svg>
-                            <span class="relative z-10">Break</span>
-                        </button>
-                    </template>
+    <button @click="startBreak()"
+            class="group relative overflow-hidden w-full rounded-xl bg-white border border-zinc-200 hover:border-amber-300 hover:bg-amber-50 hover:shadow-md text-zinc-600 hover:text-amber-700 font-black text-xl tracking-tight shadow-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 px-4 py-3">
+        
+        <div class="absolute -right-6 -top-6 w-16 h-16 bg-amber-400/10 rounded-full blur-2xl group-hover:bg-amber-400/40 transition-colors duration-500 pointer-events-none"></div>
+        <div class="absolute -left-6 -bottom-6 w-16 h-16 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/30 transition-colors duration-500 pointer-events-none"></div>
+        
+        <div class="relative z-10 flex items-center justify-center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2.5" class="group-hover:-translate-y-0.5 transition-transform duration-300">
+                <path d="M17 8h1a4 4 0 1 1 0 8h-1" class="stroke-amber-500 group-hover:stroke-amber-600 transition-colors"></path>
+                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" class="fill-amber-100 stroke-amber-500 group-hover:fill-amber-200 group-hover:stroke-amber-600 transition-colors"></path>
+                <path d="M6 2v2" class="stroke-amber-400 animate-[pulse_1s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+                <path d="M10 2v2" class="stroke-amber-500 animate-[pulse_1s_ease-in-out_infinite_300ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+                <path d="M14 2v2" class="stroke-amber-600 animate-[pulse_1s_ease-in-out_infinite_600ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+            </svg>
+        </div>
+                <span class="relative z-10 transition-colors leading-none">Break</span>
+    </button>
+</template>
                 </div>
             </div>
         </div>
@@ -516,17 +539,29 @@
                                 <template x-if="activeTeamOnBreak.length > 0">
                                     <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-2">
                                         <template x-for="member in activeTeamOnBreak" :key="member.id">
-                                            <div class="p-3 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-3 shadow-sm shrink-0 min-w-[180px]">
-                                                <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md relative shrink-0">
-                                                    <span x-text="member.firstName.charAt(0)"></span>
-                                                    <span class="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 border-2 border-white rounded-full animate-pulse"></span>
-                                                </div>
-                                                <div class="min-w-0">
-                                                    <h5 class="text-sm font-black uppercase text-amber-950 tracking-tight truncate" x-text="member.name"></h5>
-                                                    <p class="text-[10px] font-black text-amber-700/70 uppercase tracking-widest truncate" x-text="member.dept + ' • ' + member.role"></p>
-                                                </div>
-                                            </div>
-                                        </template>
+    <div x-data="{ breakMins: calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) || 0 }" 
+         :class="breakMins > 60 ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-100'"
+         class="p-3 rounded-2xl border flex items-center gap-3 shadow-sm shrink-0 min-w-[180px] transition-colors">
+        
+        <div :class="breakMins > 60 ? 'bg-rose-500' : 'bg-amber-500'" 
+             class="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black shadow-md relative shrink-0 transition-colors">
+            <span x-text="member.firstName.charAt(0)"></span>
+            
+            <span :class="breakMins > 60 ? 'bg-rose-400' : 'bg-amber-400'" 
+                  class="absolute -top-1 -right-1 w-3 h-3 border-2 border-white rounded-full animate-pulse transition-colors"></span>
+        </div>
+        
+        <div class="min-w-0">
+            <h5 :class="breakMins > 60 ? 'text-rose-950' : 'text-amber-950'" 
+                class="text-sm font-black uppercase tracking-tight truncate transition-colors" 
+                x-text="member.name"></h5>
+                
+            <p :class="breakMins > 60 ? 'text-rose-700' : 'text-amber-700/70'" 
+               class="text-[10px] font-black uppercase tracking-widest truncate transition-colors" 
+               x-text="member.dept + ' • ' + breakMins + ' Mins'"></p>
+        </div>
+    </div>
+</template>
                                     </div>
                                 </template>
 
@@ -543,77 +578,120 @@
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <div class="bg-[#0f4c81]/90 backdrop-blur-xl p-6 rounded-[2rem] text-white flex flex-col justify-between h-full shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-[#0d406d]/50 portal-card">
-                                <div class="flex justify-between items-center mb-4">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#86b5e0]">This Month</p>
-                                    <div class="w-8 h-8 rounded-full bg-[#0a3861] flex items-center justify-center text-[#86b5e0]"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-                                </div>
-                                <div>
-                                    <div class="flex items-baseline gap-2">
-                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-white" x-text="individualStats?.metrics.presentMTD"></h4>
-                                        <span class="text-xs font-bold text-[#86b5e0] uppercase tracking-widest">Days</span>
-                                    </div>
-                                    <p class="text-[10px] font-bold text-[#86b5e0] uppercase tracking-widest mt-1">Present (MTD)</p>
-                                </div>
-                                <div class="pt-4 mt-4 border-t border-[#0a3861]/50">
-                                    <span class="px-3 py-1.5 bg-[#0a3861]/50 text-[#86b5e0] rounded-lg text-[10px] font-black uppercase shadow-sm">Current Pay Cycle</span>
-                                </div>
-                            </div>
+    
+    <div class="relative bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden flex flex-col justify-between h-full group hover:bg-white/90 transition-all duration-300">
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-[#0f4c81]/10 rounded-full blur-2xl group-hover:bg-[#0f4c81]/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10 flex justify-between items-start mb-6">
+            <div class="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-[#0f4c81] to-[#0a3861] flex items-center justify-center text-[#86b5e0] shadow-[0_8px_20px_rgba(15,76,129,0.3)] group-hover:scale-110 transition-transform duration-300">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <span class="px-3 py-1.5 bg-[#0f4c81]/5 text-[#0f4c81] rounded-xl text-[9px] font-black uppercase tracking-widest border border-[#0f4c81]/10">This Month</span>
+        </div>
 
-                            <div class="bg-emerald-50/80 backdrop-blur-xl p-6 rounded-[2rem] border border-emerald-200/50 flex flex-col justify-between h-full shadow-[0_8px_30px_rgb(0,0,0,0.06)] portal-card">
-                                <div class="flex justify-between items-center mb-4">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Leave Balance</p>
-                                    <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
-                                </div>
-                                <div>
-                                    <div class="flex items-baseline gap-2">
-                                        <h4 class="text-4xl md:text-5xl font-black tracking-tighter text-emerald-950" x-text="individualStats?.metrics.lvAvailYTD"></h4>
-                                        <span class="text-xs font-bold text-emerald-600 uppercase tracking-widest">Days</span>
-                                    </div>
-                                    <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Remaining (YTD)</p>
-                                </div>
-                                <div class="pt-4 mt-4 border-t border-emerald-200/60 flex items-center justify-between">
-                                    <div class="text-left"><p class="text-[10px] font-black uppercase text-emerald-500">Accrued</p><span class="text-xs font-black text-emerald-900" x-text="(individualStats?.metrics.plAllowed + individualStats?.metrics.slAllowed + (individualStats?.metrics.coEarned || 0)) + ' Days'"></span></div>
-                                    <div class="text-right"><p class="text-[10px] font-black uppercase text-emerald-500">Used</p><span class="text-xs font-black text-emerald-900" x-text="((individualStats?.metrics.plAllowed + individualStats?.metrics.slAllowed + (individualStats?.metrics.coEarned || 0)) - individualStats?.metrics.lvAvailYTD) + ' Days'"></span></div>
-                                </div>
-                            </div>
+        <div class="relative z-10 mb-6">
+            <div class="flex items-baseline gap-2">
+                <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.presentMTD"></h4>
+                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
+            </div>
+            <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Present (MTD)</p>
+        </div>
 
-                            <div class="bg-amber-50/80 backdrop-blur-xl p-6 rounded-[2rem] border border-amber-200/50 flex flex-col justify-between h-full shadow-[0_8px_30px_rgb(0,0,0,0.06)] portal-card">
-                                <div class="flex justify-between items-center mb-4">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600">Perm Hours</p>
-                                    <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-                                </div>
-                                <div>
-                                    <div class="flex items-baseline gap-2">
-                                        <h4 class="text-4xl md:text-5xl font-black tracking-tighter text-amber-950" x-text="individualStats?.metrics.prmAvailYTD"></h4>
-                                        <span class="text-xs font-bold text-amber-600 uppercase tracking-widest">Hrs</span>
-                                    </div>
-                                    <p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-1">Remaining (YTD)</p>
-                                </div>
-                                <div class="pt-4 mt-4 border-t border-amber-200/60 flex items-center justify-between">
-                                    <div class="text-left"><p class="text-[10px] font-black uppercase text-amber-500">Accrued</p><span class="text-xs font-black text-amber-900" x-text="(individualStats?.metrics.prmAvailYTD + individualStats?.metrics.prmUsedYTD) + 'h'"></span></div>
-                                    <div class="text-right"><p class="text-[10px] font-black uppercase text-amber-500">Used</p><span class="text-xs font-black text-amber-900" x-text="individualStats?.metrics.prmUsedYTD + 'h'"></span></div>
-                                </div>
-                            </div>
+        <div class="relative z-10 mt-auto bg-zinc-50/80 rounded-2xl p-3.5 border border-zinc-100 flex items-center justify-between">
+            <span class="text-[9px] font-black uppercase text-zinc-400 tracking-widest">Pay Cycle</span>
+            <span class="text-[10px] font-black uppercase text-[#0f4c81]">Current Cycle</span>
+        </div>
+    </div>
 
-                            <div class="bg-rose-50/80 backdrop-blur-xl p-6 rounded-[2rem] border border-rose-200/50 flex flex-col justify-between h-full shadow-[0_8px_30px_rgb(0,0,0,0.06)] portal-card">
-                                <div class="flex justify-between items-center mb-4">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Loss of Pay</p>
-                                    <div class="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
-                                </div>
-                                <div>
-                                    <div class="flex items-baseline gap-2">
-                                        <h4 class="text-4xl md:text-6xl font-black tracking-tighter text-rose-950" x-text="individualStats?.metrics.lopMTD"></h4>
-                                        <span class="text-xs font-bold text-rose-600 uppercase tracking-widest">Days</span>
-                                    </div>
-                                    <p class="text-[10px] font-bold text-rose-600 uppercase tracking-widest mt-1">Unpaid (MTD)</p>
-                                </div>
-                                <div class="pt-4 mt-4 border-t border-rose-200/60 flex items-center justify-between">
-                                    <p class="text-[10px] font-black uppercase text-rose-500">Impact</p>
-                                    <span class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors" :class="individualStats?.metrics.lopMTD > 0 ? 'bg-rose-600 text-white border-rose-700 shadow-md animate-pulse' : 'bg-white text-rose-500 border-rose-200'" x-text="individualStats?.metrics.lopMTD > 0 ? 'Deduction' : 'None'"></span>
-                                </div>
-                            </div>
-                        </div>
+    <div class="relative bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden flex flex-col justify-between h-full group hover:bg-white/90 transition-all duration-300">
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10 flex justify-between items-start mb-6">
+            <div class="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-emerald-50 shadow-[0_8px_20px_rgba(16,185,129,0.3)] group-hover:scale-110 transition-transform duration-300">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+            </div>
+            <span class="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-100/50">Leave Balance</span>
+        </div>
+
+        <div class="relative z-10 mb-6">
+            <div class="flex items-baseline gap-2">
+                <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.lvAvailYTD"></h4>
+                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
+            </div>
+            <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Remaining (YTD)</p>
+        </div>
+
+        <div class="relative z-10 mt-auto bg-emerald-50/50 rounded-2xl p-3 border border-emerald-100/50 flex items-center justify-between gap-2">
+            <div class="flex-1 px-1">
+                <p class="text-[8px] font-black uppercase text-emerald-600/70 tracking-widest mb-0.5">Accrued</p>
+                <p class="text-xs font-black text-emerald-950" x-text="(individualStats?.metrics.plAllowed + individualStats?.metrics.slAllowed + (individualStats?.metrics.coEarned || 0)) + ' Days'"></p>
+            </div>
+            <div class="w-px h-6 bg-emerald-200/50"></div>
+            <div class="flex-1 px-1 text-right">
+                <p class="text-[8px] font-black uppercase text-emerald-600/70 tracking-widest mb-0.5">Used</p>
+                <p class="text-xs font-black text-emerald-950" x-text="((individualStats?.metrics.plAllowed + individualStats?.metrics.slAllowed + (individualStats?.metrics.coEarned || 0)) - individualStats?.metrics.lvAvailYTD) + ' Days'"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="relative bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden flex flex-col justify-between h-full group hover:bg-white/90 transition-all duration-300">
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10 flex justify-between items-start mb-6">
+            <div class="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-amber-50 shadow-[0_8px_20px_rgba(245,158,11,0.3)] group-hover:scale-110 transition-transform duration-300">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <span class="px-3 py-1.5 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-100/50">Perm Hours</span>
+        </div>
+
+        <div class="relative z-10 mb-6">
+            <div class="flex items-baseline gap-2">
+                <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.prmAvailYTD"></h4>
+                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Hrs</span>
+            </div>
+            <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Remaining (YTD)</p>
+        </div>
+
+        <div class="relative z-10 mt-auto bg-amber-50/50 rounded-2xl p-3 border border-amber-100/50 flex items-center justify-between gap-2">
+            <div class="flex-1 px-1">
+                <p class="text-[8px] font-black uppercase text-amber-600/70 tracking-widest mb-0.5">Accrued</p>
+                <p class="text-xs font-black text-amber-950" x-text="(individualStats?.metrics.prmAvailYTD + individualStats?.metrics.prmUsedYTD) + 'h'"></p>
+            </div>
+            <div class="w-px h-6 bg-amber-200/50"></div>
+            <div class="flex-1 px-1 text-right">
+                <p class="text-[8px] font-black uppercase text-amber-600/70 tracking-widest mb-0.5">Used</p>
+                <p class="text-xs font-black text-amber-950" x-text="individualStats?.metrics.prmUsedYTD + 'h'"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="relative bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] overflow-hidden flex flex-col justify-between h-full group hover:bg-white/90 transition-all duration-300">
+        <div class="absolute -top-10 -right-10 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all duration-500"></div>
+        
+        <div class="relative z-10 flex justify-between items-start mb-6">
+            <div class="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center text-rose-50 shadow-[0_8px_20px_rgba(244,63,94,0.3)] group-hover:scale-110 transition-transform duration-300">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            </div>
+            <span class="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-rose-100/50">Loss of Pay</span>
+        </div>
+
+        <div class="relative z-10 mb-6">
+            <div class="flex items-baseline gap-2">
+                <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.lopMTD"></h4>
+                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
+            </div>
+            <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Unpaid (MTD)</p>
+        </div>
+
+        <div class="relative z-10 mt-auto bg-rose-50/50 rounded-2xl p-3.5 border border-rose-100/50 flex items-center justify-between">
+            <span class="text-[9px] font-black uppercase text-rose-600/70 tracking-widest">Impact Status</span>
+            <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors shadow-sm" 
+                  :class="individualStats?.metrics.lopMTD > 0 ? 'bg-rose-600 text-white animate-pulse' : 'bg-white text-rose-600 border border-rose-100'" 
+                  x-text="individualStats?.metrics.lopMTD > 0 ? 'Deduction' : 'None'"></span>
+        </div>
+    </div>
+
+</div>
 
                         <div class="relative group w-full mt-2" x-data="{
                             scroll(dir) {
