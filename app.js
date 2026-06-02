@@ -1517,7 +1517,8 @@ triggerCaptcha(forceTime = null) {
             const endM = eDate ? parseInt(eDate.split('-')[1]) : (getISTDateObject().getMonth() + 1);
 
             return this.filteredMembers.map(m => {
-                let d = { presentMTD:0, absentMTD:0, halfMTD:0, prmHrsMTD:0, lopMTD:0, holidayMTD:0, lvYTD:0, prmYTDUsed:0, avgActiveMTD:0, avgBreakMTD:0, avgActiveYTD:0, avgBreakYTD:0 };
+                // NEW: Added wfhMTD, coMTD, availLv, and availPrm to the tracker object
+                let d = { presentMTD:0, absentMTD:0, halfMTD:0, wfhMTD:0, coMTD:0, prmHrsMTD:0, lopMTD:0, holidayMTD:0, lvYTD:0, prmYTDUsed:0, availLv:0, availPrm:0, avgActiveMTD:0, avgBreakMTD:0, avgActiveYTD:0, avgBreakYTD:0 };
                 let ytd={ act:0, brk:0, days:0 }, mtd={ act:0, brk:0, days:0 };
 
                 Object.keys(this.attendanceData).forEach(dk => {
@@ -1528,6 +1529,11 @@ triggerCaptcha(forceTime = null) {
                         if (s === 'p' || s === 'wfh') d.presentMTD += 1;
                         if (s === 'a') d.absentMTD += 1;
                         if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
+                        
+                        // NEW: Explicitly track WFH and CO
+                        if (s === 'wfh') d.wfhMTD += 1;
+                        if (s === 'co') d.coMTD += 1;
+                        
                         if (s === '1p') { d.presentMTD += 1; d.prmHrsMTD += 1; }
                         if (s === '2p') { d.presentMTD += 1; d.prmHrsMTD += 2; }
                         if (s === 'lop') d.lopMTD += 1; 
@@ -1548,6 +1554,30 @@ triggerCaptcha(forceTime = null) {
                 const dbYTD = this.ytdStats[m.id] || { leaves: 0, compOffs: 0, permHours: 0 };
                 d.lvYTD = dbYTD.leaves;
                 d.prmYTDUsed = dbYTD.permHours;
+
+                // --- NEW: Calculate Available Balances based on DOJ ---
+                let monthsActiveThisYear = endM;
+                if (m.doj) {
+                    const dojParts = m.doj.split('-');
+                    if (dojParts.length === 3) {
+                        const dojY = parseInt(dojParts[0], 10);
+                        const dojM = parseInt(dojParts[1], 10);
+                        if (dojY === endY) {
+                            monthsActiveThisYear = Math.max(1, endM - dojM + 1);
+                        } else if (dojY > endY) {
+                            monthsActiveThisYear = 0; // Hasn't joined yet in this year scope
+                        }
+                    }
+                }
+
+                const totalYearlyLeaves = (m.allowedPL || 0) + (m.allowedSL || 0);
+                const limitPerMonth = totalYearlyLeaves / 12;
+                const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
+                const remainingYTD = proratedLimitYTD + dbYTD.compOffs - dbYTD.leaves;
+                
+                d.availLv = Number(remainingYTD.toFixed(2));
+                d.availPrm = ((m.allowedPerm || 0) * monthsActiveThisYear) - dbYTD.permHours;
+                // ------------------------------------------------------
 
                 d.avgActiveMTD = mtd.days ? Math.floor(mtd.act/mtd.days) : 0; 
                 d.avgBreakMTD = mtd.days ? Math.floor(mtd.brk/mtd.days) : 0;
