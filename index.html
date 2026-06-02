@@ -1001,77 +1001,96 @@
                                                     </div>
                                                 </div>
 
-                                                <div class="flex items-center gap-2 w-full lg:flex-1 shrink-0 mb-3 lg:mb-0 lg:px-4">
-                                                    <div class="flex-1 bg-white/50 border border-zinc-200/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-colors" :class="editingLogId === m.id ? 'focus-within:ring-2 focus-within:ring-zinc-400' : 'opacity-70'">
-                                                        <div class="flex items-center gap-1 mb-1">
-                                                            <span class="text-[8px] font-black text-zinc-400 uppercase tracking-[0.2em]">Punch In</span>
-                                                            <div class="relative flex items-center" x-show="punchLogs[currentDate]?.[m.id]?.in_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
-                                                                 @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
-                                                                 @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
-                                                                 @mouseleave="showTip = false">
-                                                                <svg class="w-3 h-3 text-zinc-300 hover:text-[#0f4c81] cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                                                                <template x-teleport="body">
-                                                                    <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
-                                                                        <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
-                                                                            <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
-                                                                            <span class="block text-emerald-400" x-text="punchLogs[currentDate]?.[m.id]?.in_ip"></span>
-                                                                        </div>
-                                                                    </div>
-                                                                </template>
-                                                            </div>
-                                                        </div>
-                                                        <input type="time" 
-                                                               :disabled="editingLogId !== m.id"
-                                                               :value="editingLogId === m.id ? tempPunches.in : getTimeInputVal(punchLogs[currentDate]?.[m.id]?.in)" 
-                                                               @input="tempPunches.in = $event.target.value"
-                                                               @focus="isEditingLog = true"
-                                                               @blur="isEditingLog = false"
-                                                               class="bg-transparent text-center font-black text-xs outline-none w-full rounded" 
-                                                               :class="(editingLogId === m.id ? tempPunches.in : punchLogs[currentDate]?.[m.id]?.in) ? 'text-emerald-700' : 'text-zinc-400', editingLogId === m.id ? 'cursor-pointer hover:bg-zinc-100/50' : 'cursor-not-allowed'">
-                                                    </div>
-                                                    
-                                                    <div @click="adminToggleBreak(m.id)" 
-                                                         class="flex-1 border border-zinc-200/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95"
-                                                         :class="isMemberOnBreak(m.id, currentDate) ? 'bg-amber-500 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.6)] text-white' : 'bg-amber-50/50 hover:bg-amber-100/50'"
-                                                         title="Admin Override: Click to Start/Stop Break">
-                                                        <span class="text-[8px] font-black uppercase tracking-[0.2em] mb-1 flex items-center" 
-                                                              :class="isMemberOnBreak(m.id, currentDate) ? 'text-amber-100' : 'text-amber-600'">
-                                                            <span x-show="isMemberOnBreak(m.id, currentDate)" class="inline-block w-1 h-1 bg-white rounded-full animate-pulse mr-1 mb-[1px]"></span>
-                                                            <span x-text="isMemberOnBreak(m.id, currentDate) ? 'END BREAK' : 'START BREAK'"></span>
-                                                        </span>
-                                                        <span class="font-black text-xs" 
-                                                              :class="isMemberOnBreak(m.id, currentDate) ? 'text-white' : 'text-amber-700'" 
-                                                              x-text="(calculateTotalBreakMins(punchLogs[currentDate]?.[m.id]?.breaks) || 0) + 'm'"></span>
-                                                    </div>
-                                                    
-                                                    <div class="flex-1 bg-white/50 border border-zinc-200/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-colors" :class="editingLogId === m.id ? 'focus-within:ring-2 focus-within:ring-zinc-400' : 'opacity-70'">
-                                                        <div class="flex items-center gap-1 mb-1">
-                                                            <span class="text-[8px] font-black text-zinc-400 uppercase tracking-[0.2em]">Punch Out</span>
-                                                            <div class="relative flex items-center" x-show="punchLogs[currentDate]?.[m.id]?.out_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
-                                                                 @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
-                                                                 @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
-                                                                 @mouseleave="showTip = false">
-                                                                <svg class="w-3 h-3 text-zinc-300 hover:text-[#0f4c81] cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                                                                <template x-teleport="body">
-                                                                    <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
-                                                                        <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
-                                                                            <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
-                                                                            <span class="block text-emerald-400" x-text="punchLogs[currentDate]?.[m.id]?.out_ip"></span>
-                                                                        </div>
-                                                                    </div>
-                                                                </template>
-                                                            </div>
-                                                        </div>
-                                                        <input type="time" 
-                                                               :disabled="editingLogId !== m.id"
-                                                               :value="editingLogId === m.id ? tempPunches.out : getTimeInputVal(punchLogs[currentDate]?.[m.id]?.out)" 
-                                                               @input="tempPunches.out = $event.target.value"
-                                                               @focus="isEditingLog = true"
-                                                               @blur="isEditingLog = false"
-                                                               class="bg-transparent text-center font-black text-xs outline-none w-full rounded" 
-                                                               :class="(editingLogId === m.id ? tempPunches.out : punchLogs[currentDate]?.[m.id]?.out) ? 'text-rose-700' : 'text-zinc-400', editingLogId === m.id ? 'cursor-pointer hover:bg-zinc-100/50' : 'cursor-not-allowed'">
-                                                    </div>
-                                                </div>
+                                               <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2 w-full lg:flex-1 shrink-0 mb-3 lg:mb-0 lg:px-4">
+    
+    <!-- 1. PUNCH IN -->
+    <div class="bg-white/50 border border-zinc-200/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-colors" :class="editingLogId === m.id ? 'focus-within:ring-2 focus-within:ring-zinc-400' : 'opacity-70'">
+        <div class="flex items-center gap-1 mb-1">
+            <span class="text-[8px] font-black text-zinc-400 uppercase tracking-[0.2em]">Punch In</span>
+            <div class="relative flex items-center" x-show="punchLogs[currentDate]?.[m.id]?.in_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
+                 @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
+                 @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
+                 @mouseleave="showTip = false">
+                <svg class="w-3 h-3 text-zinc-300 hover:text-[#0f4c81] cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <template x-teleport="body">
+                    <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
+                        <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
+                            <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                            <span class="block text-emerald-400" x-text="punchLogs[currentDate]?.[m.id]?.in_ip"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        <input type="time" 
+               :disabled="editingLogId !== m.id"
+               :value="editingLogId === m.id ? tempPunches.in : getTimeInputVal(punchLogs[currentDate]?.[m.id]?.in)" 
+               @input="tempPunches.in = $event.target.value"
+               @focus="isEditingLog = true"
+               @blur="isEditingLog = false"
+               class="bg-transparent text-center font-black text-xs outline-none w-full rounded" 
+               :class="(editingLogId === m.id ? tempPunches.in : punchLogs[currentDate]?.[m.id]?.in) ? 'text-emerald-700' : 'text-zinc-400', editingLogId === m.id ? 'cursor-pointer hover:bg-zinc-100/50' : 'cursor-not-allowed'">
+    </div>
+
+    <!-- 2. PUNCH OUT -->
+    <div class="bg-white/50 border border-zinc-200/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-colors" :class="editingLogId === m.id ? 'focus-within:ring-2 focus-within:ring-zinc-400' : 'opacity-70'">
+        <div class="flex items-center gap-1 mb-1">
+            <span class="text-[8px] font-black text-zinc-400 uppercase tracking-[0.2em]">Punch Out</span>
+            <div class="relative flex items-center" x-show="punchLogs[currentDate]?.[m.id]?.out_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
+                 @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
+                 @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
+                 @mouseleave="showTip = false">
+                <svg class="w-3 h-3 text-zinc-300 hover:text-[#0f4c81] cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                <template x-teleport="body">
+                    <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
+                        <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
+                            <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                            <span class="block text-emerald-400" x-text="punchLogs[currentDate]?.[m.id]?.out_ip"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        <input type="time" 
+               :disabled="editingLogId !== m.id"
+               :value="editingLogId === m.id ? tempPunches.out : getTimeInputVal(punchLogs[currentDate]?.[m.id]?.out)" 
+               @input="tempPunches.out = $event.target.value"
+               @focus="isEditingLog = true"
+               @blur="isEditingLog = false"
+               class="bg-transparent text-center font-black text-xs outline-none w-full rounded" 
+               :class="(editingLogId === m.id ? tempPunches.out : punchLogs[currentDate]?.[m.id]?.out) ? 'text-rose-700' : 'text-zinc-400', editingLogId === m.id ? 'cursor-pointer hover:bg-zinc-100/50' : 'cursor-not-allowed'">
+    </div>
+
+    <!-- 3. SHIFT HRS -->
+    <div class="bg-blue-50/60 border border-blue-100/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all hover:bg-blue-100/60 cursor-default">
+        <span class="text-[8px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1">Shift Hrs</span>
+        <span class="font-black text-xs text-blue-700" 
+              x-text="formatClockDisplay((punchLogs[currentDate]?.[m.id]?.in && punchLogs[currentDate]?.[m.id]?.out) ? diffInMins(punchLogs[currentDate]?.[m.id]?.in, punchLogs[currentDate]?.[m.id]?.out) : 0)"></span>
+    </div>
+
+    <!-- 4. ACTIVE HRS -->
+    <div class="bg-emerald-50/60 border border-emerald-100/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all hover:bg-emerald-100/60 cursor-default">
+        <span class="text-[8px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-1">Active Hrs</span>
+        <span class="font-black text-xs text-emerald-700" 
+              x-text="formatClockDisplay(Math.max(0, ((punchLogs[currentDate]?.[m.id]?.in && punchLogs[currentDate]?.[m.id]?.out) ? diffInMins(punchLogs[currentDate]?.[m.id]?.in, punchLogs[currentDate]?.[m.id]?.out) : 0) - (calculateTotalBreakMins(punchLogs[currentDate]?.[m.id]?.breaks) || 0)))"></span>
+    </div>
+
+    <!-- 5. START BREAK -->
+    <div @click="adminToggleBreak(m.id)" 
+         class="border border-zinc-200/50 rounded-xl p-1.5 flex flex-col items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 col-span-2 md:col-span-1 xl:col-span-1"
+         :class="isMemberOnBreak(m.id, currentDate) ? 'bg-amber-500 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.6)] text-white' : 'bg-amber-50/50 hover:bg-amber-100/50'"
+         title="Admin Override: Click to Start/Stop Break">
+        <span class="text-[8px] font-black uppercase tracking-[0.2em] mb-1 flex items-center" 
+              :class="isMemberOnBreak(m.id, currentDate) ? 'text-amber-100' : 'text-amber-600'">
+            <span x-show="isMemberOnBreak(m.id, currentDate)" class="inline-block w-1 h-1 bg-white rounded-full animate-pulse mr-1 mb-[1px]"></span>
+            <span x-text="isMemberOnBreak(m.id, currentDate) ? 'END BREAK' : 'START BREAK'"></span>
+        </span>
+        <span class="font-black text-xs" 
+              :class="isMemberOnBreak(m.id, currentDate) ? 'text-white' : 'text-amber-700'" 
+              x-text="(calculateTotalBreakMins(punchLogs[currentDate]?.[m.id]?.breaks) || 0) + 'm'"></span>
+    </div>
+
+</div>
 
                                                 <div class="flex flex-col xl:flex-row items-center justify-between xl:justify-end gap-3 w-full lg:w-auto shrink-0 border-t lg:border-t-0 lg:border-l border-zinc-200/50 pt-3 lg:pt-0 lg:pl-4">
                                                     
@@ -1305,47 +1324,64 @@
                                         <div class="space-y-1"><h2 class="text-3xl md:text-5xl font-black tracking-tighter text-zinc-950 uppercase leading-none">Audit Report</h2><p class="text-zinc-500 font-bold uppercase tracking-[0.3em] text-[10px] md:text-xs"><span x-text="formatDate(summaryStartDate)"></span> TO <span x-text="formatDate(summaryEndDate)"></span> • IST Performance Index</p></div>
                                     </div>
                                     <div id="audit-table-scroll" class="overflow-x-auto min-w-full max-h-[600px] custom-scrollbar">
-                                        <table class="w-full text-left border-separate border-spacing-0 relative min-w-[1400px]">
-                                            <thead class="sticky top-0 z-10 bg-white/90 backdrop-blur-md">
-                                                <tr class="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 border-b border-zinc-200/50">
-                                                    <th class="px-8 py-6 pl-10">Identity</th>
-                                                    <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Present</th>
-                                                    <th class="px-4 py-6 text-center text-sky-700 bg-sky-50/50">Half Day</th>
-                                                    <th class="px-4 py-6 text-center text-orange-700 bg-orange-50/50">Absent</th>
-                                                    <th class="px-4 py-6 text-center text-violet-700 bg-violet-50/50">Holiday</th>
-                                                    <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Perm Hrs</th>
-                                                    <th class="px-4 py-6 text-center text-rose-700 bg-rose-50/50">LOP</th>
-                                                    <th class="px-4 py-6 text-center text-zinc-700 bg-zinc-200/30">Lv Used (YTD)</th>
-                                                    <th class="px-4 py-6 text-center text-zinc-700 bg-zinc-200/30">Prm Used (YTD)</th>
-                                                    <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Act(MTD)</th>
-                                                    <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Avg Brk(MTD)</th>
-                                                    <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Act(YTD)</th>
-                                                    <th class="px-8 py-6 text-center pr-10 text-amber-700 bg-amber-50/50">Avg Brk(YTD)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="text-xs font-bold text-zinc-700">
-                                                <template x-for="data in rangeSummaryData" :key="data.empId">
-                                                    <tr class="hover:bg-white/50 transition-colors">
-                                                        <td class="px-8 py-6 pl-10 border-b border-zinc-200/50">
-                                                            <div class="text-zinc-950 text-sm font-black tracking-tight uppercase" x-text="data.name"></div>
-                                                            <div class="text-[10px] text-zinc-500 font-bold uppercase mt-0.5 tracking-widest" x-text="data.empId + ' • ' + (data.dept || 'General')"></div>
-                                                        </td>
-                                                        <td class="px-4 py-6 text-center text-xl text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="data.presentMTD"></td>
-                                                        <td class="px-4 py-6 text-center text-sky-600 font-black border-b border-zinc-200/50 bg-sky-50/20" x-text="data.halfMTD"></td>
-                                                        <td class="px-4 py-6 text-center text-orange-600 font-black border-b border-zinc-200/50 bg-orange-50/20" x-text="data.absentMTD"></td>
-                                                        <td class="px-4 py-6 text-center text-violet-600 font-black border-b border-zinc-200/50 bg-violet-50/20" x-text="data.holidayMTD"></td>
-                                                        <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="data.prmHrsMTD + 'h'"></td>
-                                                        <td class="px-4 py-6 text-center text-rose-600 font-black border-b border-zinc-200/50 bg-rose-50/20" x-text="data.lopMTD"></td>
-                                                        <td class="px-4 py-6 text-center text-zinc-700 font-black border-b border-zinc-200/50 bg-zinc-50/50" x-text="data.lvYTD"></td>
-                                                        <td class="px-4 py-6 text-center text-zinc-700 font-black border-b border-zinc-200/50 bg-zinc-50/50" x-text="data.prmYTDUsed + 'h'"></td>
-                                                        <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveMTD)"></td>
-                                                        <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakMTD)"></td>
-                                                        <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveYTD)"></td>
-                                                        <td class="px-8 py-6 text-center pr-10 text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakYTD)"></td>
-                                                    </tr>
-                                                </template>
-                                            </tbody>
-                                        </table>
+                                        <table class="w-full text-left border-separate border-spacing-0 relative min-w-[1800px]">
+    <thead class="sticky top-0 z-10 bg-white/90 backdrop-blur-md">
+        <tr class="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 border-b border-zinc-200/50">
+            <th class="px-8 py-6 pl-10">Identity</th>
+            <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Present</th>
+            <th class="px-4 py-6 text-center text-sky-700 bg-sky-50/50">Half Day</th>
+            <th class="px-4 py-6 text-center text-blue-700 bg-blue-50/50">WFH</th>
+            <th class="px-4 py-6 text-center text-teal-700 bg-teal-50/50">Comp Off</th>
+            
+            <th class="px-4 py-6 text-center text-orange-700 bg-orange-50/50">Absent</th>
+            <th class="px-4 py-6 text-center text-violet-700 bg-violet-50/50">Holiday</th>
+            <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Perm Hrs</th>
+            <th class="px-4 py-6 text-center text-rose-700 bg-rose-50/50">LOP</th>
+            
+            <th class="px-4 py-6 text-center text-zinc-700 bg-zinc-200/30">Lv Used(YTD)</th>
+            <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Lv Avail(YTD)</th>
+            
+            <th class="px-4 py-6 text-center text-zinc-700 bg-zinc-200/30">Prm Used(YTD)</th>
+            <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Prm Avail(YTD)</th>
+            
+            <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Act(MTD)</th>
+            <th class="px-4 py-6 text-center text-amber-700 bg-amber-50/50">Avg Brk(MTD)</th>
+            <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Avg Act(YTD)</th>
+            <th class="px-8 py-6 text-center pr-10 text-amber-700 bg-amber-50/50">Avg Brk(YTD)</th>
+        </tr>
+    </thead>
+    <tbody class="text-xs font-bold text-zinc-700">
+        <template x-for="data in rangeSummaryData" :key="data.empId">
+            <tr class="hover:bg-white/50 transition-colors">
+                <td class="px-8 py-6 pl-10 border-b border-zinc-200/50">
+                    <div class="text-zinc-950 text-sm font-black tracking-tight uppercase" x-text="data.name"></div>
+                    <div class="text-[10px] text-zinc-500 font-bold uppercase mt-0.5 tracking-widest" x-text="data.empId + ' • ' + (data.dept || 'General')"></div>
+                </td>
+                <td class="px-4 py-6 text-center text-xl text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="data.presentMTD"></td>
+                <td class="px-4 py-6 text-center text-sky-600 font-black border-b border-zinc-200/50 bg-sky-50/20" x-text="data.halfMTD"></td>
+                
+                <td class="px-4 py-6 text-center text-blue-600 font-black border-b border-zinc-200/50 bg-blue-50/20" x-text="data.wfhMTD || 0"></td>
+                <td class="px-4 py-6 text-center text-teal-600 font-black border-b border-zinc-200/50 bg-teal-50/20" x-text="data.coMTD || 0"></td>
+                
+                <td class="px-4 py-6 text-center text-orange-600 font-black border-b border-zinc-200/50 bg-orange-50/20" x-text="data.absentMTD"></td>
+                <td class="px-4 py-6 text-center text-violet-600 font-black border-b border-zinc-200/50 bg-violet-50/20" x-text="data.holidayMTD"></td>
+                <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="data.prmHrsMTD + 'h'"></td>
+                <td class="px-4 py-6 text-center text-rose-600 font-black border-b border-zinc-200/50 bg-rose-50/20" x-text="data.lopMTD"></td>
+                
+                <td class="px-4 py-6 text-center text-zinc-700 font-black border-b border-zinc-200/50 bg-zinc-50/50" x-text="data.lvYTD"></td>
+                <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="data.availLv || 0"></td>
+                
+                <td class="px-4 py-6 text-center text-zinc-700 font-black border-b border-zinc-200/50 bg-zinc-50/50" x-text="data.prmYTDUsed + 'h'"></td>
+                <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="(data.availPrm || 0) + 'h'"></td>
+                
+                <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveMTD)"></td>
+                <td class="px-4 py-6 text-center text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakMTD)"></td>
+                <td class="px-4 py-6 text-center text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="formatBreakDisplay(data.avgActiveYTD)"></td>
+                <td class="px-8 py-6 text-center pr-10 text-amber-600 font-black border-b border-zinc-200/50 bg-amber-50/20" x-text="formatBreakDisplay(data.avgBreakYTD)"></td>
+            </tr>
+        </template>
+    </tbody>
+</table>
                                     </div>
                                 </div>
                             </div>
