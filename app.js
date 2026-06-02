@@ -1458,23 +1458,49 @@ triggerCaptcha(forceTime = null) {
 
             const dbYTD = this.ytdStats[id] || { leaves: 0, compOffs: 0, permHours: 0 };
 
+            // Dynamically calculate months active in the current year based on DOJ
+            let monthsActiveThisYear = curM;
+            if (user.doj) {
+                const dojParts = user.doj.split('-');
+                if (dojParts.length === 3) {
+                    const dojY = parseInt(dojParts[0], 10);
+                    const dojM = parseInt(dojParts[1], 10);
+                    if (dojY === curY) {
+                        monthsActiveThisYear = Math.max(1, curM - dojM + 1);
+                    } else if (dojY > curY) {
+                        monthsActiveThisYear = 0;
+                    }
+                }
+            }
+
+            // Calculate prorated limit and remaining YTD balance
+            const totalYearlyLeaves = (user.allowedPL || 0) + (user.allowedSL || 0);
+            const limitPerMonth = totalYearlyLeaves / 12;
+            const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
+            const remainingYTD = proratedLimitYTD + dbYTD.compOffs - dbYTD.leaves;
+
             return {
                 ...stats,
                 isAnniversary: user.doj && user.doj.split('-')[1] == curM && user.doj.split('-')[2] == curD,
                 isBirthday: user.dob && user.dob.split('-')[1] == curM && user.dob.split('-')[2] == curD,
                 holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
                 metrics: {
-    presentMTD: mtd.p, 
-    lvMTD: mtd.lv, 
-    plAllowed: user.allowedPL || 0, 
-    slAllowed: user.allowedSL || 0, 
-    
-    coEarned: dbYTD.compOffs,
-    lvAvailMTD: ((user.allowedPL||0) + (user.allowedSL||0)) - mtd.lv,
-    lvUsedYTD: dbYTD.leaves,
-    lvAvailYTD: (((user.allowedPL||0) + (user.allowedSL||0)) * curM) + dbYTD.compOffs - dbYTD.leaves,
-    prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
-    prmUsedYTD: dbYTD.permHours,
+                    presentMTD: mtd.p, 
+                    lvMTD: mtd.lv, 
+                    plAllowed: user.allowedPL || 0, 
+                    slAllowed: user.allowedSL || 0, 
+                    
+                    coEarned: dbYTD.compOffs,
+                    
+                    // NEW LEAVE METRICS
+                    monthlyLeaveLimit: Number(limitPerMonth.toFixed(2)),
+                    proratedLeaveLimitYTD: Number(proratedLimitYTD.toFixed(2)),
+                    usedLeavesMTD: mtd.lv,
+                    usedLeavesYTD: dbYTD.leaves,
+                    remainingLeavesYTD: Number(remainingYTD.toFixed(2)),
+                    
+                    prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
+                    prmUsedYTD: dbYTD.permHours, 
                     
                     lopMTD: mtd.lop,
                     avgActiveMTD: mtd.daysPunched ? Math.floor(mtd.activeMins/mtd.daysPunched) : 0,
