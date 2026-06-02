@@ -1464,15 +1464,17 @@ triggerCaptcha(forceTime = null) {
                 isBirthday: user.dob && user.dob.split('-')[1] == curM && user.dob.split('-')[2] == curD,
                 holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
                 metrics: {
-                    presentMTD: mtd.p, 
-                    lvMTD: mtd.lv, 
-                    plAllowed: user.allowedPL || 0, 
-                    slAllowed: user.allowedSL || 0, 
-                    
-                    coEarned: dbYTD.compOffs,
-                    lvAvailYTD: ((user.allowedPL||0) + dbYTD.compOffs + (user.allowedSL||0)) - dbYTD.leaves,
-                    prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
-                    prmUsedYTD: dbYTD.permHours, 
+    presentMTD: mtd.p, 
+    lvMTD: mtd.lv, 
+    plAllowed: user.allowedPL || 0, 
+    slAllowed: user.allowedSL || 0, 
+    
+    coEarned: dbYTD.compOffs,
+    lvAvailMTD: ((user.allowedPL||0) + (user.allowedSL||0)) - mtd.lv,
+    lvUsedYTD: dbYTD.leaves,
+    lvAvailYTD: (((user.allowedPL||0) + (user.allowedSL||0)) * curM) + dbYTD.compOffs - dbYTD.leaves,
+    prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
+    prmUsedYTD: dbYTD.permHours,
                     
                     lopMTD: mtd.lop,
                     avgActiveMTD: mtd.daysPunched ? Math.floor(mtd.activeMins/mtd.daysPunched) : 0,
