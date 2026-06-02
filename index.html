@@ -607,7 +607,9 @@
 
         <div class="relative z-10 mb-6">
             <div class="flex items-baseline gap-2">
-                <h4 class="text-5xl md:text-6xl font-black tracking-tighter":class="individualStats?.metrics.lvAvailYTD < 0 ? 'text-rose-600' : 'text-zinc-950'"x-text="individualStats?.metrics.lvAvailYTD"></h4>
+                <h4 class="text-5xl md:text-6xl font-black tracking-tighter" 
+    :class="individualStats?.metrics.lvAvailYTD < 0 ? 'text-rose-600' : 'text-zinc-950'" 
+    x-text="individualStats?.metrics.lvAvailYTD"></h4>
                 <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
             </div>
             <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Remaining (YTD)</p>
@@ -643,7 +645,9 @@
 
         <div class="relative z-10 mb-6">
             <div class="flex items-baseline gap-2">
-                <h4 class="text-5xl md:text-6xl font-black tracking-tighter":class="individualStats?.metrics.prmAvailYTD < 0 ? 'text-rose-600' : 'text-zinc-950'" x-text="individualStats?.metrics.prmAvailYTD"></h4>
+                <h4 class="text-5xl md:text-6xl font-black tracking-tighter" 
+    :class="individualStats?.metrics.prmAvailYTD < 0 ? 'text-rose-600' : 'text-zinc-950'" 
+    x-text="individualStats?.metrics.prmAvailYTD"></h4>
                 <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Hrs</span>
             </div>
             <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Remaining (YTD)</p>
