@@ -412,7 +412,13 @@ window.attendanceApp = () => {
                 let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
 
                 if (breakIdx !== -1) {
-                    breaks[breakIdx].end = newRec.end_time || '';
+		// NEW FIX: Detect if the break was just ended, and restart loop
+        const wasOpen = !breaks[breakIdx].end;
+        breaks[breakIdx].end = newRec.end_time || '';
+        
+        if (wasOpen && newRec.end_time && this.userSession && this.userSession.id === mId) {
+            this.scheduleNextCaptcha();
+        }
                 } else {
                     breaks.push({ start: newRec.start_time, end: newRec.end_time || '' });
                 }
@@ -824,7 +830,6 @@ window.attendanceApp = () => {
 triggerCaptcha(forceTime = null) {
     // NEW: Clear any existing captchas/audio before spawning a new one
     this.clearCaptchaTimers();
-
     this.checkExpiredCaptchas();
     
     if (!this.userSession) return;
@@ -834,6 +839,10 @@ triggerCaptcha(forceTime = null) {
     const _guardDate = this.getActiveShiftDate();
     const _guardLog = this.punchLogs[_guardDate]?.[this.userSession.id];
     if (!forceTime && (!_guardLog?.in || _guardLog?.out)) return;
+
+	if (this.showCaptchaModal && this.currentCaptchaTime) {
+        this.recordCaptchaResult('Passed', this.currentCaptchaTime);
+    }	
 
     this.captchaTargetNumber = Math.floor(Math.random() * 10).toString();
     this.captchaInput = '';
@@ -1073,6 +1082,62 @@ triggerCaptcha(forceTime = null) {
             });
             return events;
         },
+
+// NEW AI INSIGHTS GETTER
+        // NEW AI INSIGHTS GETTER (30-Day Rolling Window)
+        get offenderAlerts() {
+            // Process alerts for managers, or filter for the specific logged-in user
+            const alerts = [];
+            const todayStr = this.getActiveShiftDate();
+            const THRESHOLD = 470; // 7 hours 50 mins = 470 mins
+            const VIOLATION_LIMIT = 3; 
+            
+            const [y, m, d] = todayStr.split('-').map(Number);
+            const cutoffObj = new Date(y, m - 1, d - 30);
+            const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
+            
+            this.members.forEach(m => {
+                // NEW: Bypass check if manager/lead, otherwise ONLY process the logged-in user's own data
+                if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== m.id)) return;
+
+                const isPresentToday = this.attendanceData[todayStr]?.[m.id] === 'p' || 
+                                      (this.punchLogs[todayStr]?.[m.id]?.in && !this.punchLogs[todayStr]?.[m.id]?.out);
+                
+                if (isPresentToday) {
+                    let violations = 0;
+                    
+                    Object.keys(this.punchLogs).forEach(date => {
+                        if (date >= todayStr || date < cutoffDateStr) return; 
+                        
+                        const log = this.punchLogs[date]?.[m.id];
+                        const status = this.attendanceData[date]?.[m.id];
+                        
+                        if (status === 'p' && log && log.in && log.out) {
+                            const activeMins = this.getActiveMinsForLog(log, date);
+                            if (activeMins > 0 && activeMins < THRESHOLD) {
+                                violations++;
+                            }
+                        }
+                    });
+                    
+                    if (violations >= VIOLATION_LIMIT) {
+                        alerts.push({
+                            id: 'ai_' + m.id,
+                            member: m,
+                            violations: violations,
+                            title: 'Flight Risk Detected',
+                            message: `${violations} shifts under 7h 50m in last 30 days`,
+                            icon: '🤖',
+                            color: 'text-rose-600',
+                            bg: 'bg-rose-100'
+                        });
+                    }
+                }
+            });
+            
+            return alerts.sort((a, b) => b.violations - a.violations);
+        },
+
         get userOnBreak() {
             if (!this.userSession) return false;
             const breaks = this.punchLogs[this.getActiveShiftDate()]?.[this.userSession.id]?.breaks;
