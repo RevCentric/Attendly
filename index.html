@@ -342,6 +342,7 @@
 
             <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 
+                <!-- 1. LEFT SIDE: Date & Badges -->
                 <div class="flex flex-col gap-2">
                     <div class="flex flex-wrap items-center gap-3">
                         <h2 class="text-xl md:text-2xl font-black tracking-[-0.05em] text-zinc-950 leading-none"
@@ -366,6 +367,15 @@
                     </div>
                 </div>
 
+                <!-- 2. NEW CENTER: IST Live Clock -->
+                <div class="flex items-center justify-start lg:justify-center w-full lg:w-auto">
+                    <div class="flex items-center gap-2.5 text-[#0f4c81]">
+                        <span class="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 border-r border-[#0f4c81]/20 pr-2.5 mt-1">IST</span>
+                        <span class="text-xl md:text-2xl font-black tracking-[-0.05em] leading-none" x-text="currentISTTimeWidget"></span>
+                    </div>
+                </div>
+
+                <!-- 3. RIGHT SIDE: Welcome Message -->
                 <div class="flex flex-col items-start lg:items-end shrink-0 justify-center h-full">
                     <span class="text-xl md:text-2xl font-black tracking-[-0.05em] text-[#0f4c81] leading-none text-right"
                           x-text="(new Date(Date.now() + 19800000).getUTCHours() < 12 ? 'Good morning' : new Date(Date.now() + 19800000).getUTCHours() < 17 ? 'Good afternoon' : 'Good evening') + (userSession?.firstName ? ' ' + userSession.firstName.charAt(0).toUpperCase() + userSession.firstName.slice(1).toLowerCase() : '')">
@@ -799,7 +809,67 @@
                                         </div>
                                     </div>
                                 </div>
+<template x-if="isManagerOrLead || isAdminAuthenticated">
+                                    <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px] panel-glow">
+                                        <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
+                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Month's Celebrations</h5>
+                                            <span class="px-2 py-1 bg-pink-50 text-pink-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-pink-200" x-text="monthEvents.length + ' Events'"></span>
+                                        </div>
+                                        <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                                            <div class="space-y-2">
+                                                <template x-for="ev in monthEvents" :key="ev.id">
+                                                    <div class="p-3 bg-white/50 rounded-xl border border-zinc-200/50 flex items-center gap-4 hover:bg-white hover:border-zinc-300 hover:shadow-sm transition-all">
+                                                        <div class="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl shadow-sm shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
+                                                        <div class="flex-1">
+                                                            <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="ev.member.name"></h5>
+                                                            <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mt-0.5" x-text="ev.title + ' • Day ' + ev.day"></p>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                <template x-if="monthEvents.length === 0">
+                                                    <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No events this month.</div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
 
+                                <template x-if="userSession?.captchaEnabled">
+                                    <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px] panel-glow">
+                                        <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
+                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Verification Log</h5>
+                                            <div class="flex gap-2">
+                                                <span class="text-[9px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200" x-text="(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas || []).filter(c => c.status === 'Passed').length + ' Pass'"></span>
+                                                <span class="text-[9px] font-black uppercase text-rose-700 bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200" x-text="(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas || []).filter(c => c.status !== 'Passed').length + ' Fail'"></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                                            <div class="space-y-2">
+                                                <template x-for="(cap, cIdx) in punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas" :key="cIdx">
+                                                    <div class="p-3 bg-white/50 rounded-xl border border-zinc-200/50 flex items-center justify-between hover:bg-white hover:border-zinc-300 hover:shadow-sm transition-all">
+                                                        <div class="flex items-center gap-3">
+                                                            <div class="w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shadow-sm"
+                                                                :class="cap.status === 'Passed' ? 'bg-emerald-100 text-emerald-600' : (cap.status === 'Pending' ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600')">
+                                                                <svg x-show="cap.status === 'Passed'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                                                <svg x-show="cap.status !== 'Passed'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                                            </div>
+                                                            <div>
+                                                                <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900" x-text="'Check ' + (cIdx + 1)"></h5>
+                                                                <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5" x-text="cap.time"></p>
+                                                            </div>
+                                                        </div>
+                                                        <span class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm"
+                                                            :class="cap.status === 'Passed' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : (cap.status === 'Pending' ? 'bg-amber-50 text-amber-600 border-amber-200 animate-pulse' : 'bg-rose-50 text-rose-600 border-rose-200')"
+                                                            x-text="cap.status"></span>
+                                                    </div>
+                                                </template>
+                                                <template x-if="!punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas || punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas.length === 0">
+                                                    <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No verifications today.</div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(33.333%-1rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
                                         <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Holiday Schedule</h5>
