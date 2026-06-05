@@ -1,12 +1,31 @@
 window.attendanceApp = () => {
-    // STRICT IST HELPERS
-    const getISTString = (date = new Date()) => {
+    // 1. NEW: Variable to hold the time difference (drift)
+    let timeDrift = 0; 
+
+    // 2. NEW: Function to get the current time with the drift applied
+    const getNow = () => new Date(Date.now() + timeDrift);
+
+    // 3. NEW: Fetch accurate time from a public API to calculate the drift
+    const syncTrueTime = async () => {
+        try {
+            const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Kolkata');
+            const data = await res.json();
+            const trueTime = new Date(data.datetime).getTime();
+            timeDrift = trueTime - Date.now();
+            console.log(`Time synchronized. Drift: ${Math.round(timeDrift/1000)}s`);
+        } catch (e) {
+            console.warn("Time sync failed, falling back to local system clock.");
+        }
+    };
+
+    // STRICT IST HELPERS (Updated to use getNow() instead of new Date())
+    const getISTString = (date = getNow()) => {
         return new Intl.DateTimeFormat('en-CA', {
             timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
         }).format(date);
     };
 
-    const getISTDateObject = (date = new Date()) => {
+    const getISTDateObject = (date = getNow()) => {
         const s = getISTString(date);
         const [y, m, d] = s.split('-').map(Number);
         return new Date(y, m - 1, d);
@@ -16,11 +35,12 @@ window.attendanceApp = () => {
         const formatter = new Intl.DateTimeFormat('en-GB', { 
             timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false 
         });
-        return formatter.format(new Date()); 
+        return formatter.format(getNow()); 
     };
 
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
+    // Initialize defaults using the synced time
     const initialToday = getISTString();
     const todayObj = getISTDateObject();
     const firstDayStr = getISTString(new Date(todayObj.getFullYear(), todayObj.getMonth(), 1));
@@ -140,10 +160,13 @@ window.attendanceApp = () => {
         ],
 
         async init() {
+            // NEW: Sync the true time before the app initializes anything else
+            await syncTrueTime();
+
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().catch(e => console.warn("Auto-prompt blocked:", e));
             }   
-
+ 
             this.userSession = null;
             this.localSessionToken = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
@@ -170,8 +193,8 @@ window.attendanceApp = () => {
                 }
             });
 
-            setInterval(() => {
-                const now = new Date();
+		setInterval(() => {
+                const now = getNow(); // UPDATED: Use synced time instead of new Date()
                 this.currentISTTimeWidget = new Intl.DateTimeFormat('en-US', {
                     timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
                 }).format(now);
@@ -1083,6 +1106,43 @@ triggerCaptcha(forceTime = null) {
             return events;
         },
 
+// NEW: Get all birthdays and anniversaries for the current month
+        get monthEvents() {
+            const curObj = getISTDateObject();
+            const curM = curObj.getMonth() + 1;
+            const curY = curObj.getFullYear();
+            const events = [];
+            
+            this.members.forEach(m => {
+                if (m.dob) {
+                    const [bY, bM, bD] = m.dob.split('-').map(Number);
+                    if (bM === curM) {
+                        events.push({ 
+                            id: 'mbday_' + m.id, type: 'birthday', member: m, 
+                            title: 'Birthday', day: bD, icon: '🎂', 
+                            color: 'text-pink-600', bg: 'bg-pink-100' 
+                        });
+                    }
+                }
+                if (m.doj) {
+                    const [jY, jM, jD] = m.doj.split('-').map(Number);
+                    if (jM === curM) {
+                        const yrs = curY - jY;
+                        events.push({ 
+                            id: 'mannv_' + m.id, type: 'anniversary', member: m, 
+                            title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joining Month', 
+                            day: jD, icon: yrs > 0 ? '🎊' : '🎉', 
+                            color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', 
+                            bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' 
+                        });
+                    }
+                }
+            });
+            
+            // Sort chronologically by the day of the month
+            return events.sort((a, b) => a.day - b.day);
+        },
+
 // NEW AI INSIGHTS GETTER
         // NEW AI INSIGHTS GETTER (30-Day Rolling Window)
         get offenderAlerts() {
@@ -1221,7 +1281,10 @@ triggerCaptcha(forceTime = null) {
         },
 
         getCurrentTimeIST() {
-            return new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date());
+            // UPDATED: Use getNow() instead of new Date()
+            return new Intl.DateTimeFormat('en-US', { 
+                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
+            }).format(getNow());
         },
         formatTimeDisplay(time24) {
             if (!time24) return '--:--';
