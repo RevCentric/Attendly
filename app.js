@@ -40,6 +40,47 @@ window.attendanceApp = () => {
 
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
+// STRICT API TIME FETCHER FOR CRITICAL LOGS (Zero-Trust / Unix Time Parser)
+    const fetchSecureApiTimeIST = async () => {
+        try {
+            // 1. PRIMARY API: WorldTimeAPI (Using absolute unixtime)
+            // Adding a dynamic timestamp to the URL completely busts any network caches
+            const res = await fetch(`https://worldtimeapi.org/api/timezone/Asia/Kolkata?nocache=${Date.now()}`, { cache: 'no-store' });
+            if (!res.ok) throw new Error("Primary API down");
+            const data = await res.json();
+            
+            // Extract the absolute Unix epoch seconds and convert to milliseconds
+            const trueEpochMs = data.unixtime * 1000; 
+            
+            // Format directly to IST
+            return new Intl.DateTimeFormat('en-US', { 
+                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
+            }).format(new Date(trueEpochMs));
+            
+        } catch (e) {
+            console.warn("Primary time API failed, switching to secondary API...");
+            try {
+                // 2. SECONDARY API: TimeAPI.io
+                const fallbackRes = await fetch(`https://timeapi.io/api/Time/current/zone?timeZone=Asia/Kolkata&nocache=${Date.now()}`, { cache: 'no-store' });
+                if (!fallbackRes.ok) throw new Error("Secondary API down");
+                const fbData = await fallbackRes.json();
+                
+                // Construct a strict, universally recognized ISO-8601 string
+                const cleanISO = `${fbData.year}-${String(fbData.month).padStart(2, '0')}-${String(fbData.day).padStart(2, '0')}T${String(fbData.hour).padStart(2, '0')}:${String(fbData.minute).padStart(2, '0')}:00+05:30`;
+                
+                return new Intl.DateTimeFormat('en-US', { 
+                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
+                }).format(new Date(cleanISO));
+                
+            } catch (fallbackError) {
+                // 3. ZERO-TRUST ABORT
+                console.error("CRITICAL: Both primary and secondary time APIs are unreachable.");
+                alert("Security Error: Unable to verify strict IST time via API. Action blocked. Please check your connection.");
+                return null; 
+            }
+        }
+    };
+
     // Initialize defaults using the synced time
     const initialToday = getISTString();
     const todayObj = getISTDateObject();
@@ -993,16 +1034,23 @@ triggerCaptcha(forceTime = null) {
 
         async recordCaptchaResult(status, timeOverride = null) {
             if (!this.userSession) return;
+	let secureTime = null;
+if (!timeOverride && !this.currentCaptchaTime) {
+    secureTime = await fetchSecureApiTimeIST();
+    if (!secureTime) return; 
+}
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
-            const checkTime = timeOverride || this.currentCaptchaTime || this.getCurrentTimeIST();
+            const checkTime = timeOverride || this.currentCaptchaTime || secureTime;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
             
             // SECURITY CHECK: Report if foreign or android
             this.checkSecurityFlag(currentIp, this.userSession.name);
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+            if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
+                this.punchLogs[activeDate][uId] = { in: secureTime, out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
+            }
             if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas = [];
             
             const existingIdx = this.punchLogs[activeDate][uId].captchas.findIndex(c => c.time === checkTime);
@@ -1416,10 +1464,12 @@ triggerCaptcha(forceTime = null) {
         async startBreak(timeOverride = null) {
             if (!this.userSession) return;
             this.clearCaptchaTimers();
+	const secureTime = await fetchSecureApiTimeIST();
+if (!secureTime) return;
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             
-            const startTime = (typeof timeOverride === 'string') ? timeOverride : this.getCurrentTimeIST();
+const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
 
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
@@ -1464,10 +1514,12 @@ triggerCaptcha(forceTime = null) {
 
         async endBreak() {
             if (!this.userSession) return;
+const secureTime = await fetchSecureApiTimeIST();
+if (!secureTime) return;
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             const breaks = this.punchLogs[activeDate]?.[uId]?.breaks;
-            const endTime = this.getCurrentTimeIST();
+const endTime = secureTime;
 
             if (breaks && breaks.length > 0 && !breaks[breaks.length - 1].end) {
                 breaks[breaks.length - 1].end = endTime;
@@ -1825,6 +1877,10 @@ triggerCaptcha(forceTime = null) {
         
         async markPortalAttendance(s) {
             if (!this.userSession) return;
+            
+            const secureTime = await fetchSecureApiTimeIST();
+            if (!secureTime) return;	
+            
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
             
@@ -1835,8 +1891,10 @@ triggerCaptcha(forceTime = null) {
             this.attendanceData[activeDate][uId] = s;
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+            
+            // FIXED: Removed the rogue bracket and added the proper IF check
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
-                this.punchLogs[activeDate][uId] = { in: this.getCurrentTimeIST(), out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
+                this.punchLogs[activeDate][uId] = { in: secureTime, out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
             }
             
             this.attendanceData = { ...this.attendanceData };
@@ -1852,20 +1910,24 @@ triggerCaptcha(forceTime = null) {
         
         async confirmLogoutPortal() {
             this.clearCaptchaTimers();
-
+	const secureTime = await fetchSecureApiTimeIST();
+if (!secureTime) {
+    this.showLogoutModal = false; 
+    return; 
+}
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             
             const breaks = this.punchLogs[activeDate][uId].breaks;
-            if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = this.logoutTimePreview;
+            if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = secureTime;
             
             const currentIp = await this.fetchDeviceAndNetworkInfo();
             
             // SECURITY CHECK: Report if foreign or android
             this.checkSecurityFlag(currentIp, this.userSession.name);
             
-            this.punchLogs[activeDate][uId].out = this.logoutTimePreview;
+            this.punchLogs[activeDate][uId].out = secureTime;
             this.punchLogs[activeDate][uId].out_ip = currentIp;
             
             this.punchLogs = { ...this.punchLogs };
