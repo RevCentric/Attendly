@@ -70,7 +70,21 @@ body { font-family: 'Outfit', sans-serif; background-color: #f4f4f5; }
 
 .panel-glow:hover {
     transform: translateY(-2px) !important; 
-    /* Increased the opacity and added !important to force it past Tailwind */
     box-shadow: 0 12px 40px -10px rgba(15, 76, 129, 0.3), 0 0 24px 0 rgba(15, 76, 129, 0.15) !important;
     border-color: rgba(15, 76, 129, 0.5) !important;
+}
+
+/* Celebration Animation Keyframes */
+@keyframes floatAndSway {
+    0% { transform: translateY(110vh) translateX(0) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 0.8; }
+    100% { transform: translateY(-20vh) translateX(30px) rotate(360deg); opacity: 0; }
+}
+
+.celebration-particle {
+    position: absolute;
+    bottom: 0;
+    animation: floatAndSway linear infinite;
+    will-change: transform, opacity;
 }
