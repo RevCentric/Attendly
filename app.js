@@ -5,6 +5,7 @@ window.attendanceApp = () => {
     // 2. NEW: Function to get the current time with the drift applied
     const getNow = () => new Date(Date.now() + timeDrift);
 
+
     // 3. NEW: Fetch accurate time from a public API to calculate the drift
     const syncTrueTime = async () => {
         try {
@@ -88,6 +89,9 @@ window.attendanceApp = () => {
     const lastDayStr = getISTString(new Date(todayObj.getFullYear(), todayObj.getMonth() + 1, 0));
 
     return {
+	theme: localStorage.getItem('appTheme') || 'light',
+        breakTypes: ['Lunch', 'Dinner','Tea', 'Bio', 'Meeting', 'Other'],
+        selectedBreakType: 'Lunch',
         view: 'portal', 
         dashboardPeriod: 'month',
         portalPeriod: 'month', 
@@ -99,7 +103,8 @@ window.attendanceApp = () => {
         currentISTTimeWidget: '',
         currentISTDateWidget: '',
         liveShiftMins: 0,     
-        liveActiveMins: 0,    
+        liveActiveMins: 0, 
+liveTotalBreakMins: 0,   
 
         isAdminAuthenticated: false,
         adminPinInput: '',
@@ -130,7 +135,7 @@ window.attendanceApp = () => {
         idleInterval: null,
         idleSecondsRemaining: 300,
 
-        summaryStartDate: firstDayStr,
+        summarytartDate: firstDayStr,
         summaryEndDate: lastDayStr,
 
         scopeStartStr: '',
@@ -198,7 +203,12 @@ window.attendanceApp = () => {
             { id: 'members', label: 'Roster', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>', admin: true },
             { id: 'summary', label: 'Reports', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>', admin: true },
             { id: 'master', label: 'Master', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', admin: true }
-        ],
+       ],
+
+toggleTheme() {
+            this.theme = this.theme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('appTheme', this.theme);
+        },
 
         async init() {
             // NEW: Sync the true time before the app initializes anything else
@@ -207,7 +217,7 @@ window.attendanceApp = () => {
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().catch(e => console.warn("Auto-prompt blocked:", e));
             }   
- 
+
             this.userSession = null;
             this.localSessionToken = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
@@ -252,9 +262,11 @@ window.attendanceApp = () => {
                         const breakMins = this.calculateTotalBreakMins(log.breaks);
                         this.liveShiftMins = grossMins;
                         this.liveActiveMins = Math.max(0, grossMins - breakMins);
+			this.liveTotalBreakMins = breakMins;	
                     } else {
                         this.liveShiftMins = 0;
                         this.liveActiveMins = 0;
+			this.liveTotalBreakMins = 0;
                     }
                 }
             }, 1000);
@@ -1461,15 +1473,16 @@ if (!timeOverride && !this.currentCaptchaTime) {
             }
         },
 
-        async startBreak(timeOverride = null) {
+        async startBreak(timeOverride = null, type = null) {
             if (!this.userSession) return;
             this.clearCaptchaTimers();
-	const secureTime = await fetchSecureApiTimeIST();
-if (!secureTime) return;
+            const secureTime = await fetchSecureApiTimeIST();
+            if (!secureTime) return;
+            
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
-            
-const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
+            const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
+            const breakType = type || this.selectedBreakType; // NEW: Use passed type or selected
 
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
@@ -1481,15 +1494,17 @@ const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime
                 if (timeOverride) {
                     breaks[breaks.length - 1].start = startTime;
                     try {
-                        await this.supabase.from('break_logs').update({ start_time: startTime })
+                        // NEW: Update type in DB
+                        await this.supabase.from('break_logs').update({ start_time: startTime, type: breakType })
                             .match({ member_id: uId, log_date: activeDate }).is('end_time', null);
                     } catch(e) {}
                 }
             } else {
-                breaks.push({ start: startTime, end: '' });
+                breaks.push({ start: startTime, end: '', type: breakType }); // NEW: Push type to local state
                 try {
+                    // NEW: Insert type to DB
                     await this.supabase.from('break_logs').insert({
-                        member_id: uId, log_date: activeDate, start_time: startTime
+                        member_id: uId, log_date: activeDate, start_time: startTime, type: breakType
                     });
                 } catch(e) { console.error("Break start error", e); }
             }
@@ -1497,7 +1512,7 @@ const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime
             this.punchLogs = { ...this.punchLogs };
             this.breakPinInput = '';
             
-            this.showNote(timeOverride ? "Penalty Break Retroactively Applied" : "Break Started & Tool Locked", "error");
+            this.showNote(timeOverride ? "Penalty Break Applied" : `${breakType} Break Started`, "error");
             try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>e); } catch(e) {}
             setTimeout(() => { const el = document.getElementById('break-pin-input'); if(el) el.focus(); }, 100);
         },
