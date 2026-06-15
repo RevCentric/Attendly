@@ -556,28 +556,29 @@
                     <template x-if="!userOnBreak && punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in && !punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out">
     <div class="flex flex-col gap-2 w-full">
         <select x-model="selectedBreakType" class="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black uppercase text-amber-700 outline-none text-center cursor-pointer">
-            <template x-for="type in breakTypes" :key="type">
-                <option :value="type" x-text="type"></option>
-            </template>
-        </select>
-
+    <option value="" disabled>BREAK TYPE</option> <template x-for="type in breakTypes" :key="type">
+        <option :value="type" x-text="type"></option>
+    </template>
+</select>
         <button @click="startBreak()"
-                class="group relative overflow-hidden w-full rounded-xl bg-white border border-zinc-200 hover:border-amber-300 hover:bg-amber-50 hover:shadow-md text-zinc-600 hover:text-amber-700 font-black text-xl tracking-tight shadow-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 px-4 py-3">
-            
-            <div class="absolute -right-6 -top-6 w-16 h-16 bg-amber-400/10 rounded-full blur-2xl group-hover:bg-amber-400/40 transition-colors duration-500 pointer-events-none"></div>
-            <div class="absolute -left-6 -bottom-6 w-16 h-16 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/30 transition-colors duration-500 pointer-events-none"></div>
-            
-            <div class="relative z-10 flex items-center justify-center">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2.5" class="group-hover:-translate-y-0.5 transition-transform duration-300">
-                    <path d="M17 8h1a4 4 0 1 1 0 8h-1" class="stroke-amber-500 group-hover:stroke-amber-600 transition-colors"></path>
-                    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" class="fill-amber-100 stroke-amber-500 group-hover:fill-amber-200 group-hover:stroke-amber-600 transition-colors"></path>
-                    <path d="M6 2v2" class="stroke-amber-400 animate-[pulse_1s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                    <path d="M10 2v2" class="stroke-amber-500 animate-[pulse_1s_ease-in-out_infinite_300ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                    <path d="M14 2v2" class="stroke-amber-600 animate-[pulse_1s_ease-in-out_infinite_600ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                </svg>
-            </div>
-            <span class="relative z-10 transition-colors leading-none">Break</span>
-        </button>
+        :disabled="!selectedBreakType"
+        :class="!selectedBreakType ? 'opacity-50 cursor-not-allowed bg-zinc-50' : 'bg-white hover:border-amber-300 hover:bg-amber-50 hover:shadow-md hover:text-amber-700 active:scale-[0.98] group'"
+        class="relative overflow-hidden w-full rounded-xl border border-zinc-200 text-zinc-600 font-black text-xl tracking-tight shadow-sm transition-all duration-300 flex items-center justify-center gap-2 px-4 py-3">
+    
+    <div x-show="selectedBreakType" class="absolute -right-6 -top-6 w-16 h-16 bg-amber-400/10 rounded-full blur-2xl group-hover:bg-amber-400/40 transition-colors duration-500 pointer-events-none"></div>
+    <div x-show="selectedBreakType" class="absolute -left-6 -bottom-6 w-16 h-16 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/30 transition-colors duration-500 pointer-events-none"></div>
+    
+    <div class="relative z-10 flex items-center justify-center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2.5" class="transition-transform duration-300" :class="selectedBreakType ? 'group-hover:-translate-y-0.5' : ''">
+            <path d="M17 8h1a4 4 0 1 1 0 8h-1" class="transition-colors" :class="selectedBreakType ? 'stroke-amber-500 group-hover:stroke-amber-600' : 'stroke-zinc-400'"></path>
+            <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" class="transition-colors" :class="selectedBreakType ? 'fill-amber-100 stroke-amber-500 group-hover:fill-amber-200 group-hover:stroke-amber-600' : 'fill-zinc-200 stroke-zinc-400'"></path>
+            <path x-show="selectedBreakType" d="M6 2v2" class="stroke-amber-400 animate-[pulse_1s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+            <path x-show="selectedBreakType" d="M10 2v2" class="stroke-amber-500 animate-[pulse_1s_ease-in-out_infinite_300ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+            <path x-show="selectedBreakType" d="M14 2v2" class="stroke-amber-600 animate-[pulse_1s_ease-in-out_infinite_600ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
+        </svg>
+    </div>
+    <span class="relative z-10 transition-colors leading-none">Break</span>
+</button>
     </div>
 </template>
                 </div>
@@ -812,7 +813,7 @@
                                                             <div class="flex items-start justify-between">
                                                                 <div class="flex flex-col">
                                                                     <div class="flex items-center gap-2 mb-1">
-                                                                        <span class="text-[10px] font-black text-amber-600 uppercase tracking-widest" x-text="'Session ' + (index + 1)"></span>
+                                                                        <span class="text-[10px] font-black text-amber-600 uppercase tracking-widest" x-text="'Session ' + (index + 1) + (brk.type ? ' • ' + brk.type : '')"></span>
                                                                         <span x-show="!brk.end" class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-black uppercase tracking-widest animate-pulse border border-amber-200">Active</span>
                                                                     </div>
                                                                     <div class="flex items-center gap-2 text-zinc-800 font-bold text-xs">
@@ -1274,7 +1275,7 @@
                                                             <template x-for="(brk, bIdx) in punchLogs[currentDate]?.[m.id]?.breaks" :key="bIdx">
                                                                 <div class="relative z-10 flex flex-col bg-white border-2 border-amber-200 rounded-[1rem] shadow-sm min-w-[160px] transition-transform hover:-translate-y-1 hover:shadow-lg">
                                                                     <div class="px-3 py-1.5 border-b border-amber-100 bg-amber-50/50 flex items-center justify-between rounded-t-[14px]">
-                                                                        <span class="text-[9px] font-black uppercase text-amber-600 tracking-widest" x-text="'Session ' + (bIdx + 1)"></span>
+                                                                        <span class="text-[9px] font-black uppercase text-amber-600 tracking-widest" x-text="'Session ' + (bIdx + 1) + (brk.type ? ' • ' + brk.type : '')"></span>
                                                                         <span x-show="!brk.end" class="relative flex h-2 w-2">
                                                                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                                                           <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
