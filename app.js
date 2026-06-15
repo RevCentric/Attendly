@@ -91,7 +91,7 @@ window.attendanceApp = () => {
     return {
 	theme: localStorage.getItem('appTheme') || 'light',
         breakTypes: ['Lunch', 'Dinner','Tea', 'Bio', 'Meeting', 'Other'],
-        selectedBreakType: 'Lunch',
+        selectedBreakType: '',
         view: 'portal', 
         dashboardPeriod: 'month',
         portalPeriod: 'month', 
@@ -745,7 +745,7 @@ toggleTheme() {
                     bData.forEach(b => {
                         if (!newPunch[b.log_date]) newPunch[b.log_date] = {};
                         if (!newPunch[b.log_date][b.member_id]) newPunch[b.log_date][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-                        newPunch[b.log_date][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '' });
+                        newPunch[b.log_date][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '', type: b.type || '' });
                     });
                 }
                 if (capData) {
@@ -802,7 +802,7 @@ toggleTheme() {
                 if (bData) {
                     bData.forEach(b => {
                         if (!this.punchLogs[targetDate][b.member_id]) this.punchLogs[targetDate][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-                        this.punchLogs[targetDate][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '' });
+                        this.punchLogs[targetDate][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '', type: b.type || '' });
                     });
                 }
 
@@ -1027,9 +1027,9 @@ triggerCaptcha(forceTime = null) {
                 this.showNote("Verified Successfully", "success");
                 this.scheduleNextCaptcha();
             } else {
-                this.showNote("Verification Failed. Auto-initiating break.", "error");
-                this.startBreak();
-            }
+    this.showNote("Verification Failed. Auto-initiating break.", "error");
+    this.startBreak(null, 'Penalty'); // ADD THE PENALTY ARGUMENT
+}
         },
 
         handleCaptchaTimeout() {
@@ -1040,9 +1040,9 @@ triggerCaptcha(forceTime = null) {
             this.recordCaptchaResult('Missed');
             this.currentCaptchaTime = null;
             
-            this.showNote("Verification Missed. Auto-initiating break.", "error");
-            this.startBreak();
-        },
+this.showNote("Verification Missed. Auto-initiating break.", "error");
+    this.startBreak(null, 'Penalty'); // ADD THE PENALTY ARGUMENT
+},
 
         async recordCaptchaResult(status, timeOverride = null) {
             if (!this.userSession) return;
@@ -1455,12 +1455,15 @@ if (!timeOverride && !this.currentCaptchaTime) {
                                         .match({ member_id: mId, log_date: checkDate, check_time: cap.time }).then();
                                     
                                     const breaks = log.breaks || [];
-                                    if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
-                                        breaks.push({ start: cap.time, end: '' });
-                                        this.supabase.from('break_logs').insert({
-                                            member_id: mId, log_date: checkDate, start_time: cap.time
-                                        }).then();
-                                    }
+if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
+    // 1. Add type to the local array push
+    breaks.push({ start: cap.time, end: '', type: 'Penalty' });
+    
+    // 2. Add type to the database insert
+    this.supabase.from('break_logs').insert({
+        member_id: mId, log_date: checkDate, start_time: cap.time, type: 'Penalty'
+    }).then();
+}
                                 }
                             }
                         }
@@ -1473,50 +1476,61 @@ if (!timeOverride && !this.currentCaptchaTime) {
             }
         },
 
-        async startBreak(timeOverride = null, type = null) {
-            if (!this.userSession) return;
-            this.clearCaptchaTimers();
-            const secureTime = await fetchSecureApiTimeIST();
-            if (!secureTime) return;
-            
-            const activeDate = this.getActiveShiftDate();
-            const uId = this.userSession.id;
-            const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
-            const breakType = type || this.selectedBreakType; // NEW: Use passed type or selected
+async startBreak(timeOverride = null, type = null) {
+    if (!this.userSession) return;
+    
+    // Determine break type (auto-assign 'Penalty' if it's a forced break from a missed Captcha)
+    let breakType = type || this.selectedBreakType;
+    if (timeOverride && !breakType) breakType = 'Penalty';
+    
+    // Stop and warn the user if no type is selected manually
+    if (!breakType) {
+        this.showNote("Please select a break type first.", "error");
+        return;
+    }
 
-            if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-            if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
+    this.clearCaptchaTimers();
+    const secureTime = await fetchSecureApiTimeIST();
+    if (!secureTime) return;
             
-            const breaks = this.punchLogs[activeDate][uId].breaks;
-            
-            if (breaks.length > 0 && !breaks[breaks.length - 1].end) {
-                if (timeOverride) {
-                    breaks[breaks.length - 1].start = startTime;
-                    try {
-                        // NEW: Update type in DB
-                        await this.supabase.from('break_logs').update({ start_time: startTime, type: breakType })
-                            .match({ member_id: uId, log_date: activeDate }).is('end_time', null);
-                    } catch(e) {}
-                }
-            } else {
-                breaks.push({ start: startTime, end: '', type: breakType }); // NEW: Push type to local state
-                try {
-                    // NEW: Insert type to DB
-                    await this.supabase.from('break_logs').insert({
-                        member_id: uId, log_date: activeDate, start_time: startTime, type: breakType
-                    });
-                } catch(e) { console.error("Break start error", e); }
-            }
-            
-            this.punchLogs = { ...this.punchLogs };
-            this.breakPinInput = '';
-            
-            this.showNote(timeOverride ? "Penalty Break Applied" : `${breakType} Break Started`, "error");
-            try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>e); } catch(e) {}
-            setTimeout(() => { const el = document.getElementById('break-pin-input'); if(el) el.focus(); }, 100);
-        },
+    const activeDate = this.getActiveShiftDate();
+    const uId = this.userSession.id;
+    const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
+    
+    // ---> REMOVED THE DUPLICATE `const breakType` THAT WAS CAUSING THE CRASH <---
 
+    if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+    if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+    if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
+    
+    const breaks = this.punchLogs[activeDate][uId].breaks;
+    
+    if (breaks.length > 0 && !breaks[breaks.length - 1].end) {
+        if (timeOverride) {
+            breaks[breaks.length - 1].start = startTime;
+            try {
+                // Update type in DB
+                await this.supabase.from('break_logs').update({ start_time: startTime, type: breakType })
+                    .match({ member_id: uId, log_date: activeDate }).is('end_time', null);
+            } catch(e) {}
+        }
+    } else {
+        breaks.push({ start: startTime, end: '', type: breakType }); // Push type to local state
+        try {
+            // Insert type to DB
+            await this.supabase.from('break_logs').insert({
+                member_id: uId, log_date: activeDate, start_time: startTime, type: breakType
+            });
+        } catch(e) { console.error("Break start error", e); }
+    }
+    
+    this.punchLogs = { ...this.punchLogs };
+    this.breakPinInput = '';
+    
+    this.showNote(timeOverride ? "Penalty Break Applied" : `${breakType} Break Started`, timeOverride ? "error" : "success");
+    try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>e); } catch(e) {}
+    setTimeout(() => { const el = document.getElementById('break-pin-input'); if(el) el.focus(); }, 100);
+},
         handleBreakUnlock() {
             if (this.breakPinInput === this.userSession.pin) {
                 this.endBreak();
@@ -1529,12 +1543,12 @@ if (!timeOverride && !this.currentCaptchaTime) {
 
         async endBreak() {
             if (!this.userSession) return;
-const secureTime = await fetchSecureApiTimeIST();
-if (!secureTime) return;
+            const secureTime = await fetchSecureApiTimeIST();
+            if (!secureTime) return;
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             const breaks = this.punchLogs[activeDate]?.[uId]?.breaks;
-const endTime = secureTime;
+            const endTime = secureTime;
 
             if (breaks && breaks.length > 0 && !breaks[breaks.length - 1].end) {
                 breaks[breaks.length - 1].end = endTime;
@@ -1548,6 +1562,9 @@ const endTime = secureTime;
                 } catch(e) { console.error("Break end error", e); }
                 
                 this.showNote("Break Ended", "success");
+                
+                // ADD THIS LINE TO RESET THE DROPDOWN
+                this.selectedBreakType = ''; 
                 
                 this.scheduleNextCaptcha();
             }
@@ -1873,12 +1890,14 @@ const endTime = secureTime;
                         .is('end_time', null);
                     this.showNote("Break Force-Ended", "success");
                 } else {
-                    breaks.push({ start: currentTime, end: '' });
-                    await this.supabase.from('break_logs').insert({
-                        member_id: mId, log_date: this.currentDate, start_time: currentTime
-                    });
-                    this.showNote("Break Force-Started", "success");
-                }
+    // Add type to the local array push
+    breaks.push({ start: currentTime, end: '', type: 'Admin Override' }); 
+    // Add type to the Supabase insert
+    await this.supabase.from('break_logs').insert({
+        member_id: mId, log_date: this.currentDate, start_time: currentTime, type: 'Admin Override'
+    });
+    this.showNote("Break Force-Started", "success");
+}
                 this.punchLogs = { ...this.punchLogs };
             } catch(e) { 
                 console.error("Admin break toggle error", e); 
@@ -2382,7 +2401,7 @@ if (!secureTime) {
                         
                         const breaks = this.punchLogs[b.log_date][b.member_id].breaks;
                         if (!breaks.find(existing => existing.start === b.start_time)) {
-                            breaks.push({ start: b.start_time, end: b.end_time || '' });
+                            breaks.push({ start: b.start_time, end: b.end_time || '', type: b.type || '' });
                         }
                     });
                 }
