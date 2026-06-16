@@ -1632,7 +1632,7 @@ async startBreak(timeOverride = null, type = null) {
                 stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', {month:'short', day:'numeric', weekday:'short'}), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
             }
 
-            let mtd = { p:0, lv:0, prm:0, lop:0, activeMins:0, breakMins:0, daysPunched:0 };
+            let mtd = { p:0, lv:0, prm:0, lop:0, activeMins:0, breakMins:0, daysPunched:0, targetActiveMins:0, targetDays:0 };
             let ytd = { lv:0, prm:0, co:0, activeMins:0, breakMins:0, daysPunched:0 };
 
             Object.keys(this.attendanceData).forEach(dk => {
@@ -1648,6 +1648,14 @@ async startBreak(timeOverride = null, type = null) {
                         if (s === 'h') { mtd.p += 0.5; mtd.lv += 0.5; }
                         if (s === 'a') mtd.lv += 1;
                         if (s === 'lop') mtd.lop += 1;
+                        
+                        // Calculate Dynamic Target Active Mins based on shift type
+                        if (['p', 'wfh', 'co'].includes(s)) mtd.targetActiveMins += 470; // 7h 50m
+                        else if (s === '1p') mtd.targetActiveMins += 410; // 6h 50m
+                        else if (s === '2p') mtd.targetActiveMins += 350; // 5h 50m
+                        else if (s === 'h') mtd.targetActiveMins += 240;  // 4h 0m
+                        
+                        if (['p', 'wfh', '1p', '2p', 'co', 'h'].includes(s)) mtd.targetDays++;
                     }
                 }
             });
@@ -1715,6 +1723,7 @@ async startBreak(timeOverride = null, type = null) {
                     prmUsedYTD: dbYTD.permHours, 
                     
                     lopMTD: mtd.lop,
+                    targetActiveMTD: mtd.targetDays > 0 ? Math.round(mtd.targetActiveMins / mtd.targetDays) : 470,
                     avgActiveMTD: mtd.daysPunched ? Math.floor(mtd.activeMins/mtd.daysPunched) : 0,
                     avgBreakMTD: mtd.daysPunched ? Math.floor(mtd.breakMins/mtd.daysPunched) : 0,
                     avgActiveYTD: ytd.daysPunched ? Math.floor(ytd.activeMins/ytd.daysPunched) : 0,
@@ -1723,6 +1732,33 @@ async startBreak(timeOverride = null, type = null) {
             };
         },
 
+getAdherenceTier() {
+            if (!this.individualStats?.metrics) return 'Silver Tier';
+            
+            const m = this.individualStats.metrics;
+            
+            // 1. Active Hours
+            const targetMins = m.targetActiveMTD || 470;
+            const activePercent = ((m.avgActiveMTD || 0) / Math.max(1, targetMins)) * 100;
+            
+            // 2. Over-utilization checks (Leaves and Perms)
+            const leavesOver = (m.remainingLeavesYTD < 0);
+            const permsOver = (m.prmAvailYTD < 0);
+            
+            // 3. Clean Adherence (Breaks <= 61 mins)
+            const breakCompliant = (m.avgBreakMTD || 0) <= 61;
+
+            // Tier Calculation Logic
+            if (activePercent >= 95 && breakCompliant && !leavesOver && !permsOver) {
+                return 'Platinum Tier';
+            } else if (activePercent >= 85 && !leavesOver && !permsOver) {
+                return 'Gold Tier';
+            } else if (activePercent >= 75) {
+                return 'Silver Tier';
+            } else {
+                return 'Action Needed';
+            }
+        },
         get rangeSummaryData() {
             const sDate = this.summaryStartDate, eDate = this.summaryEndDate;
             const endY = eDate ? parseInt(eDate.split('-')[0]) : getISTDateObject().getFullYear();
