@@ -1625,6 +1625,14 @@ async startBreak(timeOverride = null, type = null) {
             const stats = { periodTotals: {}, history: [] };
             this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
 
+            // --- 1. SHIFT BASELINE CALCULATIONS ---
+            const userShift = this.shifts.find(s => s.name === user.shift) || { inTime: '09:00', outTime: '18:00' };
+            const totalShiftMins = this.diffInMins(userShift.inTime, userShift.outTime) || 540; 
+            const allowedBreakMins = 60; 
+            const baseTargetMins = totalShiftMins - allowedBreakMins; 
+            
+            const activeDateKey = this.getActiveShiftDate();
+
             for (let i = 0; i < 15; i++) {
                 const day = getISTDateObject(); day.setDate(day.getDate() - i);
                 const dk = getISTString(day);
@@ -1632,53 +1640,82 @@ async startBreak(timeOverride = null, type = null) {
                 stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', {month:'short', day:'numeric', weekday:'short'}), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
             }
 
-            let mtd = { p:0, lv:0, prm:0, lop:0, activeMins:0, breakMins:0, daysPunched:0, targetActiveMins:0, targetDays:0 };
-            let ytd = { lv:0, prm:0, co:0, activeMins:0, breakMins:0, daysPunched:0 };
+            // --- 2. PACING TRACKERS (EXCLUDING ACTIVE SHIFTS) ---
+            let mtd = { 
+                p:0, lv:0, prm:0, lop:0, activeMins:0, breakMins:0, 
+                completedDays:0, targetActiveMins:0, targetBreakMins:0
+            };
+            let ytd = { 
+                lv:0, prm:0, co:0, activeMins:0, breakMins:0, 
+                completedDays:0 
+            };
 
             Object.keys(this.attendanceData).forEach(dk => {
                 const s = this.attendanceData[dk][id];
                 if (!s) return;
                 const [dy, dm] = dk.split('-').map(Number);
+                
                 if (dy === curY) {
                     if (s === 'co') ytd.co += 1;
                     if (s === 'a') ytd.lv += 1; if (s === 'h') ytd.lv += 0.5;
                     if (s === '1p') ytd.prm += 1; if (s === '2p') ytd.prm += 2;
+                    
+                    if (['p', 'wfh', '1p', '2p', 'co', 'h'].includes(s)) {
+                        const log = this.punchLogs[dk]?.[id];
+                        
+                        // --- EXCLUDE ACTIVE SHIFT LOGIC ---
+                        const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
+                        
+                        if (!isActiveShift) {
+                            let dailyActiveTarget = baseTargetMins;
+                            if (s === '1p') dailyActiveTarget = (baseTargetMins - 60); 
+                            else if (s === '2p') dailyActiveTarget = (baseTargetMins - 120); 
+                            else if (s === 'h') dailyActiveTarget = (baseTargetMins / 2); 
+
+                            let dailyBreakTarget = ['h'].includes(s) ? (allowedBreakMins / 2) : allowedBreakMins; 
+
+                            ytd.completedDays++;
+
+                            if (dm === curM) {
+                                mtd.targetActiveMins += dailyActiveTarget;
+                                mtd.targetBreakMins += dailyBreakTarget;
+                                mtd.completedDays++;
+                            }
+                        }
+                    }
+
+                    // Keep overall status counts intact (they shouldn't ignore present days)
                     if (dm === curM) {
                         if (['p','wfh','1p','2p','co'].includes(s)) mtd.p += 1;
                         if (s === 'h') { mtd.p += 0.5; mtd.lv += 0.5; }
                         if (s === 'a') mtd.lv += 1;
                         if (s === 'lop') mtd.lop += 1;
-                        
-                        // Calculate Dynamic Target Active Mins based on shift type
-                        if (['p', 'wfh', 'co'].includes(s)) mtd.targetActiveMins += 470; // 7h 50m
-                        else if (s === '1p') mtd.targetActiveMins += 410; // 6h 50m
-                        else if (s === '2p') mtd.targetActiveMins += 350; // 5h 50m
-                        else if (s === 'h') mtd.targetActiveMins += 240;  // 4h 0m
-                        
-                        if (['p', 'wfh', '1p', '2p', 'co', 'h'].includes(s)) mtd.targetDays++;
                     }
                 }
             });
 
+            // Calculate actuals (excluding the active shift)
             Object.keys(this.punchLogs).forEach(dk => {
                 const log = this.punchLogs[dk]?.[id];
                 if (!log || !log.in) return;
-                const [dy, dm] = dk.split('-').map(Number);
-                if (dy === curY) {
-                    ytd.breakMins += this.calculateTotalBreakMins(log.breaks);
-                    ytd.activeMins += this.getActiveMinsForLog(log, dk);
-                    ytd.daysPunched++;
-                    if (dm === curM) {
-                        mtd.breakMins += this.calculateTotalBreakMins(log.breaks);
-                        mtd.activeMins += this.getActiveMinsForLog(log, dk);
-                        mtd.daysPunched++;
+                
+                const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
+                
+                if (!isActiveShift) {
+                    const [dy, dm] = dk.split('-').map(Number);
+                    if (dy === curY) {
+                        ytd.breakMins += this.calculateTotalBreakMins(log.breaks);
+                        ytd.activeMins += this.getActiveMinsForLog(log, dk);
+                        if (dm === curM) {
+                            mtd.breakMins += this.calculateTotalBreakMins(log.breaks);
+                            mtd.activeMins += this.getActiveMinsForLog(log, dk);
+                        }
                     }
                 }
             });
 
             const dbYTD = this.ytdStats[id] || { leaves: 0, compOffs: 0, permHours: 0 };
 
-            // Dynamically calculate months active in the current year based on DOJ
             let monthsActiveThisYear = curM;
             if (user.doj) {
                 const dojParts = user.doj.split('-');
@@ -1693,7 +1730,6 @@ async startBreak(timeOverride = null, type = null) {
                 }
             }
 
-            // Calculate prorated limit and remaining YTD balance
             const totalYearlyLeaves = (user.allowedPL || 0) + (user.allowedSL || 0);
             const limitPerMonth = totalYearlyLeaves / 12;
             const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
@@ -1709,30 +1745,30 @@ async startBreak(timeOverride = null, type = null) {
                     lvMTD: mtd.lv, 
                     plAllowed: user.allowedPL || 0, 
                     slAllowed: user.allowedSL || 0, 
-                    
                     coEarned: dbYTD.compOffs,
-                    
-                    // NEW LEAVE METRICS
                     monthlyLeaveLimit: Number(limitPerMonth.toFixed(2)),
                     proratedLeaveLimitYTD: Number(proratedLimitYTD.toFixed(2)),
                     usedLeavesMTD: mtd.lv,
                     usedLeavesYTD: dbYTD.leaves,
                     remainingLeavesYTD: Number(remainingYTD.toFixed(2)),
-                    
                     prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
                     prmUsedYTD: dbYTD.permHours, 
-                    
                     lopMTD: mtd.lop,
-                    targetActiveMTD: mtd.targetDays > 0 ? Math.round(mtd.targetActiveMins / mtd.targetDays) : 470,
-                    avgActiveMTD: mtd.daysPunched ? Math.floor(mtd.activeMins/mtd.daysPunched) : 0,
-                    avgBreakMTD: mtd.daysPunched ? Math.floor(mtd.breakMins/mtd.daysPunched) : 0,
-                    avgActiveYTD: ytd.daysPunched ? Math.floor(ytd.activeMins/ytd.daysPunched) : 0,
-                    avgBreakYTD: ytd.daysPunched ? Math.floor(ytd.breakMins/ytd.daysPunched) : 0
+                    
+                    // --- 3. UPDATED OUTPUTS (COMPLETED DAYS ONLY) ---
+                    targetActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.targetActiveMins / mtd.completedDays) : baseTargetMins,
+                    targetBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.targetBreakMins / mtd.completedDays) : allowedBreakMins,
+                    
+                    avgActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.activeMins / mtd.completedDays) : 0,
+                    avgBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.breakMins / mtd.completedDays) : 0,
+                    
+                    avgActiveYTD: ytd.completedDays > 0 ? Math.round(ytd.activeMins / ytd.completedDays) : 0,
+                    avgBreakYTD: ytd.completedDays > 0 ? Math.round(ytd.breakMins / ytd.completedDays) : 0
                 }
             };
         },
 
-getAdherenceTier() {
+        getAdherenceTier() {
             if (!this.individualStats?.metrics) return 'Silver Tier';
             
             const m = this.individualStats.metrics;
@@ -1745,8 +1781,8 @@ getAdherenceTier() {
             const leavesOver = (m.remainingLeavesYTD < 0);
             const permsOver = (m.prmAvailYTD < 0);
             
-            // 3. Clean Adherence (Breaks <= 61 mins)
-            const breakCompliant = (m.avgBreakMTD || 0) <= 61;
+            // 3. Clean Adherence (Breaks <= Dynamic Target)
+            const breakCompliant = (m.avgBreakMTD || 0) <= (m.targetBreakMTD || 60);
 
             // Tier Calculation Logic
             if (activePercent >= 95 && breakCompliant && !leavesOver && !permsOver) {
