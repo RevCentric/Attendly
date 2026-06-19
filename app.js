@@ -1,12 +1,8 @@
 window.attendanceApp = () => {
-    // 1. NEW: Variable to hold the time difference (drift)
     let timeDrift = 0; 
 
-    // 2. NEW: Function to get the current time with the drift applied
     const getNow = () => new Date(Date.now() + timeDrift);
 
-
-    // 3. NEW: Fetch accurate time from a public API to calculate the drift
     const syncTrueTime = async () => {
         try {
             const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Kolkata');
@@ -19,7 +15,6 @@ window.attendanceApp = () => {
         }
     };
 
-    // STRICT IST HELPERS (Updated to use getNow() instead of new Date())
     const getISTString = (date = getNow()) => {
         return new Intl.DateTimeFormat('en-CA', {
             timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -41,19 +36,13 @@ window.attendanceApp = () => {
 
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
-// STRICT API TIME FETCHER FOR CRITICAL LOGS (Zero-Trust / Unix Time Parser)
     const fetchSecureApiTimeIST = async () => {
         try {
-            // 1. PRIMARY API: WorldTimeAPI (Using absolute unixtime)
-            // Adding a dynamic timestamp to the URL completely busts any network caches
             const res = await fetch(`https://worldtimeapi.org/api/timezone/Asia/Kolkata?nocache=${Date.now()}`, { cache: 'no-store' });
             if (!res.ok) throw new Error("Primary API down");
             const data = await res.json();
-            
-            // Extract the absolute Unix epoch seconds and convert to milliseconds
             const trueEpochMs = data.unixtime * 1000; 
             
-            // Format directly to IST
             return new Intl.DateTimeFormat('en-US', { 
                 timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
             }).format(new Date(trueEpochMs));
@@ -61,12 +50,9 @@ window.attendanceApp = () => {
         } catch (e) {
             console.warn("Primary time API failed, switching to secondary API...");
             try {
-                // 2. SECONDARY API: TimeAPI.io
                 const fallbackRes = await fetch(`https://timeapi.io/api/Time/current/zone?timeZone=Asia/Kolkata&nocache=${Date.now()}`, { cache: 'no-store' });
                 if (!fallbackRes.ok) throw new Error("Secondary API down");
                 const fbData = await fallbackRes.json();
-                
-                // Construct a strict, universally recognized ISO-8601 string
                 const cleanISO = `${fbData.year}-${String(fbData.month).padStart(2, '0')}-${String(fbData.day).padStart(2, '0')}T${String(fbData.hour).padStart(2, '0')}:${String(fbData.minute).padStart(2, '0')}:00+05:30`;
                 
                 return new Intl.DateTimeFormat('en-US', { 
@@ -74,7 +60,6 @@ window.attendanceApp = () => {
                 }).format(new Date(cleanISO));
                 
             } catch (fallbackError) {
-                // 3. ZERO-TRUST ABORT
                 console.error("CRITICAL: Both primary and secondary time APIs are unreachable.");
                 alert("Security Error: Unable to verify strict IST time via API. Action blocked. Please check your connection.");
                 return null; 
@@ -82,14 +67,13 @@ window.attendanceApp = () => {
         }
     };
 
-    // Initialize defaults using the synced time
     const initialToday = getISTString();
     const todayObj = getISTDateObject();
     const firstDayStr = getISTString(new Date(todayObj.getFullYear(), todayObj.getMonth(), 1));
     const lastDayStr = getISTString(new Date(todayObj.getFullYear(), todayObj.getMonth() + 1, 0));
 
     return {
-	theme: localStorage.getItem('appTheme') || 'light',
+        theme: localStorage.getItem('appTheme') || 'light',
         breakTypes: ['Lunch', 'Dinner','Tea', 'Bio', 'Meeting', 'Other'],
         selectedBreakType: '',
         view: 'portal', 
@@ -104,7 +88,7 @@ window.attendanceApp = () => {
         currentISTDateWidget: '',
         liveShiftMins: 0,     
         liveActiveMins: 0, 
-liveTotalBreakMins: 0,   
+        liveTotalBreakMins: 0,   
 
         isAdminAuthenticated: false,
         adminPinInput: '',
@@ -135,18 +119,16 @@ liveTotalBreakMins: 0,
         idleInterval: null,
         idleSecondsRemaining: 300,
 
-        summarytartDate: firstDayStr,
+        summaryStartDate: firstDayStr,
         summaryEndDate: lastDayStr,
 
         scopeStartStr: '',
         fetchedOldDates: new Set(),
 
-        // SUPABASE CREDENTIALS
         supabaseUrl: 'https://lpthzknjzmxwukwpvhii.supabase.co',
         supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwdGh6a25qem14d3Vrd3B2aGlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMzczMDksImV4cCI6MjA5MDgxMzMwOX0.C3uuAVuw3kQWFYcwAFa37bTYbVGOC3DIAgqYpw2osbs',
         supabase: null,
         
-        // APP STATE
         members: [],
         attendanceData: {}, 
         punchLogs: {}, 
@@ -196,22 +178,73 @@ liveTotalBreakMins: 0,
             { id: 'co', display: 'CO', label: 'Comp Off', color: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-500', hex: '#0f766e', value: 1 }
         ],
 
+        // UPDATED: Redesigned menu items with specific custom styled SVG layouts
         menuItems: [
-            { id: 'portal', label: 'Personnel', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
-            { id: 'dashboard', label: 'Stats', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>', admin: true },
-            { id: 'record', label: 'Log', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>', admin: true },
-            { id: 'members', label: 'Roster', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>', admin: true },
-            { id: 'summary', label: 'Reports', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>', admin: true },
-            { id: 'master', label: 'Master', icon: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', admin: true }
-       ],
+            { 
+                id: 'portal', 
+                label: 'Personnel', 
+                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2"/>
+                    <circle cx="9" cy="12" r="2.5"/>
+                    <path d="M14 9h4M14 13h4M14 17h2"/>
+                </svg>` 
+            },
+            { 
+                id: 'dashboard', 
+                label: 'Stats', 
+                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 20V10M12 20V4M6 20v-6"/>
+                </svg>`, 
+                admin: true 
+            },
+            { 
+                id: 'record', 
+                label: 'Log', 
+                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>`, 
+                admin: true 
+            },
+            { 
+                id: 'members', 
+                label: 'Roster', 
+                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>`, 
+                admin: true 
+            },
+            { 
+                id: 'summary', 
+                label: 'Reports', 
+                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M16 13H8M16 17H8M10 9H8"/>
+                </svg>`, 
+                admin: true 
+            },
+            { 
+                id: 'master', 
+                label: 'Master', 
+                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                    <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/>
+                </svg>`, 
+                admin: true 
+            }
+        ],
 
-toggleTheme() {
+        toggleTheme() {
             this.theme = this.theme === 'light' ? 'dark' : 'light';
             localStorage.setItem('appTheme', this.theme);
         },
 
         async init() {
-            // NEW: Sync the true time before the app initializes anything else
             await syncTrueTime();
 
             if ("Notification" in window && Notification.permission === "default") {
@@ -244,8 +277,8 @@ toggleTheme() {
                 }
             });
 
-		setInterval(() => {
-                const now = getNow(); // UPDATED: Use synced time instead of new Date()
+            setInterval(() => {
+                const now = getNow(); 
                 this.currentISTTimeWidget = new Intl.DateTimeFormat('en-US', {
                     timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
                 }).format(now);
@@ -262,11 +295,11 @@ toggleTheme() {
                         const breakMins = this.calculateTotalBreakMins(log.breaks);
                         this.liveShiftMins = grossMins;
                         this.liveActiveMins = Math.max(0, grossMins - breakMins);
-			this.liveTotalBreakMins = breakMins;	
+                        this.liveTotalBreakMins = breakMins;	
                     } else {
                         this.liveShiftMins = 0;
                         this.liveActiveMins = 0;
-			this.liveTotalBreakMins = 0;
+                        this.liveTotalBreakMins = 0;
                     }
                 }
             }, 1000);
@@ -329,7 +362,7 @@ toggleTheme() {
                             this.userSession = JSON.parse(JSON.stringify(matchedMember));
                             this.setupUserRealtime();
                             this.syncUserData(true);
-			    await this.fetchExceptionHistory();	
+                            await this.fetchExceptionHistory();	
                         } else {
                             await this.supabase.auth.signOut();
                         }
@@ -438,103 +471,100 @@ toggleTheme() {
         handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
 
-            const { table, eventType, new: newRec, old: oldRec } = payload;
+            const { table, eventType, new: newRecord } = payload;
+            const updatedField = newRecord;
 
             if (table === 'members' && eventType === 'UPDATE') {
-                if (this.userSession && newRec.id === this.userSession.id) {
-                    if (newRec.current_session && newRec.current_session !== this.localSessionToken) {
-                        this.showNote("Session Terminated: Logged in from another device.", "error");
-                        setTimeout(() => this.logoutUser(), 2500); 
+                if (this.userSession && updatedField.id === this.userSession.id) {
+                    if (updatedField.current_session !== this.localSessionToken) {
+                        this.logoutUser();
+                        this.showNote("Logged out from another device/session", "error");
                         return;
                     }
                 }
             }
 
+            const activeDate = this.getActiveShiftDate();
+
             if (table === 'attendance') {
-                if (eventType === 'INSERT' || eventType === 'UPDATE') {
-                    if (!this.attendanceData[newRec.date]) this.attendanceData[newRec.date] = {};
-                    this.attendanceData[newRec.date][newRec.member_id] = newRec.status;
-                    this.attendanceData = { ...this.attendanceData }; 
-                } else if (eventType === 'DELETE' && oldRec) {
-                    if (this.attendanceData[oldRec.date] && this.attendanceData[oldRec.date][oldRec.member_id]) {
-                        this.attendanceData[oldRec.date][oldRec.member_id] = '';
-                        this.attendanceData = { ...this.attendanceData };
+                const record = payload.new || payload.old;
+                if (record && record.date === this.currentDate) {
+                    if (eventType === 'DELETE') {
+                        delete this.attendanceData[this.currentDate][record.member_id];
+                    } else {
+                        if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {};
+                        this.attendanceData[this.currentDate][record.member_id] = record.status;
                     }
+                    this.attendanceData = { ...this.attendanceData };
                 }
-            } 
-            else if (table === 'punch_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
-                if (!this.punchLogs[newRec.date]) this.punchLogs[newRec.date] = {};
-                const existingBreaks = this.punchLogs[newRec.date][newRec.member_id]?.breaks || [];
-                const existingCaptchas = this.punchLogs[newRec.date][newRec.member_id]?.captchas || [];
-
-                this.punchLogs[newRec.date][newRec.member_id] = {
-                    in: newRec.in_time || '', 
-                    out: newRec.out_time || '',
-                    in_ip: newRec.in_ip || '',
-                    out_ip: newRec.out_ip || '',
-                    breaks: existingBreaks, 
-                    captchas: existingCaptchas
-                };
-                this.punchLogs = { ...this.punchLogs };
             }
-            else if (table === 'break_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
-                const date = newRec.log_date;
-                const mId = newRec.member_id;
 
-                if (!this.punchLogs[date]) this.punchLogs[date] = {};
-                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-
-                let breaks = this.punchLogs[date][mId].breaks || [];
-                let breakIdx = breaks.findIndex(b => b.start === newRec.start_time);
-
-                if (breakIdx !== -1) {
-		// NEW FIX: Detect if the break was just ended, and restart loop
-        const wasOpen = !breaks[breakIdx].end;
-        breaks[breakIdx].end = newRec.end_time || '';
-        
-        if (wasOpen && newRec.end_time && this.userSession && this.userSession.id === mId) {
-            this.scheduleNextCaptcha();
-        }
-                } else {
-                    breaks.push({ start: newRec.start_time, end: newRec.end_time || '' });
+            if (table === 'punch_logs') {
+                const record = payload.new || payload.old;
+                if (record && record.date === this.currentDate) {
+                    if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+                    if (eventType === 'DELETE') {
+                        delete this.punchLogs[this.currentDate][record.member_id];
+                    } else {
+                        if (!this.punchLogs[this.currentDate][record.member_id]) {
+                            this.punchLogs[this.currentDate][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                        }
+                        this.punchLogs[this.currentDate][record.member_id].in = record.in_time || '';
+                        this.punchLogs[this.currentDate][record.member_id].out = record.out_time || '';
+                        this.punchLogs[this.currentDate][record.member_id].in_ip = record.in_ip || '';
+                        this.punchLogs[this.currentDate][record.member_id].out_ip = record.out_ip || '';
+                    }
+                    this.punchLogs = { ...this.punchLogs };
                 }
-
-                this.punchLogs[date][mId].breaks = breaks;
-                this.punchLogs = { ...this.punchLogs };
             }
-            else if (table === 'captcha_logs' && (eventType === 'INSERT' || eventType === 'UPDATE')) {
-                const date = newRec.log_date;
-                const mId = newRec.member_id;
 
-                if (!this.punchLogs[date]) this.punchLogs[date] = {};
-                if (!this.punchLogs[date][mId]) this.punchLogs[date][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-
-                let captchas = this.punchLogs[date][mId].captchas || [];
-                let capIdx = captchas.findIndex(c => c.time === newRec.check_time);
-
-                if (capIdx !== -1) {
-                    captchas[capIdx].status = newRec.status;
-                    if (newRec.ip_address) captchas[capIdx].ip = newRec.ip_address;
-                } else {
-                    captchas.push({ time: newRec.check_time, status: newRec.status, ip: newRec.ip_address || '' });
-                }
-
-                this.punchLogs[date][mId].captchas = captchas;
-                this.punchLogs = { ...this.punchLogs };
-
-                if (this.userSession && this.userSession.id === mId && newRec.status === 'Pending' && eventType === 'INSERT') {
-                    if (date === this.getActiveShiftDate()) {
-                        this.triggerCaptcha(newRec.check_time);
+            if (table === 'break_logs') {
+                const record = payload.new || payload.old;
+                if (record && record.log_date === this.currentDate) {
+                    if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+                    if (!this.punchLogs[this.currentDate][record.member_id]) {
+                        this.punchLogs[this.currentDate][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     }
-                }
-                
-                if (this.userSession && this.userSession.id === mId && newRec.status === 'Missed' && eventType === 'UPDATE') {
-                    if (this.showCaptchaModal && this.currentCaptchaTime === newRec.check_time) {
-                        this.showCaptchaModal = false;
-                        this.clearCaptchaTimers();
-                        this.currentCaptchaTime = null;
-                        this.showNote("System enforced timeout.", "error");
+                    
+                    const breaks = this.punchLogs[this.currentDate][record.member_id].breaks || [];
+                    const idx = breaks.findIndex(b => b.start === record.start_time);
+                    if (eventType === 'DELETE') {
+                        if (idx > -1) breaks.splice(idx, 1);
+                    } else {
+                        const bObj = { start: record.start_time, end: record.end_time || '', type: record.type || '' };
+                        if (idx > -1) {
+                            breaks[idx] = bObj;
+                        } else {
+                            breaks.push(bObj);
+                        }
                     }
+                    this.punchLogs[this.currentDate][record.member_id].breaks = breaks;
+                    this.punchLogs = { ...this.punchLogs };
+                }
+            }
+
+            if (table === 'captcha_logs') {
+                const record = payload.new || payload.old;
+                if (record && record.log_date === this.currentDate) {
+                    if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+                    if (!this.punchLogs[this.currentDate][record.member_id]) {
+                        this.punchLogs[this.currentDate][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                    }
+                    
+                    const captchas = this.punchLogs[this.currentDate][record.member_id].captchas || [];
+                    const idx = captchas.findIndex(c => c.time === record.check_time);
+                    if (eventType === 'DELETE') {
+                        if (idx > -1) captchas.splice(idx, 1);
+                    } else {
+                        const cObj = { time: record.check_time, status: record.status, ip: record.ip_address || '' };
+                        if (idx > -1) {
+                            captchas[idx] = cObj;
+                        } else {
+                            captchas.push(cObj);
+                        }
+                    }
+                    this.punchLogs[this.currentDate][record.member_id].captchas = captchas;
+                    this.punchLogs = { ...this.punchLogs };
                 }
             }
         },
@@ -664,7 +694,7 @@ toggleTheme() {
             }
         },
 
-	async fetchExceptionHistory() {
+        async fetchExceptionHistory() {
             if (!this.userSession) return;
             
             const { data: excData } = await this.supabase
@@ -848,43 +878,41 @@ toggleTheme() {
         },
 
         clearCaptchaTimers() {
-    if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
-    if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
+            if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
+            if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
 
-    // NEW: Remove dangling event listeners
-    if (this._unlockAudioHandler) {
-        document.removeEventListener('click', this._unlockAudioHandler);
-        document.removeEventListener('keydown', this._unlockAudioHandler);
-        this._unlockAudioHandler = null;
-    }
+            if (this._unlockAudioHandler) {
+                document.removeEventListener('click', this._unlockAudioHandler);
+                document.removeEventListener('keydown', this._unlockAudioHandler);
+                this._unlockAudioHandler = null;
+            }
 
-    if (this._captchaAudio) {
-        try { 
-            // NEW: Mute immediately to kill sound during the play() promise race condition
-            this._captchaAudio.muted = true; 
-            this._captchaAudio.pause(); 
-            this._captchaAudio.currentTime = 0; 
-            this._captchaAudio.removeAttribute('src'); // Force memory cleanup
-        } catch(e) {}
-        this._captchaAudio = null;
-    }
+            if (this._captchaAudio) {
+                try { 
+                    this._captchaAudio.muted = true; 
+                    this._captchaAudio.pause(); 
+                    this._captchaAudio.currentTime = 0; 
+                    this._captchaAudio.removeAttribute('src'); 
+                } catch(e) {}
+                this._captchaAudio = null;
+            }
 
-    try { if (navigator.vibrate) navigator.vibrate(0); } catch(e) {}
+            try { if (navigator.vibrate) navigator.vibrate(0); } catch(e) {}
 
-    if (this._captchaVisibilityHandler) {
-        document.removeEventListener('visibilitychange', this._captchaVisibilityHandler);
-        window.removeEventListener('focus', this._captchaVisibilityHandler);
-        this._captchaVisibilityHandler = null;
-    }
+            if (this._captchaVisibilityHandler) {
+                document.removeEventListener('visibilitychange', this._captchaVisibilityHandler);
+                window.removeEventListener('focus', this._captchaVisibilityHandler);
+                this._captchaVisibilityHandler = null;
+            }
 
-    try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch(e) {}
+            try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch(e) {}
 
-    if (this.titleFlashInterval) {
-        clearInterval(this.titleFlashInterval);
-        this.titleFlashInterval = null;
-        document.title = "RevCentric Solutions";
-    }
-},
+            if (this.titleFlashInterval) {
+                clearInterval(this.titleFlashInterval);
+                this.titleFlashInterval = null;
+                document.title = "RevCentric Solutions";
+            }
+        },
 
         scheduleNextCaptcha() {
             this.clearCaptchaTimers();
@@ -903,26 +931,25 @@ toggleTheme() {
             }, interval);
         },
 
-triggerCaptcha(forceTime = null) {
-    // NEW: Clear any existing captchas/audio before spawning a new one
-    this.clearCaptchaTimers();
-    this.checkExpiredCaptchas();
-    
-    if (!this.userSession) return;
-    if (!forceTime && !this.userSession.captchaEnabled) return;
-    if (!forceTime && this.userOnBreak) return;
-    
-    const _guardDate = this.getActiveShiftDate();
-    const _guardLog = this.punchLogs[_guardDate]?.[this.userSession.id];
-    if (!forceTime && (!_guardLog?.in || _guardLog?.out)) return;
+        triggerCaptcha(forceTime = null) {
+            this.clearCaptchaTimers();
+            this.checkExpiredCaptchas();
+            
+            if (!this.userSession) return;
+            if (!forceTime && !this.userSession.captchaEnabled) return;
+            if (!forceTime && this.userOnBreak) return;
+            
+            const _guardDate = this.getActiveShiftDate();
+            const _guardLog = this.punchLogs[_guardDate]?.[this.userSession.id];
+            if (!forceTime && (!_guardLog?.in || _guardLog?.out)) return;
 
-	if (this.showCaptchaModal && this.currentCaptchaTime) {
-        this.recordCaptchaResult('Passed', this.currentCaptchaTime);
-    }	
+            if (this.showCaptchaModal && this.currentCaptchaTime) {
+                this.recordCaptchaResult('Passed', this.currentCaptchaTime);
+            }	
 
-    this.captchaTargetNumber = Math.floor(Math.random() * 10).toString();
-    this.captchaInput = '';
-    this.showCaptchaModal = true;
+            this.captchaTargetNumber = Math.floor(Math.random() * 10).toString();
+            this.captchaInput = '';
+            this.showCaptchaModal = true;
 
             if (forceTime) {
                 this.currentCaptchaTime = forceTime;
@@ -952,18 +979,15 @@ triggerCaptcha(forceTime = null) {
                 else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
             } catch(e) {}
 
-            // REWRITTEN AUDIO BLOCK
             try {
                 this._captchaAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
                 this._captchaAudio.loop = true;
                 this._captchaAudio.volume = 1.0;
 
-                // Save reference to handler so it can be cleaned up later by clearCaptchaTimers()
                 this._unlockAudioHandler = () => {
                     if (this._captchaAudio) {
                         this._captchaAudio.play().catch(() => {});
                     }
-                    // Self-clean upon interaction
                     document.removeEventListener('click', this._unlockAudioHandler);
                     document.removeEventListener('keydown', this._unlockAudioHandler);
                     this._unlockAudioHandler = null;
@@ -972,7 +996,6 @@ triggerCaptcha(forceTime = null) {
                 const playPromise = this._captchaAudio.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(() => {
-                        // Autoplay blocked. Attach fallback listeners to Document using the saved handler.
                         document.addEventListener('click', this._unlockAudioHandler, { once: true });
                         document.addEventListener('keydown', this._unlockAudioHandler, { once: true });
                     });
@@ -1027,9 +1050,9 @@ triggerCaptcha(forceTime = null) {
                 this.showNote("Verified Successfully", "success");
                 this.scheduleNextCaptcha();
             } else {
-    this.showNote("Verification Failed. Auto-initiating break.", "error");
-    this.startBreak(null, 'Penalty'); // ADD THE PENALTY ARGUMENT
-}
+                this.showNote("Verification Failed. Auto-initiating break.", "error");
+                this.startBreak(null, 'Penalty'); 
+            }
         },
 
         handleCaptchaTimeout() {
@@ -1040,23 +1063,22 @@ triggerCaptcha(forceTime = null) {
             this.recordCaptchaResult('Missed');
             this.currentCaptchaTime = null;
             
-this.showNote("Verification Missed. Auto-initiating break.", "error");
-    this.startBreak(null, 'Penalty'); // ADD THE PENALTY ARGUMENT
-},
+            this.showNote("Verification Missed. Auto-initiating break.", "error");
+            this.startBreak(null, 'Penalty'); 
+        },
 
         async recordCaptchaResult(status, timeOverride = null) {
             if (!this.userSession) return;
-	let secureTime = null;
-if (!timeOverride && !this.currentCaptchaTime) {
-    secureTime = await fetchSecureApiTimeIST();
-    if (!secureTime) return; 
-}
+            let secureTime = null;
+            if (!timeOverride && !this.currentCaptchaTime) {
+                secureTime = await fetchSecureApiTimeIST();
+                if (!secureTime) return; 
+            }
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             const checkTime = timeOverride || this.currentCaptchaTime || secureTime;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
             
-            // SECURITY CHECK: Report if foreign or android
             this.checkSecurityFlag(currentIp, this.userSession.name);
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
@@ -1093,7 +1115,6 @@ if (!timeOverride && !this.currentCaptchaTime) {
             const currentIp = await this.fetchDeviceAndNetworkInfo();
             
             const todayStr = getISTString();
-            
             const yDate = getISTDateObject();
             yDate.setDate(yDate.getDate() - 1);
             const yesterdayStr = getISTString(yDate);
@@ -1166,7 +1187,6 @@ if (!timeOverride && !this.currentCaptchaTime) {
             return events;
         },
 
-// NEW: Get all birthdays and anniversaries for the current month
         get monthEvents() {
             const curObj = getISTDateObject();
             const curM = curObj.getMonth() + 1;
@@ -1199,17 +1219,13 @@ if (!timeOverride && !this.currentCaptchaTime) {
                 }
             });
             
-            // Sort chronologically by the day of the month
             return events.sort((a, b) => a.day - b.day);
         },
 
-// NEW AI INSIGHTS GETTER
-        // NEW AI INSIGHTS GETTER (30-Day Rolling Window)
         get offenderAlerts() {
-            // Process alerts for managers, or filter for the specific logged-in user
             const alerts = [];
             const todayStr = this.getActiveShiftDate();
-            const THRESHOLD = 470; // 7 hours 50 mins = 470 mins
+            const THRESHOLD = 470; 
             const VIOLATION_LIMIT = 3; 
             
             const [y, m, d] = todayStr.split('-').map(Number);
@@ -1217,7 +1233,6 @@ if (!timeOverride && !this.currentCaptchaTime) {
             const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
             
             this.members.forEach(m => {
-                // NEW: Bypass check if manager/lead, otherwise ONLY process the logged-in user's own data
                 if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== m.id)) return;
 
                 const isPresentToday = this.attendanceData[todayStr]?.[m.id] === 'p' || 
@@ -1341,7 +1356,6 @@ if (!timeOverride && !this.currentCaptchaTime) {
         },
 
         getCurrentTimeIST() {
-            // UPDATED: Use getNow() instead of new Date()
             return new Intl.DateTimeFormat('en-US', { 
                 timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
             }).format(getNow());
@@ -1455,15 +1469,12 @@ if (!timeOverride && !this.currentCaptchaTime) {
                                         .match({ member_id: mId, log_date: checkDate, check_time: cap.time }).then();
                                     
                                     const breaks = log.breaks || [];
-if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
-    // 1. Add type to the local array push
-    breaks.push({ start: cap.time, end: '', type: 'Penalty' });
-    
-    // 2. Add type to the database insert
-    this.supabase.from('break_logs').insert({
-        member_id: mId, log_date: checkDate, start_time: cap.time, type: 'Penalty'
-    }).then();
-}
+                                    if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
+                                        breaks.push({ start: cap.time, end: '', type: 'Penalty' });
+                                        this.supabase.from('break_logs').insert({
+                                            member_id: mId, log_date: checkDate, start_time: cap.time, type: 'Penalty'
+                                        }).then();
+                                    }
                                 }
                             }
                         }
@@ -1476,61 +1487,56 @@ if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
             }
         },
 
-async startBreak(timeOverride = null, type = null) {
-    if (!this.userSession) return;
-    
-    // Determine break type (auto-assign 'Penalty' if it's a forced break from a missed Captcha)
-    let breakType = type || this.selectedBreakType;
-    if (timeOverride && !breakType) breakType = 'Penalty';
-    
-    // Stop and warn the user if no type is selected manually
-    if (!breakType) {
-        this.showNote("Please select a break type first.", "error");
-        return;
-    }
-
-    this.clearCaptchaTimers();
-    const secureTime = await fetchSecureApiTimeIST();
-    if (!secureTime) return;
+        async startBreak(timeOverride = null, type = null) {
+            if (!this.userSession) return;
             
-    const activeDate = this.getActiveShiftDate();
-    const uId = this.userSession.id;
-    const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
-    
-    // ---> REMOVED THE DUPLICATE `const breakType` THAT WAS CAUSING THE CRASH <---
+            let breakType = type || this.selectedBreakType;
+            if (timeOverride && !breakType) breakType = 'Penalty';
+            
+            if (!breakType) {
+                this.showNote("Please select a break type first.", "error");
+                return;
+            }
 
-    if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-    if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-    if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
-    
-    const breaks = this.punchLogs[activeDate][uId].breaks;
-    
-    if (breaks.length > 0 && !breaks[breaks.length - 1].end) {
-        if (timeOverride) {
-            breaks[breaks.length - 1].start = startTime;
-            try {
-                // Update type in DB
-                await this.supabase.from('break_logs').update({ start_time: startTime, type: breakType })
-                    .match({ member_id: uId, log_date: activeDate }).is('end_time', null);
-            } catch(e) {}
-        }
-    } else {
-        breaks.push({ start: startTime, end: '', type: breakType }); // Push type to local state
-        try {
-            // Insert type to DB
-            await this.supabase.from('break_logs').insert({
-                member_id: uId, log_date: activeDate, start_time: startTime, type: breakType
-            });
-        } catch(e) { console.error("Break start error", e); }
-    }
-    
-    this.punchLogs = { ...this.punchLogs };
-    this.breakPinInput = '';
-    
-    this.showNote(timeOverride ? "Penalty Break Applied" : `${breakType} Break Started`, timeOverride ? "error" : "success");
-    try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>e); } catch(e) {}
-    setTimeout(() => { const el = document.getElementById('break-pin-input'); if(el) el.focus(); }, 100);
-},
+            this.clearCaptchaTimers();
+            const secureTime = await fetchSecureApiTimeIST();
+            if (!secureTime) return;
+                    
+            const activeDate = this.getActiveShiftDate();
+            const uId = this.userSession.id;
+            const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
+
+            if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+            if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
+            
+            const breaks = this.punchLogs[activeDate][uId].breaks;
+            
+            if (breaks.length > 0 && !breaks[breaks.length - 1].end) {
+                if (timeOverride) {
+                    breaks[breaks.length - 1].start = startTime;
+                    try {
+                        await this.supabase.from('break_logs').update({ start_time: startTime, type: breakType })
+                            .match({ member_id: uId, log_date: activeDate }).is('end_time', null);
+                    } catch(e) {}
+                }
+            } else {
+                breaks.push({ start: startTime, end: '', type: breakType }); 
+                try {
+                    await this.supabase.from('break_logs').insert({
+                        member_id: uId, log_date: activeDate, start_time: startTime, type: breakType
+                    });
+                } catch(e) { console.error("Break start error", e); }
+            }
+            
+            this.punchLogs = { ...this.punchLogs };
+            this.breakPinInput = '';
+            
+            this.showNote(timeOverride ? "Penalty Break Applied" : `${breakType} Break Started`, timeOverride ? "error" : "success");
+            try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>e); } catch(e) {}
+            setTimeout(() => { const el = document.getElementById('break-pin-input'); if(el) el.focus(); }, 100);
+        },
+
         handleBreakUnlock() {
             if (this.breakPinInput === this.userSession.pin) {
                 this.endBreak();
@@ -1562,10 +1568,7 @@ async startBreak(timeOverride = null, type = null) {
                 } catch(e) { console.error("Break end error", e); }
                 
                 this.showNote("Break Ended", "success");
-                
-                // ADD THIS LINE TO RESET THE DROPDOWN
                 this.selectedBreakType = ''; 
-                
                 this.scheduleNextCaptcha();
             }
         },
@@ -1625,7 +1628,6 @@ async startBreak(timeOverride = null, type = null) {
             const stats = { periodTotals: {}, history: [] };
             this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
 
-            // --- 1. SHIFT BASELINE CALCULATIONS ---
             const userShift = this.shifts.find(s => s.name === user.shift) || { inTime: '09:00', outTime: '18:00' };
             const totalShiftMins = this.diffInMins(userShift.inTime, userShift.outTime) || 540; 
             const allowedBreakMins = 60; 
@@ -1640,7 +1642,6 @@ async startBreak(timeOverride = null, type = null) {
                 stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', {month:'short', day:'numeric', weekday:'short'}), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
             }
 
-            // --- 2. PACING TRACKERS (EXCLUDING ACTIVE SHIFTS) ---
             let mtd = { 
                 p:0, lv:0, prm:0, lop:0, activeMins:0, breakMins:0, 
                 completedDays:0, targetActiveMins:0, targetBreakMins:0
@@ -1662,8 +1663,6 @@ async startBreak(timeOverride = null, type = null) {
                     
                     if (['p', 'wfh', '1p', '2p', 'co', 'h'].includes(s)) {
                         const log = this.punchLogs[dk]?.[id];
-                        
-                        // --- EXCLUDE ACTIVE SHIFT LOGIC ---
                         const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
                         
                         if (!isActiveShift) {
@@ -1684,7 +1683,6 @@ async startBreak(timeOverride = null, type = null) {
                         }
                     }
 
-                    // Keep overall status counts intact (they shouldn't ignore present days)
                     if (dm === curM) {
                         if (['p','wfh','1p','2p','co'].includes(s)) mtd.p += 1;
                         if (s === 'h') { mtd.p += 0.5; mtd.lv += 0.5; }
@@ -1694,21 +1692,23 @@ async startBreak(timeOverride = null, type = null) {
                 }
             });
 
-            // Calculate actuals (excluding the active shift)
             Object.keys(this.punchLogs).forEach(dk => {
                 const log = this.punchLogs[dk]?.[id];
-                if (!log || !log.in) return;
-                
-                const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
-                
-                if (!isActiveShift) {
+                if (log && log.in && log.out) {
                     const [dy, dm] = dk.split('-').map(Number);
                     if (dy === curY) {
-                        ytd.breakMins += this.calculateTotalBreakMins(log.breaks);
-                        ytd.activeMins += this.getActiveMinsForLog(log, dk);
-                        if (dm === curM) {
-                            mtd.breakMins += this.calculateTotalBreakMins(log.breaks);
-                            mtd.activeMins += this.getActiveMinsForLog(log, dk);
+                        const isActiveShift = (dk === activeDateKey && !log.out);
+                        if (!isActiveShift) {
+                            const activeMins = this.getActiveMinsForLog(log, dk);
+                            const breakMins = this.calculateTotalBreakMins(log.breaks);
+                            
+                            ytd.activeMins += activeMins;
+                            ytd.breakMins += breakMins;
+
+                            if (dm === curM) {
+                                mtd.activeMins += activeMins;
+                                mtd.breakMins += breakMins;
+                            }
                         }
                     }
                 }
@@ -1755,7 +1755,6 @@ async startBreak(timeOverride = null, type = null) {
                     prmUsedYTD: dbYTD.permHours, 
                     lopMTD: mtd.lop,
                     
-                    // --- 3. UPDATED OUTPUTS (COMPLETED DAYS ONLY) ---
                     targetActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.targetActiveMins / mtd.completedDays) : baseTargetMins,
                     targetBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.targetBreakMins / mtd.completedDays) : allowedBreakMins,
                     
@@ -1772,19 +1771,12 @@ async startBreak(timeOverride = null, type = null) {
             if (!this.individualStats?.metrics) return 'Silver Tier';
             
             const m = this.individualStats.metrics;
-            
-            // 1. Active Hours
             const targetMins = m.targetActiveMTD || 470;
             const activePercent = ((m.avgActiveMTD || 0) / Math.max(1, targetMins)) * 100;
-            
-            // 2. Over-utilization checks (Leaves and Perms)
             const leavesOver = (m.remainingLeavesYTD < 0);
             const permsOver = (m.prmAvailYTD < 0);
-            
-            // 3. Clean Adherence (Breaks <= Dynamic Target)
             const breakCompliant = (m.avgBreakMTD || 0) <= (m.targetBreakMTD || 60);
 
-            // Tier Calculation Logic
             if (activePercent >= 95 && breakCompliant && !leavesOver && !permsOver) {
                 return 'Platinum Tier';
             } else if (activePercent >= 85 && !leavesOver && !permsOver) {
@@ -1795,26 +1787,24 @@ async startBreak(timeOverride = null, type = null) {
                 return 'Action Needed';
             }
         },
+
         get rangeSummaryData() {
             const sDate = this.summaryStartDate, eDate = this.summaryEndDate;
             const endY = eDate ? parseInt(eDate.split('-')[0]) : getISTDateObject().getFullYear();
             const endM = eDate ? parseInt(eDate.split('-')[1]) : (getISTDateObject().getMonth() + 1);
 
             return this.filteredMembers.map(m => {
-                // NEW: Added wfhMTD, coMTD, availLv, and availPrm to the tracker object
                 let d = { presentMTD:0, absentMTD:0, halfMTD:0, wfhMTD:0, coMTD:0, prmHrsMTD:0, lopMTD:0, holidayMTD:0, lvYTD:0, prmYTDUsed:0, availLv:0, availPrm:0, avgActiveMTD:0, avgBreakMTD:0, avgActiveYTD:0, avgBreakYTD:0 };
                 let ytd={ act:0, brk:0, days:0 }, mtd={ act:0, brk:0, days:0 };
 
                 Object.keys(this.attendanceData).forEach(dk => {
                     const s = this.attendanceData[dk]?.[m.id];
                     if (!s) return;
-                    const [y, mm] = dk.split('-').map(Number);
                     if (dk >= sDate && dk <= eDate) {
                         if (s === 'p' || s === 'wfh') d.presentMTD += 1;
                         if (s === 'a') d.absentMTD += 1;
                         if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
                         
-                        // NEW: Explicitly track WFH and CO
                         if (s === 'wfh') d.wfhMTD += 1;
                         if (s === 'co') d.coMTD += 1;
                         
@@ -1839,7 +1829,6 @@ async startBreak(timeOverride = null, type = null) {
                 d.lvYTD = dbYTD.leaves;
                 d.prmYTDUsed = dbYTD.permHours;
 
-                // --- NEW: Calculate Available Balances based on DOJ ---
                 let monthsActiveThisYear = endM;
                 if (m.doj) {
                     const dojParts = m.doj.split('-');
@@ -1849,7 +1838,7 @@ async startBreak(timeOverride = null, type = null) {
                         if (dojY === endY) {
                             monthsActiveThisYear = Math.max(1, endM - dojM + 1);
                         } else if (dojY > endY) {
-                            monthsActiveThisYear = 0; // Hasn't joined yet in this year scope
+                            monthsActiveThisYear = 0; 
                         }
                     }
                 }
@@ -1861,7 +1850,6 @@ async startBreak(timeOverride = null, type = null) {
                 
                 d.availLv = Number(remainingYTD.toFixed(2));
                 d.availPrm = ((m.allowedPerm || 0) * monthsActiveThisYear) - dbYTD.permHours;
-                // ------------------------------------------------------
 
                 d.avgActiveMTD = mtd.days ? Math.floor(mtd.act/mtd.days) : 0; 
                 d.avgBreakMTD = mtd.days ? Math.floor(mtd.brk/mtd.days) : 0;
@@ -1929,7 +1917,7 @@ async startBreak(timeOverride = null, type = null) {
         commitEditLog() {
             if (!this.editingLogId) return;
             const id = this.editingLogId;
-            if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+            if (!this.punchLogs[this.currentDate]) this.currentDate = getISTString();
             if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             
             const formatT = (t) => {
@@ -1962,14 +1950,12 @@ async startBreak(timeOverride = null, type = null) {
                         .is('end_time', null);
                     this.showNote("Break Force-Ended", "success");
                 } else {
-    // Add type to the local array push
-    breaks.push({ start: currentTime, end: '', type: 'Admin Override' }); 
-    // Add type to the Supabase insert
-    await this.supabase.from('break_logs').insert({
-        member_id: mId, log_date: this.currentDate, start_time: currentTime, type: 'Admin Override'
-    });
-    this.showNote("Break Force-Started", "success");
-}
+                    breaks.push({ start: currentTime, end: '', type: 'Admin Override' }); 
+                    await this.supabase.from('break_logs').insert({
+                        member_id: mId, log_date: this.currentDate, start_time: currentTime, type: 'Admin Override'
+                    });
+                    this.showNote("Break Force-Started", "success");
+                }
                 this.punchLogs = { ...this.punchLogs };
             } catch(e) { 
                 console.error("Admin break toggle error", e); 
@@ -1990,7 +1976,6 @@ async startBreak(timeOverride = null, type = null) {
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
             
-            // SECURITY CHECK: Report if foreign or android
             this.checkSecurityFlag(currentIp, this.userSession.name);
 
             if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
@@ -1998,7 +1983,6 @@ async startBreak(timeOverride = null, type = null) {
             
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             
-            // FIXED: Removed the rogue bracket and added the proper IF check
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                 this.punchLogs[activeDate][uId] = { in: secureTime, out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
             }
@@ -2016,11 +2000,11 @@ async startBreak(timeOverride = null, type = null) {
         
         async confirmLogoutPortal() {
             this.clearCaptchaTimers();
-	const secureTime = await fetchSecureApiTimeIST();
-if (!secureTime) {
-    this.showLogoutModal = false; 
-    return; 
-}
+            const secureTime = await fetchSecureApiTimeIST();
+            if (!secureTime) {
+                this.showLogoutModal = false; 
+                return; 
+            }
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
@@ -2029,20 +2013,16 @@ if (!secureTime) {
             if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = secureTime;
             
             const currentIp = await this.fetchDeviceAndNetworkInfo();
-            
-            // SECURITY CHECK: Report if foreign or android
             this.checkSecurityFlag(currentIp, this.userSession.name);
             
             this.punchLogs[activeDate][uId].out = secureTime;
             this.punchLogs[activeDate][uId].out_ip = currentIp;
-            
             this.punchLogs = { ...this.punchLogs };
             
             await this.upsertPunchCloud(activeDate, uId); 
             
             this.showLogoutModal = false; 
             this.showNote("Shift Logged Out", "success");
-
             await this.logoutUser(); 
         },
 
@@ -2142,7 +2122,6 @@ if (!secureTime) {
             }
 
             const trapDate = this.getActiveShiftDate(); 
-            
             const todaysCaptchas = this.punchLogs[trapDate]?.[uid]?.captchas || [];
             const pendingCaptchas = todaysCaptchas.filter(c => c.status === 'Pending');
 
@@ -2151,8 +2130,6 @@ if (!secureTime) {
                 
                 let penaltyTime = pendingCaptchas[0].time;
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
-                
-                // SECURITY CHECK: Report if foreign or android
                 this.checkSecurityFlag(currentIp, this.userSession.name);
                 
                 for (const cap of pendingCaptchas) {
@@ -2166,7 +2143,6 @@ if (!secureTime) {
                 this.punchLogs = { ...this.punchLogs }; 
                 
                 this.startBreak(penaltyTime);
-                
                 this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
                 return; 
             }
@@ -2176,8 +2152,6 @@ if (!secureTime) {
             if (this.userSession.captchaEnabled && reopenLog?.in && !reopenLog?.out && !alreadyOnBreak) {
                 const missedTime = this.getCurrentTimeIST();
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
-                
-                // SECURITY CHECK: Report if foreign or android
                 this.checkSecurityFlag(currentIp, this.userSession.name);
                 
                 if (!this.punchLogs[trapDate][uid].captchas) this.punchLogs[trapDate][uid].captchas = [];
@@ -2205,8 +2179,6 @@ if (!secureTime) {
             
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
-                
-                // SECURITY CHECK: Report if foreign or android
                 this.checkSecurityFlag(currentIp, this.userSession.name);
                 
                 this.punchLogs[activeDate][uId] = { 
@@ -2274,8 +2246,6 @@ if (!secureTime) {
                         
                         let penaltyTime = setupPendingCaptchas[0].time;
                         const currentIp = await this.fetchDeviceAndNetworkInfo();
-                        
-                        // SECURITY CHECK: Report if foreign or android
                         this.checkSecurityFlag(currentIp, this.userSession.name);
                         
                         for (const cap of setupPendingCaptchas) {
@@ -2289,7 +2259,6 @@ if (!secureTime) {
                         this.punchLogs = { ...this.punchLogs };
                         
                         this.startBreak(penaltyTime);
-                        
                         this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
                         return;
                     }
@@ -2302,8 +2271,6 @@ if (!secureTime) {
                     if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                     if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                         const currentIp = await this.fetchDeviceAndNetworkInfo();
-                        
-                        // SECURITY CHECK: Report if foreign or android
                         this.checkSecurityFlag(currentIp, this.userSession.name);
                         
                         this.punchLogs[activeDate][uId] = { 
@@ -2343,7 +2310,30 @@ if (!secureTime) {
             window.location.reload(); 
         },
 
-        cancelLogin() { this.loginStep = 'id'; this.tempUser = null; this.loginIdInput = ''; this.loginPinInput = ''; setTimeout(() => document.getElementById('login-id-input')?.focus(), 50); },
+        cancelLogin() { this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; },
+        
+        async handleIdEntry() {
+            if (!this.loginIdInput) return;
+            const empIdClean = this.loginIdInput.trim().toUpperCase();
+            const matched = this.members.find(m => m.empId.toUpperCase() === empIdClean);
+            
+            if (matched) {
+                const todayStr = getISTString();
+                if (matched.doe && matched.doe < todayStr) {
+                    this.loginIdInput = '';
+                    return this.showNote("Access Denied: Account Deactivated", "error");
+                }
+                this.tempUser = matched;
+                this.loginStep = !matched.pin ? 'setup' : 'pin';
+                this.loginIdInput = '';
+                setTimeout(() => {
+                    const el = document.getElementById(this.loginStep === 'pin' ? 'login-pin-input' : 'setup-pin-input');
+                    if (el) el.focus();
+                }, 100);
+            } else {
+                this.showNote("Employee ID not registered", "error");
+            }
+        },
 
         async verifyAdmin() { 
             if (Date.now() < this.adminLockoutUntil) { this.adminPinInput = ''; return this.showNote(`Vault locked.`, "error"); }
@@ -2365,7 +2355,6 @@ if (!secureTime) {
                 this.adminFailedAttempts = 0; 
                 this.resetIdleTimer();
                 this.setupUserRealtime(); 
-                
                 this.syncUserData(true);
             } 
             else { 
@@ -2602,7 +2591,6 @@ if (!secureTime) {
             this.showNote("Compiling Database Snapshot...", "success");
             const wb = XLSX.utils.book_new(); 
 
-            // SHEET 1: Personnel Master List
             const personnelRows = this.members.map(m => ({ 
                 'Employee ID': m.empId, 
                 'Full Name': m.name, 
@@ -2618,7 +2606,6 @@ if (!secureTime) {
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personnelRows), "Personnel_Master"); 
 
-            // SHEET 2: Attendance Registry
             const attendanceRows = []; 
             Object.keys(this.attendanceData).sort().forEach(date => {
                 Object.keys(this.attendanceData[date]).forEach(empId => { 
@@ -2634,7 +2621,6 @@ if (!secureTime) {
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceRows), "Attendance_Registry");
 
-            // SHEET 3: Detailed Punch & Break Logs
             const punchRows = []; 
             Object.keys(this.punchLogs).sort().forEach(date => {
                 Object.keys(this.punchLogs[date]).forEach(empId => { 
@@ -2657,7 +2643,6 @@ if (!secureTime) {
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(punchRows), "Punch_and_Break_Logs");
 
-            // SHEET 4: Leave & Time-Off Requests
             const leaveRows = this.leaveRequests.map(l => ({ 
                 'Request ID': l.id, 
                 'Emp ID': l.empId, 
@@ -2670,7 +2655,6 @@ if (!secureTime) {
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leaveRows), "Time_Off_Requests");
 
-            // SHEET 5: Holiday Configurations
             const holidayRows = this.holidayList.map(h => ({ 
                 'Holiday Name': h.name, 
                 'Date': h.date, 
@@ -2678,7 +2662,6 @@ if (!secureTime) {
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(holidayRows), "Holiday_Calendar");
             
-            // SHEET 6: Device & Security Log
             const securityRows = [];
             const parseNetworkString = (str) => {
                 if (!str) return { ip: 'N/A', geo: 'US/Unknown', os: 'N/A' };
@@ -2715,7 +2698,6 @@ if (!secureTime) {
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(securityRows), "Security_Audit");
 
-            // Generate and Download
             const fileName = `RevCentric_DB_Snapshot_${getISTString()}.xlsx`;
             XLSX.writeFile(wb, fileName); 
             this.showNote("Snapshot Downloaded Successfully", "success");
