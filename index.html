@@ -154,17 +154,18 @@
     <!-- Main Layout Wrapper including Bottom Navigation Panel -->
     <div class="flex flex-col flex-1 h-full w-full overflow-hidden relative z-[2000]">
 
-        <main class="flex-1 flex flex-col overflow-hidden relative h-full">
+        <!-- FIXED: Removed h-full and replaced with min-h-0 to avoid overlapping and pushing navigation below mobile viewport boundaries -->
+        <main class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
             <header class="shrink-0 px-4 md:px-10 pt-2 md:pt-3 pb-2 flex flex-col gap-4 no-print z-[1000] relative">
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <h2 class="text-3xl md:text-4xl lg:text-5xl font-black text-zinc-950 tracking-tighter capitalize" x-text="{'master':'Master Config', 'dashboard':'Stats', 'record':'Log', 'members':'Roster', 'summary':'Reports'}[view] || ''"></h2>
                     <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto" x-show="view !== 'portal' && view !== 'master' && isAdminAuthenticated">
                         <select x-model="filterName" @change="handleNameFilterChange()" class="w-full sm:w-[280px] px-6 py-3 bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[1.5rem] text-sm font-black outline-none appearance-none cursor-pointer hover:bg-white transition-colors">
-                            <option value="">ALL PERSONNEL</option>
+                            <option value="">All Personnel</option>
                             <template x-for="m in availablePersonnelOptions" :key="m.id"><option :value="m.id" x-text="m.name"></option></template>
                         </select>
                         <select x-model="filterDept" @change="filterName = ''" class="w-full sm:w-[240px] px-6 py-3 bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[1.5rem] text-sm font-black outline-none appearance-none cursor-pointer hover:bg-white transition-colors">
-                            <option value="">ALL DEPT</option>
+                            <option value="">All Departments</option>
                             <template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template>
                         </select>
                     </div>
@@ -175,62 +176,116 @@
                 
                 <div x-show="view === 'portal'" class="w-full py-2 space-y-6">
 
-                    <div x-show="!userSession" class="max-w-md mx-auto relative group animate-in slide-in-from-bottom mt-10">
-                        <div class="absolute inset-0 bg-gradient-to-r from-[#0f4c81] to-[#f26522] rounded-[2.5rem] blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
-                        <div class="bg-white/70 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-zinc-200/50 text-center space-y-8 relative">
-                            <div class="w-24 h-24 bg-gradient-to-br from-[#0f4c81] to-[#0a3861] text-white rounded-[1.5rem] flex items-center justify-center mx-auto shadow-xl rotate-3 group-hover:rotate-0 transition duration-300">
-                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <div x-show="!userSession" class="max-w-md mx-auto relative group animate-in slide-in-from-bottom mt-10 px-4">
+                        <!-- Pulse/Glow tech backdrops -->
+                        <div class="absolute -inset-1.5 bg-gradient-to-r from-[#0f4c81] via-zinc-800 to-[#f26522] rounded-[2.5rem] blur-xl opacity-20 group-hover:opacity-35 transition duration-700 animate-pulse" style="animation-duration: 4s;"></div>
+                        
+                        <!-- Main Portal Container -->
+                        <div class="relative bg-white/80 dark:bg-zinc-950/80 backdrop-blur-2xl p-8 md:p-10 rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-zinc-800/40 flex flex-col items-center space-y-8 overflow-hidden">
+                            
+                            <!-- Dynamic Technology Grid Overlay -->
+                            <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none select-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+
+                            <!-- Central Key Portal Circle -->
+                            <div class="relative z-10">
+                                <!-- Decorative Orbit Ring -->
+                                <div class="absolute -inset-4 border border-zinc-200/60 dark:border-zinc-800/40 rounded-full animate-[spin_12s_linear_infinite]">
+                                    <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#f26522]"></div>
+                                </div>
+                                <!-- Main Shield Container -->
+                                <div class="w-20 h-20 bg-gradient-to-br from-[#0f4c81] via-[#0b3861] to-zinc-950 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_-10px_rgba(15,76,129,0.5)] transition duration-300">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                        <path d="M12 8v4"/>
+                                        <path d="M12 16h.01"/>
+                                    </svg>
+                                </div>
                             </div>
 
-                            <div x-show="loginStep === 'id'" class="space-y-6">
-                                <div>
-                                    <h3 class="text-3xl font-black tracking-tighter text-zinc-900 uppercase">Identity Portal</h3>
-                                    <p class="text-zinc-500 font-bold text-xs uppercase tracking-[0.2em] mt-2">Enter your designated Employee ID</p>
+                            <!-- STEP 1: ID ENTRY -->
+                            <div x-show="loginStep === 'id'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
+                                <div class="text-center space-y-2">
+                                    <h3 class="text-2xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">Identity Portal</h3>
+                                    <p class="text-zinc-500 dark:text-zinc-400 text-xs font-semibold max-w-xs mx-auto leading-relaxed">Please authenticate with your designated Corporate Employee ID.</p>
                                 </div>
+                                
                                 <div class="space-y-4">
-                                    <div class="relative">
-                                        <input type="text" id="login-id-input" x-model="loginIdInput" @keyup.enter="handleIdEntry()" placeholder="EMPLOYEE ID" class="w-full px-6 py-4 bg-white/50 border-2 border-zinc-200 focus:border-[#0f4c81]/40 rounded-2xl text-center font-black text-xl uppercase outline-none focus:bg-white shadow-inner transition-all placeholder:text-zinc-400">
+                                    <div class="relative group/input">
+                                        <!-- ID Credential Icon -->
+                                        <div class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within/input:text-[#0f4c81] transition-colors">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 9h4M14 13h4"/></svg>
+                                        </div>
+                                        <input type="text" id="login-id-input" x-model="loginIdInput" @keyup.enter="handleIdEntry()" placeholder="EMPLOYEE ID" class="w-full pl-12 pr-6 py-4 bg-zinc-50/50 dark:bg-zinc-900/40 border-2 border-zinc-200 dark:border-zinc-800 focus:border-[#0f4c81]/50 focus:bg-white dark:focus:bg-zinc-950 rounded-2xl text-center font-black text-lg uppercase outline-none shadow-sm transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-600 tracking-wider">
                                     </div>
-                                    <button @click="handleIdEntry()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.5)] transition-all active:scale-95 flex justify-center items-center gap-2">
-                                        Verify Identity <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    
+                                    <button @click="handleIdEntry()" class="group/btn w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98] flex justify-center items-center gap-2">
+                                        Verify Identity 
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" class="group-hover/btn:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                                     </button>
                                 </div>
                             </div>
 
-                            <div x-show="loginStep === 'pin'" class="space-y-6">
-                                <div>
-                                    <h3 class="text-3xl font-black tracking-tighter text-zinc-900 uppercase">Security Check</h3>
-                                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full mt-2 shadow-sm">
+                            <!-- STEP 2: SECURITY CHECK PIN -->
+                            <div x-show="loginStep === 'pin'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
+                                <div class="text-center space-y-3">
+                                    <h3 class="text-2xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">Security Check</h3>
+                                    <!-- Verified Employee Badge -->
+                                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/40 rounded-full shadow-sm">
                                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        <p class="text-emerald-700 font-black uppercase text-[10px] tracking-widest" x-text="'Verified: ' + tempUser?.name"></p>
+                                        <p class="text-emerald-700 dark:text-emerald-400 font-black uppercase text-[10px] tracking-wider" x-text="'Verified: ' + tempUser?.name"></p>
                                     </div>
                                 </div>
+                                
                                 <div class="space-y-4">
-                                    <input type="password" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" placeholder="••••••" class="w-full px-6 py-4 bg-white/50 border-2 border-zinc-200 focus:border-[#f26522]/40 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-inner transition-all placeholder:text-zinc-300">
-                                    <button @click="handlePinVerification()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.5)] transition-all active:scale-95">Confirm & Punch In</button>
-                                    <button @click="cancelLogin()" class="text-xs font-black text-zinc-500 hover:text-zinc-800 uppercase tracking-widest pt-2 transition-colors">← Back to ID</button>
+                                    <div class="relative">
+                                        <input type="password" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" placeholder="••••••" class="w-full px-6 py-4 bg-zinc-50/50 dark:bg-zinc-900/40 border-2 border-zinc-200 dark:border-zinc-800 focus:border-[#f26522]/50 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-sm focus:bg-white dark:focus:bg-zinc-950 transition-all placeholder:text-zinc-300 dark:placeholder:text-zinc-700">
+                                    </div>
+                                    
+                                    <button @click="handlePinVerification()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98]">
+                                        Confirm & Punch In
+                                    </button>
+                                    
+                                    <button @click="cancelLogin()" class="flex items-center justify-center gap-1 text-[10px] font-black text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 uppercase tracking-widest mx-auto transition-colors pt-2">
+                                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                        Change Employee ID
+                                    </button>
                                 </div>
                             </div>
 
-                            <div x-show="loginStep === 'setup'" class="space-y-6">
-                                <div>
-                                    <h3 class="text-3xl font-black tracking-tighter text-[#f26522] uppercase">Set Access PIN</h3>
-                                    <p class="text-zinc-500 font-bold uppercase text-xs tracking-[0.2em] mt-2" x-text="'Hello ' + tempUser?.firstName + ', set a 6-digit Private PIN'"></p>
+                            <!-- STEP 3: PIN SETUP -->
+                            <div x-show="loginStep === 'setup'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
+                                <div class="text-center space-y-2">
+                                    <h3 class="text-2xl font-black tracking-tight text-[#f26522] uppercase">Set Access PIN</h3>
+                                    <p class="text-zinc-500 dark:text-zinc-400 text-xs font-semibold max-w-xs mx-auto leading-relaxed" x-text="'Hello ' + tempUser?.firstName + ', please establish a secure 6-digit PIN.'"></p>
                                 </div>
+                                
                                 <div class="space-y-4">
-                                    <input type="password" id="setup-pin-input" x-model="loginPinInput" @keyup.enter="handlePinSetup()" @input="if(loginPinInput.length === 6) handlePinSetup()" maxlength="6" placeholder="000000" class="w-full px-6 py-4 bg-white/50 border-2 border-orange-200 focus:border-orange-400 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-inner transition-all placeholder:text-orange-200/50">
-                                    <button @click="handlePinSetup()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.5)] transition-all active:scale-95">Confirm Registration</button>
+                                    <div class="relative">
+                                        <input type="password" id="setup-pin-input" x-model="loginPinInput" @keyup.enter="handlePinSetup()" @input="if(loginPinInput.length === 6) handlePinSetup()" maxlength="6" placeholder="000000" class="w-full px-6 py-4 bg-orange-50/20 dark:bg-orange-950/10 border-2 border-orange-200/60 dark:border-orange-900/30 focus:border-orange-400 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-sm focus:bg-white dark:focus:bg-zinc-950 transition-all placeholder:text-orange-200/30 dark:placeholder:text-orange-900/30">
+                                    </div>
+                                    
+                                    <button @click="handlePinSetup()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98]">
+                                        Confirm Registration
+                                    </button>
+                                    
+                                    <button @click="cancelLogin()" class="flex items-center justify-center gap-1 text-[10px] font-black text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 uppercase tracking-widest mx-auto transition-colors pt-2">
+                                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                        Cancel Setup
+                                    </button>
                                 </div>
                             </div>
+                            
                         </div>
                     </div>
 
-                    <div x-show="userSession" class="animate-in fade-in duration-700 space-y-6">
+                    <!-- REDESIGNED PERSONNEL DASHBOARD (LOGGED IN) -->
+                    <div x-show="userSession" class="animate-in fade-in duration-700 space-y-8 pb-10">
                         
+                        <!-- 1. Upcoming Holidays Banner -->
                         <template x-if="upcomingHolidays && upcomingHolidays.length > 0">
                             <div class="space-y-4 mb-6">
                                 <template x-for="hol in upcomingHolidays" :key="hol.id">
-                                    <div class="p-6 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+                                    <div class="p-6 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl animate-pulse">
                                         <div class="flex items-center gap-6">
                                             <div class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl animate-bounce">🎇</div>
                                             <div>
@@ -244,15 +299,13 @@
                             </div>
                         </template>
 
+                        <!-- 2. Anniversary & Birthday Celebrations -->
                         <template x-if="individualStats?.isAnniversary">
                             <div class="p-6 bg-emerald-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
                                 <div class="absolute inset-0 bg-emerald-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
-                                
                                 <div class="flex items-center gap-6 relative z-10">
                                     <div class="relative w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl">
                                         <span class="animate-bounce inline-block" style="animation-duration: 1.2s;">🎊</span>
-                                        <span class="absolute -top-2 -left-2 text-xl animate-bounce" style="animation-duration: 1.5s; animation-delay: 0.3s;">✨</span>
-                                        <span class="absolute -bottom-1 -right-2 text-2xl animate-bounce" style="animation-duration: 1.8s; animation-delay: 0.7s;">🎉</span>
                                     </div>
                                     <div>
                                         <h3 class="text-3xl font-black tracking-tighter uppercase leading-none">Happy Anniversary!</h3>
@@ -262,15 +315,13 @@
                                 <div class="px-6 py-3 bg-white text-emerald-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0 relative z-10">Work Anniversary</div>
                             </div>
                         </template>
+
                         <template x-if="individualStats?.isBirthday">
                             <div class="p-6 bg-pink-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
                                 <div class="absolute inset-0 bg-pink-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
-                                
                                 <div class="flex items-center gap-6 relative z-10">
                                     <div class="relative w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl">
                                         <span class="animate-bounce inline-block" style="animation-duration: 1.1s;">🎂</span>
-                                        <span class="absolute -top-2 -left-2 text-xl animate-bounce" style="animation-duration: 1.4s; animation-delay: 0.2s;">🎈</span>
-                                        <span class="absolute -bottom-1 -right-2 text-2xl animate-bounce" style="animation-duration: 1.7s; animation-delay: 0.5s;">🥳</span>
                                     </div>
                                     <div>
                                         <h3 class="text-3xl font-black tracking-tighter uppercase leading-none">Happy Birthday!</h3>
@@ -280,246 +331,166 @@
                                 <div class="px-6 py-3 bg-white text-pink-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0 relative z-10">Birthday Celebration</div>
                             </div>
                         </template>
-                        <div class="flex flex-col gap-6 w-full">
-                           
-                            <div class="relative flex-1 overflow-hidden rounded-[2rem] bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between w-full panel-glow">
 
-                                <div class="absolute inset-0 bg-gradient-to-br from-[#0f4c81]/[0.03] via-transparent to-[#f26522]/[0.04] pointer-events-none"></div>
-                                <div class="absolute -top-10 -right-10 w-40 h-40 bg-[#0f4c81]/10 blur-3xl rounded-full"></div>
-                                <div class="absolute bottom-0 left-0 w-32 h-32 bg-[#f26522]/10 blur-3xl rounded-full"></div>
+                       <!-- 3. Primary Command Center Workspace (Sleeker Compact Edition) -->
+                        <div class="flex flex-col gap-4 w-full">
+                            <div class="relative overflow-hidden rounded-[1.75rem] bg-white/80 dark:bg-zinc-950/70 backdrop-blur-2xl border border-zinc-200/60 dark:border-zinc-800/40 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.03)] flex flex-col justify-between w-full relative z-10">
+                                <div class="absolute inset-0 bg-gradient-to-br from-[#0f4c81]/[0.02] via-transparent to-[#f26522]/[0.03] pointer-events-none"></div>
+                                <div class="absolute -top-20 -right-20 w-60 h-60 bg-[#0f4c81]/5 blur-3xl rounded-full pointer-events-none"></div>
+                                <div class="absolute -bottom-20 -left-20 w-60 h-60 bg-[#f26522]/5 blur-3xl rounded-full pointer-events-none"></div>
 
-                                <div class="relative z-10 p-5 flex flex-col gap-4">
-
-                                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-
-                                        <!-- 1. LEFT SIDE: Date & Badges -->
-                                        <div class="flex flex-col gap-2">
-                                            <div class="flex flex-wrap items-center gap-3">
-                                                <h2 class="text-xl md:text-2xl font-black tracking-[-0.05em] text-zinc-950 leading-none"
-                                                    x-text="formatDate(getActiveShiftDate())"></h2>
-
-                                                <span class="px-2.5 py-1 rounded-full bg-[#0f4c81]/5 text-[#0f4c81] text-[10px] font-black uppercase tracking-[0.2em] border border-[#0f4c81]/10 shadow-sm">
-                                                    Active Shift
-                                                </span>
-                                            </div>
-
-                                            <div x-show="userOnBreak"
-                                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 shadow-sm w-fit">
-
-                                                <div class="relative flex h-2.5 w-2.5">
-                                                    <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
-                                                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                                <div class="p-4 md:p-5 flex flex-col gap-4 relative z-10">
+                                    <!-- A. Header & Greetings Panel -->
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
+                                        <div class="flex items-center gap-3">
+                                            <!-- Responsive Lorelei Portrait -->
+<div class="relative shrink-0 hidden sm:block">
+    <img :src="`https://api.dicebear.com/7.x/lorelei/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+         alt="Avatar" 
+         class="w-11 h-11 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 object-cover shadow-sm">
+    <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 border border-white dark:border-zinc-950 rounded-full" 
+          :class="userOnBreak ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></span>
+</div>
+                                            <div class="space-y-0.5">
+                                                <div class="flex flex-wrap items-center gap-1.5">
+                                                    <h3 class="text-lg font-black tracking-tight text-zinc-955 dark:text-white" x-text="(new Date(Date.now() + 19800000).getUTCHours() < 12 ? 'Good morning' : new Date(Date.now() + 19800000).getUTCHours() < 17 ? 'Good afternoon' : 'Good evening') + ', ' + (userSession?.firstName || 'User')"></h3>
                                                 </div>
-
-                                                <span class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">
-                                                    On Break
-                                                </span>
+                                                <p class="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider" x-text="formatDate(getActiveShiftDate()) + ' • ' + (userSession?.dept || 'General Office')"></p>
                                             </div>
                                         </div>
 
-                                        <!-- 2. NEW CENTER: IST Live Clock -->
-                                        <div class="flex items-center justify-start lg:justify-center w-full lg:w-auto">
-                                            <div class="flex items-center gap-2.5 text-[#0f4c81]">
-                                                <span class="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 border-r border-[#0f4c81]/20 pr-2.5 mt-1">IST</span>
-                                                <span class="text-xl md:text-2xl font-black tracking-[-0.05em] leading-none" x-text="currentISTTimeWidget"></span>
-                                            </div>
-                                        </div>
-
-                                        <!-- 3. RIGHT SIDE: Welcome Message -->
-                                        <div class="flex flex-col items-start lg:items-end shrink-0 justify-center h-full">
-                                            <span class="text-xl md:text-2xl font-black tracking-[-0.05em] text-[#0f4c81] leading-none text-right"
-                                                  x-text="(new Date(Date.now() + 19800000).getUTCHours() < 12 ? 'Good morning' : new Date(Date.now() + 19800000).getUTCHours() < 17 ? 'Good afternoon' : 'Good evening') + (userSession?.firstName ? ' ' + userSession.firstName.charAt(0).toUpperCase() + userSession.firstName.slice(1).toLowerCase() : '')">
-                                            </span>
+                                        <!-- Digital Clock Segment -->
+                                        <div class="bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl px-3.5 py-1.5 flex items-center gap-2.5 w-fit">
+                                            <span class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 pr-2.5">IST</span>
+                                            <span class="text-base font-black text-[#0f4c81] dark:text-[#5289c0] tracking-tight tabular-nums" x-text="currentISTTimeWidget"></span>
                                         </div>
                                     </div>
 
-                                    <div class="flex flex-col 2xl:flex-row gap-3 items-stretch">
-
-                                        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 flex-1">
-
-                                            <div class="rounded-xl bg-white border border-zinc-100 p-3 md:p-4 shadow-sm hover:shadow transition-all flex items-center gap-3">
-                                                <div class="w-10 h-10 shrink-0 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 hidden sm:flex">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                        <path d="M5 12h14"></path>
-                                                        <path d="M13 5l7 7-7 7"></path>
-                                                    </svg>
-                                                </div>
-                                                <div class="flex flex-col w-full">
-                                                    <div class="flex items-center gap-1.5">
-                                                        <span class="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500">In</span>
-                                                        <div class="relative flex items-center" x-show="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
-                                                             @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
-                                                             @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
-                                                             @mouseleave="showTip = false">
-                                                            <svg class="w-3.5 h-3.5 text-zinc-300 hover:text-emerald-500 cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                                                            <template x-teleport="body">
-                                                                <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
-                                                                    <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl text-left border border-zinc-800 max-w-[200px] whitespace-normal">
-                                                                        <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
-                                                                        <span class="block text-emerald-400" x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in_ip"></span>
-                                                                    </div>
-                                                                </div>
-                                                            </template>
-                                                        </div>
-                                                    </div>
-                                                    <span class="text-xl font-black text-emerald-600 tabular-nums leading-none mt-1"
-                                                          x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in || '--:--'"></span>
-                                                </div>
-                                            </div>
+                                    <!-- B. Central Metrics and Action Block -->
+                                    <div class="flex flex-col xl:flex-row items-stretch gap-4">
+                                        <!-- Unified Daily Summary Cards -->
+                                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 flex-1">
                                             
-                                            <div class="rounded-xl bg-white border border-zinc-100 p-3 md:p-4 shadow-sm hover:shadow transition-all flex items-center gap-3">
-                                                <div class="w-10 h-10 shrink-0 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 hidden sm:flex">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                        <path d="M19 12H5"></path>
-                                                        <path d="M11 19l-7-7 7-7"></path>
-                                                    </svg>
-                                                </div>
-                                                <div class="flex flex-col w-full">
-                                                    <div class="flex items-center gap-1.5">
-                                                        <span class="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500">Out</span>
-                                                        <div class="relative flex items-center" x-show="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
-                                                             @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
-                                                             @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
-                                                             @mouseleave="showTip = false">
-                                                            <svg class="w-3.5 h-3.5 text-zinc-300 hover:text-rose-500 cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                                                            <template x-teleport="body">
-                                                                <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
-                                                                    <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl text-left border border-zinc-800 max-w-[200px] whitespace-normal">
-                                                                        <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
-                                                                        <span class="block text-emerald-400" x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out_ip"></span>
-                                                                    </div>
+                                            <!-- In punch -->
+                                            <div class="bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200/50 dark:border-zinc-800/40 rounded-xl p-3 flex flex-col justify-between group hover:bg-white dark:hover:bg-zinc-900/50 transition-all duration-300">
+                                                <div class="flex items-center justify-between text-zinc-400 dark:text-zinc-500">
+                                                    <span class="text-[8px] font-black uppercase tracking-widest">In Punch</span>
+                                                    <div class="relative flex items-center" x-show="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
+                                                         @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
+                                                         @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
+                                                         @mouseleave="showTip = false">
+                                                        <svg class="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-700 hover:text-emerald-500 cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                                                        <template x-teleport="body">
+                                                            <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
+                                                                <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl border border-zinc-800">
+                                                                    <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                                                                    <span class="block text-emerald-400 font-mono" x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in_ip"></span>
                                                                 </div>
-                                                            </template>
-                                                        </div>
+                                                            </div>
+                                                        </template>
                                                     </div>
-                                                    <span class="text-xl font-black text-rose-600 tabular-nums leading-none mt-1"
-                                                          x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out || '--:--'"></span>
                                                 </div>
-                                            </div>
-                                            
-                                            <div :class="userOnBreak ? 'ring-1 ring-amber-300 bg-amber-50/60' : 'bg-white'"
-                                                 class="rounded-xl border border-zinc-100 p-3 md:p-4 shadow-sm hover:shadow transition-all flex items-center gap-3">
-                                                <div class="w-10 h-10 shrink-0 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hidden sm:flex">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                        <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                                                        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-                                                    </svg>
-                                                </div>
-                                                <div class="flex flex-col">
-                                                    <span class="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500">Break</span>
-                                                    <span class="text-xl font-black text-amber-600 tabular-nums leading-none mt-1"
-                                                          x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks))"></span>
-                                                </div>
+                                                <span class="text-base font-black text-emerald-600 dark:text-emerald-500 mt-1.5 tracking-tight tabular-nums" x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in || '--:--'"></span>
                                             </div>
 
-                                            <div class="rounded-xl border border-blue-100 bg-blue-50/60 p-3 md:p-4 flex items-center gap-3">
-                                                <div class="w-10 h-10 shrink-0 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-md hidden sm:flex">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                        <circle cx="12" cy="12" r="10"></circle>
-                                                        <polyline points="12 6 12 12 16 14"></polyline>
-                                                    </svg>
+                                            <!-- Out punch -->
+                                            <div class="bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200/50 dark:border-zinc-800/40 rounded-xl p-3 flex flex-col justify-between group hover:bg-white dark:hover:bg-zinc-900/50 transition-all duration-300">
+                                                <div class="flex items-center justify-between text-zinc-400 dark:text-zinc-500">
+                                                    <span class="text-[8px] font-black uppercase tracking-widest">Out Punch</span>
+                                                    <div class="relative flex items-center" x-show="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out_ip" x-data="{ showTip: false, tipX: 0, tipY: 0 }" 
+                                                         @mouseenter="showTip = true; tipX = $event.clientX; tipY = $event.clientY;" 
+                                                         @mousemove="tipX = $event.clientX; tipY = $event.clientY;" 
+                                                         @mouseleave="showTip = false">
+                                                        <svg class="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-700 hover:text-rose-500 cursor-help transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                                                        <template x-teleport="body">
+                                                            <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
+                                                                <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl border border-zinc-800">
+                                                                    <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                                                                    <span class="block text-emerald-400 font-mono" x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out_ip"></span>
+                                                                </div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
                                                 </div>
-                                                <div class="flex flex-col">
-                                                    <span class="text-[10px] font-black uppercase tracking-[0.15em] text-blue-800">Shift</span>
-                                                    <span class="text-xl font-black text-blue-700 tabular-nums tracking-tight leading-none mt-1" 
-                                                          x-text="formatClockDisplay(liveShiftMins)"></span>
-                                                </div>
+                                                <span class="text-base font-black text-rose-600 dark:text-rose-500 mt-1.5 tracking-tight tabular-nums" x-text="punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out || '--:--'"></span>
                                             </div>
 
-                                            <div class="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 md:p-4 flex items-center gap-3 col-span-2 md:col-span-1">
-                                                <div class="w-10 h-10 shrink-0 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-md hidden sm:flex">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                                                    </svg>
-                                                </div>
-                                                <div class="flex flex-col">
-                                                    <span class="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-800">Active</span>
-                                                    <span class="text-xl font-black text-emerald-700 tabular-nums tracking-tight leading-none mt-1" 
-                                                          x-text="formatClockDisplay(liveActiveMins)"></span>
-                                                </div>
+                                            <!-- Break accumulated -->
+                                            <div class="bg-zinc-50/50 dark:bg-zinc-900/30 border border-zinc-200/50 dark:border-zinc-800/40 rounded-xl p-3 flex flex-col justify-between group hover:bg-white dark:hover:bg-zinc-900/50 transition-all duration-300" :class="userOnBreak ? 'ring-1 ring-amber-400 bg-amber-50/20 dark:bg-amber-950/10' : ''">
+                                                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Break Accum.</span>
+                                                <span class="text-base font-black text-amber-600 dark:text-amber-500 mt-1.5 tracking-tight tabular-nums" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks))"></span>
                                             </div>
 
+                                            <!-- Gross Shift -->
+                                            <div class="bg-blue-50/30 dark:bg-blue-950/10 border border-blue-100/50 dark:border-blue-900/30 rounded-xl p-3 flex flex-col justify-between">
+                                                <span class="text-[8px] font-black uppercase tracking-widest text-blue-500 dark:text-blue-400">Shift Elapsed</span>
+                                                <span class="text-base font-black text-blue-700 dark:text-blue-400 mt-1.5 tracking-tight tabular-nums" x-text="formatClockDisplay(liveShiftMins)"></span>
+                                            </div>
+
+                                            <!-- Active net shift -->
+                                            <div class="bg-emerald-50/30 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/30 rounded-xl p-3 flex flex-col justify-between col-span-2 sm:col-span-1">
+                                                <span class="text-[8px] font-black uppercase tracking-widest text-emerald-500 dark:text-emerald-400">Net Active</span>
+                                                <span class="text-base font-black text-emerald-700 dark:text-emerald-400 mt-1.5 tracking-tight tabular-nums" x-text="formatClockDisplay(liveActiveMins)"></span>
+                                            </div>
                                         </div>
 
-                                        <div class="shrink-0 flex items-stretch mt-4 2xl:mt-0 2xl:w-[180px]">
+                                        <!-- Tactical Break Action Module -->
+                                        <div class="shrink-0 flex items-stretch xl:w-[200px]">
                                             <template x-if="userOnBreak">
-                                                <button @click="endBreak()"
-                                                        class="group relative overflow-hidden w-full rounded-xl bg-white border border-zinc-200 hover:border-[#f26522]/40 hover:bg-[#f26522]/5 hover:shadow-md text-zinc-600 hover:text-[#f26522] font-black text-xl tracking-tight shadow-sm transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 px-4 py-3">
-                                                    
-                                                    <div class="absolute -left-6 -top-6 w-16 h-16 bg-[#f26522]/10 rounded-full blur-2xl group-hover:bg-[#f26522]/30 transition-colors duration-500 pointer-events-none"></div>
-                                                    <div class="absolute -right-6 -bottom-6 w-16 h-16 bg-[#f26522]/10 rounded-full blur-2xl group-hover:bg-[#f26522]/20 transition-colors duration-500 pointer-events-none"></div>
-                                                    
-                                                    <div class="relative z-10 flex items-center justify-center">
-                                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:scale-110 transition-transform duration-300">
-                                                            <polygon points="7 4 17 12 7 20 7 4"></polygon>
-                                                            <path d="M21 8a6 6 0 0 1 0 8" class="animate-[pulse_1s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                                                        </svg>
-                                                    </div>
-                                                    
-                                                    <span class="relative z-10 transition-colors leading-none">Resume</span>
+                                                <button @click="endBreak()" class="w-full relative overflow-hidden rounded-xl bg-zinc-900 dark:bg-zinc-800 hover:bg-[#f26522] dark:hover:bg-[#f26522] text-white font-black text-sm tracking-wide shadow-md hover:shadow-xl active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2.5 p-3">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="animate-pulse">
+                                                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                                    </svg>
+                                                    <span>Resume Duty</span>
                                                 </button>
                                             </template>
+                                            
                                             <template x-if="!userOnBreak && punchLogs[getActiveShiftDate()]?.[userSession?.id]?.in && !punchLogs[getActiveShiftDate()]?.[userSession?.id]?.out">
                                                 <div class="flex flex-col gap-2 w-full">
-                                                    <select x-model="selectedBreakType" class="w-full px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-black uppercase text-amber-700 outline-none text-center cursor-pointer">
-                                                        <option value="" disabled>BREAK TYPE</option> <template x-for="type in breakTypes" :key="type">
+                                                    <select x-model="selectedBreakType" class="w-full px-3 py-2 bg-amber-500/10 border border-amber-300/40 dark:border-amber-700/30 rounded-lg text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 outline-none text-center cursor-pointer hover:bg-amber-500/20 transition-all">
+                                                        <option value="" disabled>BREAK CATEGORY</option>
+                                                        <template x-for="type in breakTypes" :key="type">
                                                             <option :value="type" x-text="type"></option>
                                                         </template>
                                                     </select>
-                                                    <button @click="startBreak()"
-                                                            :disabled="!selectedBreakType"
-                                                            :class="!selectedBreakType ? 'opacity-50 cursor-not-allowed bg-zinc-50' : 'bg-white hover:border-amber-300 hover:bg-amber-50 hover:shadow-md hover:text-amber-700 active:scale-[0.98] group'"
-                                                            class="relative overflow-hidden w-full rounded-xl border border-zinc-200 text-zinc-600 font-black text-xl tracking-tight shadow-sm transition-all duration-300 flex items-center justify-center gap-2 px-4 py-3">
-                                                        
-                                                        <div x-show="selectedBreakType" class="absolute -right-6 -top-6 w-16 h-16 bg-amber-400/10 rounded-full blur-2xl group-hover:bg-amber-400/40 transition-colors duration-500 pointer-events-none"></div>
-                                                        <div x-show="selectedBreakType" class="absolute -left-6 -bottom-6 w-16 h-16 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/30 transition-colors duration-500 pointer-events-none"></div>
-                                                        
-                                                        <div class="relative z-10 flex items-center justify-center">
-                                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2.5" class="transition-transform duration-300" :class="selectedBreakType ? 'group-hover:-translate-y-0.5' : ''">
-                                                                <path d="M17 8h1a4 4 0 1 1 0 8h-1" class="transition-colors" :class="selectedBreakType ? 'stroke-amber-500 group-hover:stroke-amber-600' : 'stroke-zinc-400'"></path>
-                                                                <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" class="transition-colors" :class="selectedBreakType ? 'fill-amber-100 stroke-amber-500 group-hover:fill-amber-200 group-hover:stroke-amber-600' : 'fill-zinc-200 stroke-zinc-400'"></path>
-                                                                <path x-show="selectedBreakType" d="M6 2v2" class="stroke-amber-400 animate-[pulse_1s_ease-in-out_infinite] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                                                                <path x-show="selectedBreakType" d="M10 2v2" class="stroke-amber-500 animate-[pulse_1s_ease-in-out_infinite_300ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                                                                <path x-show="selectedBreakType" d="M14 2v2" class="stroke-amber-600 animate-[pulse_1s_ease-in-out_infinite_600ms] opacity-0 group-hover:opacity-100 transition-opacity"></path>
-                                                            </svg>
-                                                        </div>
-                                                        <span class="relative z-10 transition-colors leading-none">Break</span>
+                                                    <button @click="startBreak()" :disabled="!selectedBreakType" :class="!selectedBreakType ? 'opacity-40 cursor-not-allowed bg-zinc-100 dark:bg-zinc-900 text-zinc-400' : 'bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/15 active:scale-[0.98]'" class="w-full rounded-lg py-2.5 font-black text-sm tracking-wide transition-all duration-300 flex items-center justify-center gap-2">
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                                            <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
+                                                            <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
+                                                        </svg>
+                                                        <span>Take Break</span>
                                                     </button>
                                                 </div>
                                             </template>
                                         </div>
                                     </div>
+
                                 </div>
                             </div>
-                            <div x-show="isManagerOrLead" class="relative flex-1 overflow-hidden p-6 rounded-[2rem] bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-center w-full panel-glow">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h4 class="text-xl font-black uppercase tracking-tight text-zinc-950">Team Break Status</h4>
-                                    <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded-md text-[10px] font-black uppercase tracking-widest border border-amber-200" x-text="activeTeamOnBreak.length + ' Away'"></span>
+
+                            <!-- 4. Team Break Status (For Administrators/Managers - Compact Edition) -->
+                            <div x-show="isManagerOrLead" class="relative flex-1 overflow-hidden p-4 rounded-[1.5rem] bg-white/80 dark:bg-zinc-950/70 backdrop-blur-2xl border border-zinc-200/60 dark:border-zinc-800/40 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.03)] flex flex-col justify-center w-full relative z-10">
+                                <div class="flex items-center justify-between mb-3 border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2">
+                                    <h4 class="text-xs font-black uppercase tracking-tight text-zinc-955 dark:text-white">Active Floor Activity</h4>
+                                    <span class="px-2 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-md text-[8px] font-black uppercase tracking-widest border border-amber-500/20" x-text="activeTeamOnBreak.length + ' Away'"></span>
                                 </div>
                                 
                                 <template x-if="activeTeamOnBreak.length > 0">
-                                    <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-2">
+                                    <div class="flex gap-3 overflow-x-auto custom-scrollbar pb-1">
                                         <template x-for="member in activeTeamOnBreak" :key="member.id">
                                             <div x-data="{ breakMins: calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) || 0 }" 
-                                                 :class="breakMins > 60 ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-100'"
-                                                 class="p-3 rounded-2xl border flex items-center gap-3 shadow-sm shrink-0 min-w-[180px] transition-colors">
+                                                 :class="breakMins > 60 ? 'bg-rose-500/5 border-rose-500/20 text-rose-950 dark:text-rose-400' : 'bg-amber-500/5 border-amber-500/20 text-amber-950 dark:text-amber-400'"
+                                                 class="p-2 rounded-xl border flex items-center gap-2.5 shadow-sm shrink-0 min-w-[170px] transition-all">
                                                 
-                                                <div :class="breakMins > 60 ? 'bg-rose-500' : 'bg-amber-500'" 
-                                                     class="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black shadow-md relative shrink-0 transition-colors">
+                                                <div :class="breakMins > 60 ? 'bg-rose-600' : 'bg-amber-500'" 
+                                                     class="w-8 h-8 rounded-lg text-white flex items-center justify-center font-black text-xs shadow-sm relative shrink-0">
                                                     <span x-text="member.firstName.charAt(0)"></span>
-                                                    
-                                                    <span :class="breakMins > 60 ? 'bg-rose-400' : 'bg-amber-400'" 
-                                                          class="absolute -top-1 -right-1 w-3 h-3 border-2 border-white rounded-full animate-pulse transition-colors"></span>
+                                                    <span :class="breakMins > 60 ? 'bg-rose-400' : 'bg-amber-400'" class="absolute -top-1 -right-1 w-2.5 h-2.5 border-2 border-white dark:border-zinc-950 rounded-full animate-pulse"></span>
                                                 </div>
                                                 
                                                 <div class="min-w-0">
-                                                    <h5 :class="breakMins > 60 ? 'text-rose-950' : 'text-amber-950'" 
-                                                        class="text-sm font-black uppercase tracking-tight truncate transition-colors" 
-                                                        x-text="member.name"></h5>
-                                                        
-                                                    <p :class="breakMins > 60 ? 'text-rose-700' : 'text-amber-700/70'" 
-                                                       class="text-[10px] font-black uppercase tracking-widest truncate transition-colors" 
-                                                       x-text="member.dept + ' • ' + breakMins + ' Mins'"></p>
+                                                    <h5 class="text-xs font-black uppercase tracking-tight truncate" x-text="member.name"></h5>
+                                                    <p class="text-[8px] font-bold uppercase tracking-wider truncate opacity-70" x-text="member.dept + ' • ' + breakMins + 'm'"></p>
                                                 </div>
                                             </div>
                                         </template>
@@ -527,16 +498,16 @@
                                 </template>
 
                                 <template x-if="activeTeamOnBreak.length === 0">
-                                    <div class="py-2 text-left flex items-center gap-3 text-zinc-400">
-                                        <div class="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center shrink-0">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                    <div class="py-1 text-left flex items-center gap-2 text-zinc-400 dark:text-zinc-600">
+                                        <div class="w-7 h-7 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shrink-0">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                         </div>
-                                        <span class="font-bold uppercase tracking-widest text-[10px]">No team members are currently on break.</span>
+                                        <span class="font-bold uppercase tracking-widest text-[8px]">All floor personnel are currently active.</span>
                                     </div>
                                 </template>
                             </div>
-
                         </div>
+
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
     
@@ -741,104 +712,99 @@
                                     </div>
                                 </div>
 
-<!-- Adherence Milestones Card -->
-<div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
-    <div class="flex items-start justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-        <div>
-            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Adherence Milestones</h5>
-            <!-- NEW: The disclaimer note -->
-            <span class="text-[9px] font-black uppercase text-rose-500 tracking-widest mt-1 block">* ACTIVE SHIFT EXCLUDED</span>
-        </div>
-        
-        <!-- Dynamic Tier Badge -->
-        <span class="px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase border transition-colors mt-0.5"
-              :class="{
-                  'bg-emerald-50 text-emerald-600 border-emerald-200': getAdherenceTier() === 'Platinum Tier',
-                  'bg-amber-100 text-amber-700 border-amber-300': getAdherenceTier() === 'Gold Tier',
-                  'bg-slate-100 text-slate-600 border-slate-200': getAdherenceTier() === 'Silver Tier',
-                  'bg-rose-50 text-rose-600 border-rose-200': getAdherenceTier() === 'Action Needed'
-              }"
-              x-text="getAdherenceTier()">
-        </span>
-    </div>
-    
-    <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
-        <div class="space-y-3">
-            
-            <!-- 1. Active Hours -->
-            <div class="flex items-center justify-between p-3 bg-amber-50/50 border border-amber-100 rounded-xl hover:bg-white hover:border-amber-200 hover:shadow-sm transition-all">
-    <div class="flex items-center gap-4">
-        <span class="text-2xl shrink-0">⏱️</span>
-        <div>
-            <h6 class="text-sm font-black uppercase text-amber-800 leading-none">Active Hours</h6>
-            <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">
-                Avg Active (MTD): <span class="text-amber-600" x-text="formatBreakDisplay(individualStats?.metrics?.avgActiveMTD || 0)"></span> / <span x-text="formatBreakDisplay(individualStats?.metrics?.targetActiveMTD || 470)"></span>
-            </p>
-        </div>
-    </div>
-    <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors border"
-         :class="{
-             'bg-emerald-100 text-emerald-700 border-emerald-200': (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) >= 95,
-             'bg-amber-100 text-amber-700 border-amber-200': (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) >= 85 && (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) < 95,
-             'bg-rose-100 text-rose-700 border-rose-200': (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) < 85
-         }"
-         x-text="Math.round(((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) + '%'">
-    </div>
-</div>
+                                <!-- Adherence Milestones Card -->
+                                <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
+                                    <div class="flex items-start justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
+                                        <div>
+                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Adherence Milestones</h5>
+                                            <span class="text-[9px] font-black uppercase text-rose-500 tracking-widest mt-1 block">* ACTIVE SHIFT EXCLUDED</span>
+                                        </div>
+                                        
+                                        <span class="px-3 py-1 rounded-lg text-[10px] font-black tracking-widest uppercase border transition-colors mt-0.5"
+                                              :class="{
+                                                  'bg-emerald-50 text-emerald-600 border-emerald-200': getAdherenceTier() === 'Platinum Tier',
+                                                  'bg-amber-100 text-amber-700 border-amber-300': getAdherenceTier() === 'Gold Tier',
+                                                  'bg-slate-100 text-slate-600 border-slate-200': getAdherenceTier() === 'Silver Tier',
+                                                  'bg-rose-50 text-rose-600 border-rose-200': getAdherenceTier() === 'Action Needed'
+                                              }"
+                                              x-text="getAdherenceTier()">
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+                                        <div class="space-y-3">
+                                            
+                                            <!-- 1. Active Hours -->
+                                            <div class="flex items-center justify-between p-3 bg-amber-50/50 border border-amber-100 rounded-xl hover:bg-white hover:border-amber-200 hover:shadow-sm transition-all">
+                                                <div class="flex items-center gap-4">
+                                                    <span class="text-2xl shrink-0">⏱️</span>
+                                                    <div>
+                                                        <h6 class="text-sm font-black uppercase text-amber-800 leading-none">Active Hours</h6>
+                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">
+                                                            Avg Active (MTD): <span class="text-amber-600" x-text="formatBreakDisplay(individualStats?.metrics?.avgActiveMTD || 0)"></span> / <span x-text="formatBreakDisplay(individualStats?.metrics?.targetActiveMTD || 470)"></span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors border"
+                                                     :class="{
+                                                         'bg-emerald-100 text-emerald-700 border-emerald-200': (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) >= 95,
+                                                         'bg-amber-100 text-amber-700 border-amber-200': (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) >= 85 && (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) < 95,
+                                                         'bg-rose-100 text-rose-700 border-rose-200': (((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) < 85
+                                                     }"
+                                                     x-text="Math.round(((individualStats?.metrics?.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics?.targetActiveMTD || 470)) * 100) + '%'">
+                                                </div>
+                                            </div>
 
-            <!-- 2. Clean Adherence (Break Time) -->
-<div class="flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all">
-    <div class="flex items-center gap-4">
-        <span class="text-2xl shrink-0">⚡</span>
-        <div>
-            <h6 class="text-sm font-black uppercase text-emerald-800 leading-none">Clean Adherence</h6>
-            <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">
-                Avg Break (MTD): <span class="text-emerald-600" x-text="formatBreakDisplay(individualStats?.metrics?.avgBreakMTD || 0)"></span> / <span x-text="formatBreakDisplay(individualStats?.metrics?.targetBreakMTD || 60)"></span>
-            </p>
-        </div>
-    </div>
-    <!-- Percentage Score (Dynamic Red Warning based on live target) -->
-    <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
-         :class="(individualStats?.metrics?.avgBreakMTD > individualStats?.metrics?.targetBreakMTD) ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'"
-         x-text="Math.round(((individualStats?.metrics?.avgBreakMTD || 0) / Math.max(1, individualStats?.metrics?.targetBreakMTD || 60)) * 100) + '%'">
-    </div>
-</div>
+                                            <!-- 2. Clean Adherence (Break Time) -->
+                                            <div class="flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all">
+                                                <div class="flex items-center gap-4">
+                                                    <span class="text-2xl shrink-0">⚡</span>
+                                                    <div>
+                                                        <h6 class="text-sm font-black uppercase text-emerald-800 leading-none">Clean Adherence</h6>
+                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">
+                                                            Avg Break (MTD): <span class="text-emerald-600" x-text="formatBreakDisplay(individualStats?.metrics?.avgBreakMTD || 0)"></span> / <span x-text="formatBreakDisplay(individualStats?.metrics?.targetBreakMTD || 60)"></span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
+                                                     :class="(individualStats?.metrics?.avgBreakMTD > individualStats?.metrics?.targetBreakMTD) ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'"
+                                                     x-text="Math.round(((individualStats?.metrics?.avgBreakMTD || 0) / Math.max(1, individualStats?.metrics?.targetBreakMTD || 60)) * 100) + '%'">
+                                                </div>
+                                            </div>
 
-            <!-- 3. Leave Utilization -->
-            <div class="flex items-center justify-between p-3 bg-sky-50/50 border border-sky-100 rounded-xl hover:bg-white hover:border-sky-200 hover:shadow-sm transition-all">
-                <div class="flex items-center gap-4">
-                    <span class="text-2xl shrink-0">🏖️</span>
-                    <div>
-                        <h6 class="text-sm font-black uppercase text-sky-800 leading-none">Leave Utilization</h6>
-                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">Used (YTD): <span class="text-sky-600" x-text="individualStats?.metrics?.usedLeavesYTD || 0"></span> / <span x-text="(individualStats?.metrics?.remainingLeavesYTD || 0) + (individualStats?.metrics?.usedLeavesYTD || 0)"></span> Days</p>
-                    </div>
-                </div>
-                <!-- Changes to Red if remaining leaves drop below 0 -->
-                <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
-                     :class="(individualStats?.metrics?.remainingLeavesYTD < 0) ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-sky-100 text-sky-700 border border-sky-200'"
-                     x-text="Math.round(((individualStats?.metrics?.usedLeavesYTD || 0) / Math.max(1, (individualStats?.metrics?.remainingLeavesYTD || 0) + (individualStats?.metrics?.usedLeavesYTD || 0))) * 100) + '%'">
-                </div>
-            </div>
+                                            <!-- 3. Leave Utilization -->
+                                            <div class="flex items-center justify-between p-3 bg-sky-50/50 border border-sky-100 rounded-xl hover:bg-white hover:border-sky-200 hover:shadow-sm transition-all">
+                                                <div class="flex items-center gap-4">
+                                                    <span class="text-2xl shrink-0">🏖️</span>
+                                                    <div>
+                                                        <h6 class="text-sm font-black uppercase text-sky-800 leading-none">Leave Utilization</h6>
+                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">Used (YTD): <span class="text-sky-600" x-text="individualStats?.metrics?.usedLeavesYTD || 0"></span> / <span x-text="(individualStats?.metrics?.remainingLeavesYTD || 0) + (individualStats?.metrics?.usedLeavesYTD || 0)"></span> Days</p>
+                                                    </div>
+                                                </div>
+                                                <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
+                                                     :class="(individualStats?.metrics?.remainingLeavesYTD < 0) ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-sky-100 text-sky-700 border border-sky-200'"
+                                                     x-text="Math.round(((individualStats?.metrics?.usedLeavesYTD || 0) / Math.max(1, (individualStats?.metrics?.remainingLeavesYTD || 0) + (individualStats?.metrics?.usedLeavesYTD || 0))) * 100) + '%'">
+                                                </div>
+                                            </div>
 
-            <!-- 4. Permission Hours -->
-            <div class="flex items-center justify-between p-3 bg-violet-50/50 border border-violet-100 rounded-xl hover:bg-white hover:border-violet-200 hover:shadow-sm transition-all">
-                <div class="flex items-center gap-4">
-                    <span class="text-2xl shrink-0">⏳</span>
-                    <div>
-                        <h6 class="text-sm font-black uppercase text-violet-800 leading-none">Permission Hours</h6>
-                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">Used (YTD): <span class="text-violet-600" x-text="individualStats?.metrics?.prmUsedYTD || 0"></span>h / <span x-text="(individualStats?.metrics?.prmUsedYTD || 0) + (individualStats?.metrics?.prmAvailYTD || 0)"></span>h</p>
-                    </div>
-                </div>
-                <!-- Changes to Red if available permission hours drop below 0 -->
-                <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
-                     :class="(individualStats?.metrics?.prmAvailYTD < 0) ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-violet-100 text-violet-700 border border-violet-200'"
-                     x-text="Math.round(((individualStats?.metrics?.prmUsedYTD || 0) / Math.max(1, (individualStats?.metrics?.prmUsedYTD || 0) + (individualStats?.metrics?.prmAvailYTD || 0))) * 100) + '%'">
-                </div>
-            </div>
+                                            <!-- 4. Permission Hours -->
+                                            <div class="flex items-center justify-between p-3 bg-violet-50/50 border border-violet-100 rounded-xl hover:bg-white hover:border-violet-200 hover:shadow-sm transition-all">
+                                                <div class="flex items-center gap-4">
+                                                    <span class="text-2xl shrink-0">⏳</span>
+                                                    <div>
+                                                        <h6 class="text-sm font-black uppercase text-violet-800 leading-none">Permission Hours</h6>
+                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">Used (YTD): <span class="text-violet-600" x-text="individualStats?.metrics?.prmUsedYTD || 0"></span>h / <span x-text="(individualStats?.metrics?.prmUsedYTD || 0) + (individualStats?.metrics?.prmAvailYTD || 0)"></span>h</p>
+                                                    </div>
+                                                </div>
+                                                <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
+                                                     :class="(individualStats?.metrics?.prmAvailYTD < 0) ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-violet-100 text-violet-700 border border-violet-200'"
+                                                     x-text="Math.round(((individualStats?.metrics?.prmUsedYTD || 0) / Math.max(1, (individualStats?.metrics?.prmUsedYTD || 0) + (individualStats?.metrics?.prmAvailYTD || 0))) * 100) + '%'">
+                                                </div>
+                                            </div>
 
-        </div>
-    </div>
-</div>                              
+                                        </div>
+                                    </div>
+                                </div>                              
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
                                         <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Exception Log</h5>
@@ -989,19 +955,63 @@
                 
                 <template x-if="menuItems.find(i => i.id === view)?.admin && isManagerOrLead">
                     <div class="space-y-6 pb-10">
-                        <div x-show="!isAdminAuthenticated" class="max-w-md mx-auto py-16 space-y-6 animate-in fade-in relative group">
-                            <div class="absolute inset-0 bg-gradient-to-r from-zinc-900 to-zinc-800 rounded-[2.5rem] blur opacity-10 group-hover:opacity-20 transition duration-500"></div>
-                            <div class="bg-white/70 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-zinc-200/50 text-center space-y-8 relative">
-                                <div class="w-24 h-24 bg-zinc-950 text-white rounded-[1.5rem] flex items-center justify-center mx-auto shadow-xl">
-                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+
+                        <!-- Redesigned High-Security Admin Vault Interface -->
+                        <div x-show="!isAdminAuthenticated" class="max-w-md mx-auto py-12 px-4 relative group animate-in fade-in duration-500">
+                            <!-- High-Security Deep Ambient Glow -->
+                            <div class="absolute -inset-1.5 bg-gradient-to-r from-rose-950/20 via-zinc-900/40 to-amber-950/20 rounded-[2.5rem] blur-xl opacity-40 group-hover:opacity-60 transition duration-700"></div>
+
+                            <!-- Secure Vault Obsidian Shell -->
+                            <div class="relative bg-zinc-950 border border-zinc-800/80 p-8 md:p-10 rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] text-center space-y-8 overflow-hidden">
+                                
+                                <!-- Dynamic Matrix Grid Overlay -->
+                                <div class="absolute inset-0 opacity-[0.03] pointer-events-none select-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                                
+                                <!-- Vault Access Level Badge -->
+                                <div class="relative z-10 flex items-center gap-1.5 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full mx-auto w-max">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                    <span class="text-[9px] font-black text-rose-500 uppercase tracking-[0.25em]">Restricted Vault Access</span>
                                 </div>
-                                <div class="space-y-2">
-                                    <h3 class="text-3xl font-black tracking-tighter uppercase text-zinc-900">Vault Secured</h3>
-                                    <p class="text-zinc-500 font-bold text-[10px] uppercase tracking-[0.2em]">Master Key Required</p>
+
+                                <!-- Central Rotary Vault Mechanism -->
+                                <div class="relative z-10 mx-auto w-24 h-24 flex items-center justify-center">
+                                    <!-- Outer Tech Scanning Rings -->
+                                    <div class="absolute inset-0 border border-dashed border-zinc-800 rounded-full animate-[spin_20s_linear_infinite]"></div>
+                                    <div class="absolute -inset-2 border border-zinc-800/50 rounded-full animate-[spin_10s_linear_infinite_reverse]"></div>
+                                    
+                                    <!-- Laser Sweep Line -->
+                                    <div class="absolute left-0 right-0 h-0.5 bg-rose-500/20 animate-pulse"></div>
+
+                                    <!-- Heavy Security Lock Base -->
+                                    <div class="w-16 h-16 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-700/50 text-zinc-400 rounded-2xl flex items-center justify-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.05)] transition-all">
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-rose-500 animate-pulse">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                        </svg>
+                                    </div>
                                 </div>
-                                <div class="space-y-4">
-                                    <input type="password" x-model="adminPinInput" @keyup.enter="verifyAdmin()" placeholder="••••••" maxlength="6" class="w-full px-6 py-4 bg-white/50 border-2 border-zinc-200 focus:border-zinc-400 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-inner transition-all">
-                                    <button @click="verifyAdmin()" class="w-full py-4 bg-zinc-950 hover:bg-zinc-800 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all active:scale-95">Access Command</button>
+
+                                <!-- Vault Identity Verification Headings -->
+                                <div class="space-y-2 relative z-10">
+                                    <h3 class="text-2xl font-black tracking-tight text-white uppercase">Vault Secured</h3>
+                                    <p class="text-zinc-500 text-xs font-semibold max-w-xs mx-auto leading-relaxed">Enter administrative Master Key credentials to authorize root system access.</p>
+                                </div>
+
+                                <!-- PIN Submission Form Interface -->
+                                <div class="space-y-4 relative z-10">
+                                    <div class="relative">
+                                        <input type="password" 
+                                               x-model="adminPinInput" 
+                                               @keyup.enter="verifyAdmin()" 
+                                               placeholder="••••••" 
+                                               maxlength="6" 
+                                               class="w-full px-6 py-4 bg-zinc-900 border-2 border-zinc-800 focus:border-rose-500/40 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] text-white placeholder:text-zinc-800 transition-all">
+                                    </div>
+                                    
+                                    <button @click="verifyAdmin()" class="group/btn w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(244,63,94,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                                        Authorize Access
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" class="group-hover/btn:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1049,7 +1059,7 @@
                                                         <circle cx="64" cy="64" r="56" fill="none" :stroke="status.hex" stroke-width="10" stroke-dasharray="351" :stroke-dashoffset="351 - (351 * (dashboardStats.totals[status.id] || 0) / Math.max(1, dashboardStats.grandTotal))" stroke-linecap="round" class="transition-all duration-[1.5s] ease-out"/>
                                                     </svg>
                                                     <div class="absolute flex flex-col items-center">
-                                                        <span class="text-4xl font-black text-zinc-950" x-text="dashboardStats.totals[status.id] || 0"></span>
+                                                        <span class="text-4xl font-black text-zinc-955" x-text="dashboardStats.totals[status.id] || 0"></span>
                                                     </div>
                                                 </div>
                                                 <div class="space-y-1">
@@ -1073,13 +1083,13 @@
                                         <div class="px-4 flex flex-col items-center justify-center min-w-[130px] relative group cursor-pointer">
                                             <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-indigo-500 transition-colors" x-text="currentDate === initialToday ? 'TODAY' : 'DATE'"></span>
                                             <div class="flex items-center gap-1.5">
-                                                <span class="font-black text-sm text-zinc-950 tracking-tight group-hover:text-indigo-600 transition-colors" x-text="formatDate(currentDate)"></span>
+                                                <span class="font-black text-sm text-zinc-955 tracking-tight group-hover:text-indigo-600 transition-colors" x-text="formatDate(currentDate)"></span>
                                                 <svg class="w-3.5 h-3.5 text-zinc-300 group-hover:text-indigo-500 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                                             </div>
                                             <input type="date" x-model="currentDate" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 date-trigger" title="Select Date">
                                         </div>
 
-                                        <button @click="changeDate(1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-950 transition-all"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg></button>
+                                        <button @click="changeDate(1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-955 transition-all"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg></button>
                                     </div>
                                     
                                     <!-- Bulk Actions Control -->
@@ -1120,7 +1130,7 @@
                                                         <div x-show="isMarked(m.id, 'co') && !isMemberOnBreak(m.id, currentDate)" class="absolute -top-1 -right-1 w-3 h-3 bg-teal-500 border-2 border-white rounded-full z-10 shadow-sm"></div>
                                                     </div>
                                                     <div class="min-w-0 flex-1">
-                                                        <h4 class="font-black text-sm leading-none truncate text-zinc-950 uppercase" x-text="m.name"></h4>
+                                                        <h4 class="font-black text-sm leading-none truncate text-zinc-955 uppercase" x-text="m.name"></h4>
                                                         <p class="text-[9px] font-bold text-zinc-500 uppercase mt-1 tracking-widest truncate">
                                                             <span x-text="m.empId"></span> <span class="mx-1 text-zinc-300">•</span>
                                                             <span x-text="(m.dept || 'General')"></span>
@@ -1266,7 +1276,7 @@
                                                     
                                                     <div @click="showBreaks = !showBreaks" class="px-4 py-2.5 bg-amber-100/30 hover:bg-amber-100/50 transition-colors cursor-pointer border-b border-amber-200/50 flex items-center justify-between select-none">
                                                         <span class="text-[9px] font-black uppercase text-amber-800 tracking-widest flex items-center gap-2">
-                                                            <span class="w-2 h-2 rounded-full bg-amber-500 shadow-sm"></span>
+                                                            <span class="w-2 h-2 rounded-full bg-amber-505 shadow-sm"></span>
                                                             Break Activity Timeline
                                                             <svg :class="showBreaks ? 'rotate-180' : ''" class="w-4 h-4 ml-1 transition-transform duration-300 text-amber-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
                                                         </span>
@@ -1305,7 +1315,7 @@
                                                     
                                                     <div @click="showCaptchas = !showCaptchas" class="px-4 py-2.5 bg-indigo-100/30 hover:bg-indigo-100/50 transition-colors cursor-pointer border-b border-indigo-200/50 flex items-center justify-between select-none">
                                                         <span class="text-[9px] font-black uppercase text-indigo-800 tracking-widest flex items-center gap-2">
-                                                            <span class="w-2 h-2 rounded-full bg-indigo-500 shadow-sm"></span>
+                                                            <span class="w-2 h-2 rounded-full bg-indigo-505 shadow-sm"></span>
                                                             Captcha Verifications
                                                             <svg :class="showCaptchas ? 'rotate-180' : ''" class="w-4 h-4 ml-1 transition-transform duration-300 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
                                                         </span>
@@ -1449,7 +1459,7 @@
                                 </div>
                                 <div id="summary-content" class="bg-white/70 backdrop-blur-xl rounded-[2rem] border border-zinc-200/50 overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.06)]">
                                     <div class="p-6 md:p-10 border-b border-zinc-200/50 flex justify-between items-end">
-                                        <div class="space-y-1"><h2 class="text-3xl md:text-5xl font-black tracking-tighter text-zinc-950 uppercase leading-none">Audit Report</h2><p class="text-zinc-500 font-bold uppercase tracking-[0.3em] text-[10px] md:text-xs"><span x-text="formatDate(summaryStartDate)"></span> TO <span x-text="formatDate(summaryEndDate)"></span> • IST Performance Index</p></div>
+                                        <div class="space-y-1"><h2 class="text-3xl md:text-5xl font-black tracking-tighter text-zinc-955 uppercase leading-none">Audit Report</h2><p class="text-zinc-500 font-bold uppercase tracking-[0.3em] text-[10px] md:text-xs"><span x-text="formatDate(summaryStartDate)"></span> TO <span x-text="formatDate(summaryEndDate)"></span> • IST Performance Index</p></div>
                                     </div>
                                     <div id="audit-table-scroll" class="overflow-x-auto min-w-full max-h-[600px] custom-scrollbar">
                                         <table class="w-full text-left border-separate border-spacing-0 relative min-w-[1800px]">
@@ -1482,7 +1492,7 @@
                                                 <template x-for="data in rangeSummaryData" :key="data.empId">
                                                     <tr class="hover:bg-white/50 transition-colors">
                                                         <td class="px-8 py-6 pl-10 border-b border-zinc-200/50">
-                                                            <div class="text-zinc-950 text-sm font-black tracking-tight uppercase" x-text="data.name"></div>
+                                                            <div class="text-zinc-955 text-sm font-black tracking-tight uppercase" x-text="data.name"></div>
                                                             <div class="text-[10px] text-zinc-500 font-bold uppercase mt-0.5 tracking-widest" x-text="data.empId + ' • ' + (data.dept || 'General')"></div>
                                                         </td>
                                                         <td class="px-4 py-6 text-center text-xl text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="data.presentMTD"></td>
@@ -1530,7 +1540,7 @@
                                         <table class="w-full text-left border-collapse relative min-w-[500px]">
                                             <thead class="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-zinc-200/50"><tr class="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500"><th class="p-4 pl-6">Holiday Event</th><th class="p-4">Date</th><th class="p-4">Applicable To</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                             <tbody class="text-xs font-bold text-zinc-700">
-                                                <template x-for="holiday in holidayList" :key="holiday.id"><tr class="hover:bg-white/50 transition-colors border-b border-zinc-200/50 last:border-0"><td class="p-4 pl-6 text-zinc-950" x-text="holiday.name"></td><td class="p-4 text-zinc-500" x-text="formatDate(holiday.date)"></td><td class="p-4"><span class="px-2.5 py-1 bg-zinc-100/50 text-zinc-600 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-200/50" x-text="holiday.dept"></span></td><td class="p-4 text-right pr-6"><button @click="removeHoliday(holiday.id)" class="text-zinc-400 hover:text-rose-500 transition-colors"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr></template>
+                                                <template x-for="holiday in holidayList" :key="holiday.id"><tr class="hover:bg-white/50 transition-colors border-b border-zinc-200/50 last:border-0"><td class="p-4 pl-6 text-zinc-955" x-text="holiday.name"></td><td class="p-4 text-zinc-500" x-text="formatDate(holiday.date)"></td><td class="p-4"><span class="px-2.5 py-1 bg-zinc-100/50 text-zinc-600 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-200/50" x-text="holiday.dept"></span></td><td class="p-4 text-right pr-6"><button @click="removeHoliday(holiday.id)" class="text-zinc-400 hover:text-rose-500 transition-colors"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr></template>
                                             </tbody>
                                         </table>
                                     </div>
@@ -1571,20 +1581,20 @@
             </div>
         </main>
 
-<!-- Floating Pill Navigation Dock -->
+        <!-- Floating Pill Navigation Dock -->
         <div class="shrink-0 w-full flex justify-center pb-6 pt-2 px-4 relative z-[2000] no-print pointer-events-none">
             <nav class="pointer-events-auto bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.15)] rounded-full h-16 flex flex-row items-center px-2 md:px-4 transition-all duration-300 w-max max-w-full">
                 
-                <!-- Left: Logo -->
-                <div class="shrink-0 flex items-center px-2">
+                <!-- Left: Logo (Optimized with "hidden sm:flex" to clear horizontal mobile space) -->
+                <div class="shrink-0 items-center px-2 hidden sm:flex">
                     <img src="logo.png" alt="Logo" class="h-7 object-contain drop-shadow-sm" onerror="this.style.display='none';">
                 </div>
 
                 <!-- Vertical Divider -->
                 <div class="w-px h-8 bg-zinc-200/80 mx-2 shrink-0 hidden sm:block"></div>
 
-                <!-- Middle: Navigation Items -->
-                <div class="flex items-center gap-x-1 px-1 md:px-2 overflow-x-auto no-scrollbar py-1 max-w-[45vw] sm:max-w-none">
+                <!-- Middle: Navigation Items (Widen mobile boundaries from 45vw to 65vw) -->
+                <div class="flex items-center gap-x-1 px-1 md:px-2 overflow-x-auto no-scrollbar py-1 max-w-[65vw] sm:max-w-none">
                     <template x-for="item in menuItems" :key="item.id">
                         <button x-show="!item.admin || isManagerOrLead" 
                                 @click="view = item.id; resetMemberForm()" 
@@ -1640,9 +1650,9 @@
                     </button>
 
                     <div x-show="userSession" class="relative group flex justify-center ml-1">
-                        <img :src="`https://api.dicebear.com/7.x/avataaars/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
-                             alt="User Profile" 
-                             class="w-10 h-10 rounded-full bg-zinc-100 border-2 border-white shadow-md object-cover cursor-pointer hover:ring-2 hover:ring-[#0f4c81]/30 transition-all hover:scale-105" />
+    <img :src="`https://api.dicebear.com/7.x/lorelei/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+         alt="User Profile" 
+         class="w-10 h-10 rounded-full bg-zinc-100 border-2 border-white shadow-md object-cover cursor-pointer hover:ring-2 hover:ring-[#0f4c81]/30 transition-all hover:scale-105" />
                         
                         <!-- Fixed Dropdown: Now it will spill out cleanly above the pill menu -->
                         <div class="absolute bottom-full mb-4 right-0 p-4 bg-zinc-900 text-white rounded-[1.25rem] opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all duration-200 z-50 whitespace-nowrap min-w-[200px] shadow-2xl origin-bottom-right scale-95 group-hover:scale-100">
@@ -1672,7 +1682,7 @@
         <div class="relative w-full max-w-md bg-white/90 backdrop-blur-xl h-full shadow-2xl flex flex-col p-8 space-y-6 animate-in slide-in-from-right border-l border-white/50">
             <div class="flex items-center justify-between">
                 <h3 class="text-3xl font-black tracking-tighter uppercase leading-none">Notifications</h3>
-                <button @click="showNotifications = false" class="text-zinc-400 text-sm font-black uppercase tracking-widest hover:text-zinc-950 transition-colors">Close</button>
+                <button @click="showNotifications = false" class="text-zinc-400 text-sm font-black uppercase tracking-widest hover:text-zinc-955 transition-colors">Close</button>
             </div>
             
             <div class="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-2">
@@ -1680,9 +1690,9 @@
                 <!-- 1. TODAY'S CELEBRATIONS SECTION -->
                 <div x-show="todayEvents.length > 0" x-data="{ open: true }" class="bg-zinc-50/50 rounded-2xl border border-zinc-200/30 overflow-hidden">
                     <button @click="open = !open" class="w-full px-4 py-3 flex items-center justify-between text-left select-none hover:bg-zinc-100/50 transition-colors">
-                        <h4 class="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <h4 class="text-[10px] font-black text-zinc-505 uppercase tracking-widest flex items-center gap-2">
                             <span>🎂</span> Today's Celebrations
-                            <span class="bg-zinc-200 text-zinc-700 font-black text-[9px] px-1.5 py-0.5 rounded-full ml-1" x-text="todayEvents.length"></span>
+                            <span class="bg-zinc-200 text-zinc-705 font-black text-[9px] px-1.5 py-0.5 rounded-full ml-1" x-text="todayEvents.length"></span>
                         </h4>
                         <svg :class="open ? 'rotate-180' : ''" class="w-3.5 h-3.5 text-zinc-400 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
                     </button>
@@ -1692,7 +1702,7 @@
                                 <div class="p-3 bg-white border border-zinc-200/50 rounded-xl flex items-center gap-4 shadow-sm">
                                     <div class="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl shadow-inner shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
                                     <div class="min-w-0 flex-1">
-                                        <p class="font-black uppercase text-xs text-zinc-950 truncate" x-text="ev.member.name"></p>
+                                        <p class="font-black uppercase text-xs text-zinc-955 truncate" x-text="ev.member.name"></p>
                                         <p class="text-[9px] font-black uppercase tracking-widest mt-0.5" :class="ev.color" x-text="ev.title"></p>
                                     </div>
                                 </div>
@@ -1717,7 +1727,7 @@
                                 <div class="p-3 bg-white border border-rose-100 rounded-xl flex items-center gap-4 shadow-sm relative overflow-hidden">
                                     <div class="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl shadow-inner shrink-0" :class="alert.bg + ' ' + alert.color" x-text="alert.icon"></div>
                                     <div class="flex-1 min-w-0">
-                                        <p class="font-black uppercase text-xs text-zinc-950 truncate" x-text="alert.member.name"></p>
+                                        <p class="font-black uppercase text-xs text-zinc-955 truncate" x-text="alert.member.name"></p>
                                         <p class="text-[9px] font-black uppercase tracking-widest mt-0.5" :class="alert.color" x-text="alert.message"></p>
                                     </div>
                                 </div>
@@ -1776,7 +1786,7 @@
             </div>
             <div class="space-y-2">
                 <h4 class="text-3xl font-black tracking-tighter uppercase leading-none">Confirm Exit</h4>
-                <p class="text-zinc-500 font-bold text-xs md:text-sm">Punch out at <span class="text-zinc-950 font-black" x-text="logoutTimePreview"></span>?</p>
+                <p class="text-zinc-505 font-bold text-xs md:text-sm">Punch out at <span class="text-zinc-955 font-black" x-text="logoutTimePreview"></span>?</p>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <button @click="showLogoutModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors">Cancel</button>
@@ -1791,13 +1801,13 @@
             <h4 class="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none">Time-off Request</h4>
             <div class="space-y-6">
                 <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Category</label>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-zinc-505">Category</label>
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
                         <button @click="newLeave.type = 'a'" :class="newLeave.type === 'a' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Full Day</button>
                         <button @click="newLeave.type = 'h'" :class="newLeave.type === 'h' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Half Day</button>
                         <button @click="newLeave.type = 'wfh'" :class="newLeave.type === 'wfh' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">WFH</button>
-                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">1Hr Perm</button>
-                        <button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
+                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg
+<button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
                         <button @click="newLeave.type = 'lop'" :class="newLeave.type === 'lop' ? 'bg-rose-600 text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Unplanned</button>
                     </div>
                 </div>
@@ -1824,7 +1834,7 @@
             
             <h4 class="text-3xl font-black tracking-tighter uppercase leading-none" x-text="'Confirm Deletion?'"></h4>
 
-            <p class="text-zinc-500 font-bold text-xs">This action cannot be undone. All associated history may be orphaned.</p>
+            <p class="text-zinc-505 font-bold text-xs">This action cannot be undone. All associated history may be orphaned.</p>
 
             <div class="grid grid-cols-2 gap-4 mt-4">
                 <button @click="showDeleteModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-xs uppercase tracking-widest transition-colors hover:bg-zinc-200">Cancel</button>
