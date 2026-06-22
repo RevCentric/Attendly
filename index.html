@@ -19,7 +19,7 @@
 </head>
 
 <body :class="theme === 'dark' ? 'bg-zinc-900 text-zinc-100' : 'bg-slate-50/80 text-zinc-900'" 
-      class="h-screen w-full flex flex-col overflow-hidden transition-colors duration-300" 
+      class="h-[100dvh] w-full flex flex-col overflow-hidden transition-colors duration-300" 
       x-data="attendanceApp()" x-init="init()" x-cloak>
 
     <div x-show="showCaptchaModal" class="fixed inset-0 z-[6000] bg-zinc-950 flex flex-col items-center justify-center text-white" x-transition x-cloak>
@@ -154,11 +154,10 @@
     <!-- Main Layout Wrapper including Bottom Navigation Panel -->
     <div class="flex flex-col flex-1 h-full w-full overflow-hidden relative z-[2000]">
 
-        <!-- FIXED: Removed h-full and replaced with min-h-0 to avoid overlapping and pushing navigation below mobile viewport boundaries -->
         <main class="flex-1 min-h-0 flex flex-col overflow-hidden relative">
             <header class="shrink-0 px-4 md:px-10 pt-2 md:pt-3 pb-2 flex flex-col gap-4 no-print z-[1000] relative">
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h2 class="text-3xl md:text-4xl lg:text-5xl font-black text-zinc-950 tracking-tighter capitalize" x-text="{'master':'Master Config', 'dashboard':'Stats', 'record':'Log', 'members':'Roster', 'summary':'Reports'}[view] || ''"></h2>
+                    <h2 class="text-3xl md:text-4xl lg:text-5xl font-black text-zinc-955 tracking-tighter capitalize" x-text="{'master':'Master Config', 'dashboard':'Stats', 'record':'Log', 'members':'Roster', 'summary':'Reports'}[view] || ''"></h2>
                     <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto" x-show="view !== 'portal' && view !== 'master' && isAdminAuthenticated">
                         <select x-model="filterName" @change="handleNameFilterChange()" class="w-full sm:w-[280px] px-6 py-3 bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[1.5rem] text-sm font-black outline-none appearance-none cursor-pointer hover:bg-white transition-colors">
                             <option value="">All Personnel</option>
@@ -172,27 +171,22 @@
                 </div>
             </header>
 
-            <div class="flex-1 overflow-y-auto px-4 md:px-10 pb-16 custom-scrollbar">
+            <!-- Adjusted Padding-Bottom (pb-28) to give clean clearance for Fixed bottom navigation pill -->
+            <div class="flex-1 overflow-y-auto px-4 md:px-10 pb-28 custom-scrollbar">
                 
                 <div x-show="view === 'portal'" class="w-full py-2 space-y-6">
 
                     <div x-show="!userSession" class="max-w-md mx-auto relative group animate-in slide-in-from-bottom mt-10 px-4">
-                        <!-- Pulse/Glow tech backdrops -->
                         <div class="absolute -inset-1.5 bg-gradient-to-r from-[#0f4c81] via-zinc-800 to-[#f26522] rounded-[2.5rem] blur-xl opacity-20 group-hover:opacity-35 transition duration-700 animate-pulse" style="animation-duration: 4s;"></div>
                         
-                        <!-- Main Portal Container -->
                         <div class="relative bg-white/80 dark:bg-zinc-950/80 backdrop-blur-2xl p-8 md:p-10 rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-zinc-800/40 flex flex-col items-center space-y-8 overflow-hidden">
                             
-                            <!-- Dynamic Technology Grid Overlay -->
                             <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none select-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
 
-                            <!-- Central Key Portal Circle -->
                             <div class="relative z-10">
-                                <!-- Decorative Orbit Ring -->
                                 <div class="absolute -inset-4 border border-zinc-200/60 dark:border-zinc-800/40 rounded-full animate-[spin_12s_linear_infinite]">
                                     <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#f26522]"></div>
                                 </div>
-                                <!-- Main Shield Container -->
                                 <div class="w-20 h-20 bg-gradient-to-br from-[#0f4c81] via-[#0b3861] to-zinc-950 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_-10px_rgba(15,76,129,0.5)] transition duration-300">
                                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -211,7 +205,6 @@
                                 
                                 <div class="space-y-4">
                                     <div class="relative group/input">
-                                        <!-- ID Credential Icon -->
                                         <div class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within/input:text-[#0f4c81] transition-colors">
                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 9h4M14 13h4"/></svg>
                                         </div>
@@ -229,7 +222,6 @@
                             <div x-show="loginStep === 'pin'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
                                 <div class="text-center space-y-3">
                                     <h3 class="text-2xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">Security Check</h3>
-                                    <!-- Verified Employee Badge -->
                                     <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/40 rounded-full shadow-sm">
                                         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                         <p class="text-emerald-700 dark:text-emerald-400 font-black uppercase text-[10px] tracking-wider" x-text="'Verified: ' + tempUser?.name"></p>
@@ -278,10 +270,9 @@
                         </div>
                     </div>
 
-                    <!-- REDESIGNED PERSONNEL DASHBOARD (LOGGED IN) -->
+                    <!-- PERSONNEL DASHBOARD (LOGGED IN) -->
                     <div x-show="userSession" class="animate-in fade-in duration-700 space-y-8 pb-10">
                         
-                        <!-- 1. Upcoming Holidays Banner -->
                         <template x-if="upcomingHolidays && upcomingHolidays.length > 0">
                             <div class="space-y-4 mb-6">
                                 <template x-for="hol in upcomingHolidays" :key="hol.id">
@@ -299,7 +290,6 @@
                             </div>
                         </template>
 
-                        <!-- 2. Anniversary & Birthday Celebrations -->
                         <template x-if="individualStats?.isAnniversary">
                             <div class="p-6 bg-emerald-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
                                 <div class="absolute inset-0 bg-emerald-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
@@ -332,7 +322,6 @@
                             </div>
                         </template>
 
-                       <!-- 3. Primary Command Center Workspace (Sleeker Compact Edition) -->
                         <div class="flex flex-col gap-4 w-full">
                             <div class="relative overflow-hidden rounded-[1.75rem] bg-white/80 dark:bg-zinc-950/70 backdrop-blur-2xl border border-zinc-200/60 dark:border-zinc-800/40 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.03)] flex flex-col justify-between w-full relative z-10">
                                 <div class="absolute inset-0 bg-gradient-to-br from-[#0f4c81]/[0.02] via-transparent to-[#f26522]/[0.03] pointer-events-none"></div>
@@ -340,17 +329,15 @@
                                 <div class="absolute -bottom-20 -left-20 w-60 h-60 bg-[#f26522]/5 blur-3xl rounded-full pointer-events-none"></div>
 
                                 <div class="p-4 md:p-5 flex flex-col gap-4 relative z-10">
-                                    <!-- A. Header & Greetings Panel -->
                                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-zinc-200/50 dark:border-zinc-800/50">
                                         <div class="flex items-center gap-3">
-                                            <!-- Responsive Lorelei Portrait -->
-<div class="relative shrink-0 hidden sm:block">
-    <img :src="`https://api.dicebear.com/7.x/lorelei/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
-         alt="Avatar" 
-         class="w-11 h-11 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 object-cover shadow-sm">
-    <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 border border-white dark:border-zinc-950 rounded-full" 
-          :class="userOnBreak ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></span>
-</div>
+                                            <div class="relative shrink-0 hidden sm:block">
+                                                <img :src="`https://api.dicebear.com/7.x/lorelei/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+                                                     alt="Avatar" 
+                                                     class="w-11 h-11 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 object-cover shadow-sm">
+                                                <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 border border-white dark:border-zinc-950 rounded-full" 
+                                                      :class="userOnBreak ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></span>
+                                            </div>
                                             <div class="space-y-0.5">
                                                 <div class="flex flex-wrap items-center gap-1.5">
                                                     <h3 class="text-lg font-black tracking-tight text-zinc-955 dark:text-white" x-text="(new Date(Date.now() + 19800000).getUTCHours() < 12 ? 'Good morning' : new Date(Date.now() + 19800000).getUTCHours() < 17 ? 'Good afternoon' : 'Good evening') + ', ' + (userSession?.firstName || 'User')"></h3>
@@ -359,16 +346,13 @@
                                             </div>
                                         </div>
 
-                                        <!-- Digital Clock Segment -->
                                         <div class="bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl px-3.5 py-1.5 flex items-center gap-2.5 w-fit">
                                             <span class="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-500 border-r border-zinc-200 dark:border-zinc-800 pr-2.5">IST</span>
                                             <span class="text-base font-black text-[#0f4c81] dark:text-[#5289c0] tracking-tight tabular-nums" x-text="currentISTTimeWidget"></span>
                                         </div>
                                     </div>
 
-                                    <!-- B. Central Metrics and Action Block -->
                                     <div class="flex flex-col xl:flex-row items-stretch gap-4">
-                                        <!-- Unified Daily Summary Cards -->
                                         <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 flex-1">
                                             
                                             <!-- In punch -->
@@ -421,7 +405,7 @@
                                                 <span class="text-base font-black text-amber-600 dark:text-amber-500 mt-1.5 tracking-tight tabular-nums" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks))"></span>
                                             </div>
 
-                                            <!-- Gross Shift -->
+                                            <!-- Shift elapsed -->
                                             <div class="bg-blue-50/30 dark:bg-blue-950/10 border border-blue-100/50 dark:border-blue-900/30 rounded-xl p-3 flex flex-col justify-between">
                                                 <span class="text-[8px] font-black uppercase tracking-widest text-blue-500 dark:text-blue-400">Shift Elapsed</span>
                                                 <span class="text-base font-black text-blue-700 dark:text-blue-400 mt-1.5 tracking-tight tabular-nums" x-text="formatClockDisplay(liveShiftMins)"></span>
@@ -468,7 +452,7 @@
                                 </div>
                             </div>
 
-                            <!-- 4. Team Break Status (For Administrators/Managers - Compact Edition) -->
+                            <!-- Team Break Status (For Administrators/Managers) -->
                             <div x-show="isManagerOrLead" class="relative flex-1 overflow-hidden p-4 rounded-[1.5rem] bg-white/80 dark:bg-zinc-950/70 backdrop-blur-2xl border border-zinc-200/60 dark:border-zinc-800/40 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.03)] flex flex-col justify-center w-full relative z-10">
                                 <div class="flex items-center justify-between mb-3 border-b border-zinc-200/50 dark:border-zinc-800/50 pb-2">
                                     <h4 class="text-xs font-black uppercase tracking-tight text-zinc-955 dark:text-white">Active Floor Activity</h4>
@@ -523,7 +507,7 @@
 
                                 <div class="relative z-10 mb-6">
                                     <div class="flex items-baseline gap-2">
-                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.presentMTD"></h4>
+                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-955" x-text="individualStats?.metrics.presentMTD"></h4>
                                         <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
                                     </div>
                                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Present (MTD)</p>
@@ -547,7 +531,7 @@
 
                                 <div class="relative z-10 mb-6">
                                     <div class="flex items-baseline gap-2">
-                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.remainingLeavesYTD"></h4>
+                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-955" x-text="individualStats?.metrics.remainingLeavesYTD"></h4>
                                         <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
                                     </div>
                                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Remaining (YTD)</p>
@@ -583,7 +567,7 @@
 
                                 <div class="relative z-10 mb-6">
                                     <div class="flex items-baseline gap-2">
-                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.prmAvailYTD"></h4>
+                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-955" x-text="individualStats?.metrics.prmAvailYTD"></h4>
                                         <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Hrs</span>
                                     </div>
                                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Remaining (YTD)</p>
@@ -614,7 +598,7 @@
 
                                 <div class="relative z-10 mb-6">
                                     <div class="flex items-baseline gap-2">
-                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-950" x-text="individualStats?.metrics.lopMTD"></h4>
+                                        <h4 class="text-5xl md:text-6xl font-black tracking-tighter text-zinc-955" x-text="individualStats?.metrics.lopMTD"></h4>
                                         <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days</span>
                                     </div>
                                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Unpaid (MTD)</p>
@@ -646,14 +630,14 @@
 
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Last 15 Days</h5>
+                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Last 15 Days</h5>
                                     </div>
                                     <div class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                                         <template x-for="log in individualStats?.history" :key="log.date">
                                             <div class="flex items-center justify-between p-3 rounded-xl border transition-all" :class="log.status.id === '-' ? 'bg-zinc-50/50 border-zinc-200/50 opacity-60' : 'bg-white/50 border-zinc-200/50 hover:shadow-sm'">
-                                                <div class="flex flex-col"><span class="text-sm font-black text-zinc-900" x-text="log.label"></span><span class="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5" x-text="log.date"></span></div>
+                                                <div class="flex flex-col"><span class="text-sm font-black text-zinc-900" x-text="log.label"></span><span class="text-[10px] text-zinc-505 font-bold uppercase tracking-widest mt-0.5" x-text="log.date"></span></div>
                                                 <div class="flex items-center gap-3">
-                                                    <div x-show="log.status.id !== '-'" class="flex flex-col text-[9px] font-black uppercase text-zinc-500 tracking-widest text-right">
+                                                    <div x-show="log.status.id !== '-'" class="flex flex-col text-[9px] font-black uppercase text-zinc-505 tracking-widest text-right">
                                                         <span x-text="'IN: ' + (log.punch?.in || '--:--')"></span>
                                                         <span x-text="'OUT: ' + (log.punch?.out || '--:--')"></span>
                                                         <span x-show="calculateTotalBreakMins(log.punch?.breaks) > 0" x-text="'BRK: ' + formatBreakDisplay(calculateTotalBreakMins(log.punch?.breaks))" class="text-amber-500 mt-0.5"></span>
@@ -667,7 +651,7 @@
 
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Break Log</h5>
+                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Break Log</h5>
                                         <span class="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black tracking-widest uppercase border border-amber-200" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.breaks)) + ' Total'"></span>
                                     </div>
                                     <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar relative z-10 pt-2">
@@ -716,7 +700,7 @@
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-start justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
                                         <div>
-                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Adherence Milestones</h5>
+                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-850">Adherence Milestones</h5>
                                             <span class="text-[9px] font-black uppercase text-rose-500 tracking-widest mt-1 block">* ACTIVE SHIFT EXCLUDED</span>
                                         </div>
                                         
@@ -740,7 +724,7 @@
                                                     <span class="text-2xl shrink-0">⏱️</span>
                                                     <div>
                                                         <h6 class="text-sm font-black uppercase text-amber-800 leading-none">Active Hours</h6>
-                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">
+                                                        <p class="text-[10px] text-zinc-505 font-bold uppercase mt-1">
                                                             Avg Active (MTD): <span class="text-amber-600" x-text="formatBreakDisplay(individualStats?.metrics?.avgActiveMTD || 0)"></span> / <span x-text="formatBreakDisplay(individualStats?.metrics?.targetActiveMTD || 470)"></span>
                                                         </p>
                                                     </div>
@@ -761,7 +745,7 @@
                                                     <span class="text-2xl shrink-0">⚡</span>
                                                     <div>
                                                         <h6 class="text-sm font-black uppercase text-emerald-800 leading-none">Clean Adherence</h6>
-                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">
+                                                        <p class="text-[10px] text-zinc-505 font-bold uppercase mt-1">
                                                             Avg Break (MTD): <span class="text-emerald-600" x-text="formatBreakDisplay(individualStats?.metrics?.avgBreakMTD || 0)"></span> / <span x-text="formatBreakDisplay(individualStats?.metrics?.targetBreakMTD || 60)"></span>
                                                         </p>
                                                     </div>
@@ -778,7 +762,7 @@
                                                     <span class="text-2xl shrink-0">🏖️</span>
                                                     <div>
                                                         <h6 class="text-sm font-black uppercase text-sky-800 leading-none">Leave Utilization</h6>
-                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">Used (YTD): <span class="text-sky-600" x-text="individualStats?.metrics?.usedLeavesYTD || 0"></span> / <span x-text="(individualStats?.metrics?.remainingLeavesYTD || 0) + (individualStats?.metrics?.usedLeavesYTD || 0)"></span> Days</p>
+                                                        <p class="text-[10px] text-zinc-505 font-bold uppercase mt-1">Used (YTD): <span class="text-sky-600" x-text="individualStats?.metrics?.usedLeavesYTD || 0"></span> / <span x-text="(individualStats?.metrics?.remainingLeavesYTD || 0) + (individualStats?.metrics?.usedLeavesYTD || 0)"></span> Days</p>
                                                     </div>
                                                 </div>
                                                 <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
@@ -793,7 +777,7 @@
                                                     <span class="text-2xl shrink-0">⏳</span>
                                                     <div>
                                                         <h6 class="text-sm font-black uppercase text-violet-800 leading-none">Permission Hours</h6>
-                                                        <p class="text-[10px] text-zinc-500 font-bold uppercase mt-1">Used (YTD): <span class="text-violet-600" x-text="individualStats?.metrics?.prmUsedYTD || 0"></span>h / <span x-text="(individualStats?.metrics?.prmUsedYTD || 0) + (individualStats?.metrics?.prmAvailYTD || 0)"></span>h</p>
+                                                        <p class="text-[10px] text-zinc-505 font-bold uppercase mt-1">Used (YTD): <span class="text-violet-600" x-text="individualStats?.metrics?.prmUsedYTD || 0"></span>h / <span x-text="(individualStats?.metrics?.prmUsedYTD || 0) + (individualStats?.metrics?.prmAvailYTD || 0)"></span>h</p>
                                                     </div>
                                                 </div>
                                                 <div class="px-3 py-1.5 rounded-lg text-xs font-black shadow-sm transition-colors"
@@ -807,7 +791,7 @@
                                 </div>                              
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Exception Log</h5>
+                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Exception Log</h5>
                                     </div>
                                     <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                                         <div class="space-y-2">
@@ -816,7 +800,7 @@
                                                     <div>
                                                         <h5 class="text-xs font-black uppercase text-zinc-900 tracking-tight" x-text="log.status.label"></h5>
                                                         <div class="flex items-center gap-2 mt-0.5">
-                                                            <span class="text-[10px] font-black text-zinc-500 uppercase tracking-widest" x-text="log.label"></span>
+                                                            <span class="text-[10px] font-black text-zinc-505 uppercase tracking-widest" x-text="log.label"></span>
                                                             <span class="text-zinc-300">•</span>
                                                             <span class="text-[10px] font-bold text-zinc-400 uppercase tracking-widest" x-text="log.date"></span>
                                                         </div>
@@ -836,7 +820,7 @@
                                 <template x-if="isManagerOrLead || isAdminAuthenticated">
                                     <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                         <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Month's Celebrations</h5>
+                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Month's Celebrations</h5>
                                             <span class="px-2 py-1 bg-pink-50 text-pink-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-pink-200" x-text="monthEvents.length + ' Events'"></span>
                                         </div>
                                         <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
@@ -846,7 +830,7 @@
                                                         <div class="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl shadow-sm shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
                                                         <div class="flex-1">
                                                             <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="ev.member.name"></h5>
-                                                            <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mt-0.5" x-text="ev.title + ' • Day ' + ev.day"></p>
+                                                            <p class="text-[10px] font-black text-zinc-505 uppercase tracking-[0.2em] mt-0.5" x-text="ev.title + ' • Day ' + ev.day"></p>
                                                         </div>
                                                     </div>
                                                 </template>
@@ -861,7 +845,7 @@
                                 <template x-if="userSession?.captchaEnabled">
                                     <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                         <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Verification Log</h5>
+                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Verification Log</h5>
                                             <div class="flex gap-2">
                                                 <span class="text-[9px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200" x-text="(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas || []).filter(c => c.status === 'Passed').length + ' Pass'"></span>
                                                 <span class="text-[9px] font-black uppercase text-rose-700 bg-rose-100 px-2 py-0.5 rounded-lg border border-rose-200" x-text="(punchLogs[getActiveShiftDate()]?.[userSession?.id]?.captchas || []).filter(c => c.status !== 'Passed').length + ' Fail'"></span>
@@ -879,7 +863,7 @@
                                                             </div>
                                                             <div>
                                                                 <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900" x-text="'Check ' + (cIdx + 1)"></h5>
-                                                                <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5" x-text="cap.time"></p>
+                                                                <p class="text-[10px] font-bold text-zinc-505 uppercase tracking-widest mt-0.5" x-text="cap.time"></p>
                                                             </div>
                                                         </div>
                                                         <span class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm"
@@ -896,7 +880,7 @@
                                 </template>
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Holiday Schedule</h5>
+                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Holiday Schedule</h5>
                                     </div>
                                     <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                                         <div class="space-y-2">
@@ -905,7 +889,7 @@
                                                     <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center font-black text-sm shadow-sm shrink-0">FH</div>
                                                     <div class="flex-1">
                                                         <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="h.name"></h5>
-                                                        <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mt-0.5" x-text="formatDate(h.date) + ' • ' + h.dept"></p>
+                                                        <p class="text-[10px] font-black text-zinc-505 uppercase tracking-[0.2em] mt-0.5" x-text="formatDate(h.date) + ' • ' + h.dept"></p>
                                                     </div>
                                                 </div>
                                             </template>
@@ -918,7 +902,7 @@
 
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-800">Time-off Requests</h5>
+                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Time-off Requests</h5>
                                     </div>
                                     <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
                                         <div class="space-y-2">
@@ -927,9 +911,9 @@
                                                     <div>
                                                         <h5 class="text-xs font-black uppercase text-zinc-900 tracking-tight">
                                                             <span x-text="statusOptions.find(s => s.id === r.type)?.label || 'Leave'"></span>
-                                                            <span class="text-zinc-500 font-bold ml-2 text-[10px]" x-text="formatDate(r.startDate) + (r.startDate !== r.endDate ? ' to ' + formatDate(r.endDate) : '')"></span>
+                                                            <span class="text-zinc-505 font-bold ml-2 text-[10px]" x-text="formatDate(r.startDate) + (r.startDate !== r.endDate ? ' to ' + formatDate(r.endDate) : '')"></span>
                                                         </h5>
-                                                        <p class="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mt-0.5" x-text="r.reason"></p>
+                                                        <p class="text-[10px] font-black text-zinc-505 uppercase tracking-[0.2em] mt-0.5" x-text="r.reason"></p>
                                                     </div>
                                                     <span :class="{
                                                         'bg-amber-50 text-amber-700 border-amber-200': r.status === 'pending',
@@ -958,31 +942,23 @@
 
                         <!-- Redesigned High-Security Admin Vault Interface -->
                         <div x-show="!isAdminAuthenticated" class="max-w-md mx-auto py-12 px-4 relative group animate-in fade-in duration-500">
-                            <!-- High-Security Deep Ambient Glow -->
-                            <div class="absolute -inset-1.5 bg-gradient-to-r from-rose-950/20 via-zinc-900/40 to-amber-950/20 rounded-[2.5rem] blur-xl opacity-40 group-hover:opacity-60 transition duration-700"></div>
+                            <div class="absolute -inset-1.5 bg-gradient-to-r from-rose-955/20 via-zinc-900/40 to-amber-955/20 rounded-[2.5rem] blur-xl opacity-40 group-hover:opacity-60 transition duration-700"></div>
 
-                            <!-- Secure Vault Obsidian Shell -->
                             <div class="relative bg-zinc-950 border border-zinc-800/80 p-8 md:p-10 rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] text-center space-y-8 overflow-hidden">
                                 
-                                <!-- Dynamic Matrix Grid Overlay -->
                                 <div class="absolute inset-0 opacity-[0.03] pointer-events-none select-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
                                 
-                                <!-- Vault Access Level Badge -->
                                 <div class="relative z-10 flex items-center gap-1.5 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full mx-auto w-max">
                                     <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
                                     <span class="text-[9px] font-black text-rose-500 uppercase tracking-[0.25em]">Restricted Vault Access</span>
                                 </div>
 
-                                <!-- Central Rotary Vault Mechanism -->
                                 <div class="relative z-10 mx-auto w-24 h-24 flex items-center justify-center">
-                                    <!-- Outer Tech Scanning Rings -->
                                     <div class="absolute inset-0 border border-dashed border-zinc-800 rounded-full animate-[spin_20s_linear_infinite]"></div>
                                     <div class="absolute -inset-2 border border-zinc-800/50 rounded-full animate-[spin_10s_linear_infinite_reverse]"></div>
                                     
-                                    <!-- Laser Sweep Line -->
                                     <div class="absolute left-0 right-0 h-0.5 bg-rose-500/20 animate-pulse"></div>
 
-                                    <!-- Heavy Security Lock Base -->
                                     <div class="w-16 h-16 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-700/50 text-zinc-400 rounded-2xl flex items-center justify-center shadow-[inset_0_2px_4px_rgba(255,255,255,0.05)] transition-all">
                                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="text-rose-500 animate-pulse">
                                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -991,13 +967,11 @@
                                     </div>
                                 </div>
 
-                                <!-- Vault Identity Verification Headings -->
                                 <div class="space-y-2 relative z-10">
                                     <h3 class="text-2xl font-black tracking-tight text-white uppercase">Vault Secured</h3>
                                     <p class="text-zinc-500 text-xs font-semibold max-w-xs mx-auto leading-relaxed">Enter administrative Master Key credentials to authorize root system access.</p>
                                 </div>
 
-                                <!-- PIN Submission Form Interface -->
                                 <div class="space-y-4 relative z-10">
                                     <div class="relative">
                                         <input type="password" 
@@ -1034,11 +1008,11 @@
                                     </div>
                                     <div class="bg-white/70 backdrop-blur-xl p-8 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between h-full portal-card">
                                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-4">Confirmed Presents (Incl. WFH & Perms)</p>
-                                        <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="(dashboardStats.totals['p'] || 0) + (dashboardStats.totals['wfh'] || 0) + (dashboardStats.totals['1p'] || 0) + (dashboardStats.totals['2p'] || 0)"></h3>
+                                        <h3 class="text-6xl font-black tracking-tighter text-zinc-955" x-text="(dashboardStats.totals['p'] || 0) + (dashboardStats.totals['wfh'] || 0) + (dashboardStats.totals['1p'] || 0) + (dashboardStats.totals['2p'] || 0)"></h3>
                                     </div>
                                     <div class="bg-white/70 backdrop-blur-xl p-8 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col justify-between h-full portal-card">
                                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-4">Confirmed Absents</p>
-                                        <h3 class="text-6xl font-black tracking-tighter text-zinc-950" x-text="dashboardStats.totals['a'] || 0"></h3>
+                                        <h3 class="text-6xl font-black tracking-tighter text-zinc-955" x-text="dashboardStats.totals['a'] || 0"></h3>
                                     </div>
                                 </div>
 
@@ -1089,7 +1063,7 @@
                                             <input type="date" x-model="currentDate" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 date-trigger" title="Select Date">
                                         </div>
 
-                                        <button @click="changeDate(1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-955 transition-all"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg></button>
+                                        <button @click="changeDate(1)" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-zinc-100/50 text-zinc-505 hover:text-zinc-955 transition-all"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 18 15 12 9 6"/></svg></button>
                                     </div>
                                     
                                     <!-- Bulk Actions Control -->
@@ -1153,7 +1127,7 @@
                                                                 <template x-teleport="body">
                                                                     <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
                                                                         <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
-                                                                            <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                                                                            <span class="text-zinc-505 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
                                                                             <span class="block text-emerald-400" x-text="punchLogs[currentDate]?.[m.id]?.in_ip"></span>
                                                                         </div>
                                                                     </div>
@@ -1182,7 +1156,7 @@
                                                                 <template x-teleport="body">
                                                                     <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
                                                                         <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
-                                                                            <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                                                                            <span class="text-zinc-505 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
                                                                             <span class="block text-emerald-400" x-text="punchLogs[currentDate]?.[m.id]?.out_ip"></span>
                                                                         </div>
                                                                     </div>
@@ -1346,7 +1320,7 @@
                                                                         <template x-teleport="body">
                                                                             <div x-show="showTip" x-transition.opacity.duration.200ms class="fixed z-[9999] pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2" :style="`left: ${tipX}px; top: ${tipY - 10}px;`">
                                                                                 <div class="bg-zinc-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-xl whitespace-normal max-w-[200px] text-left border border-zinc-800">
-                                                                                    <span class="text-zinc-500 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
+                                                                                    <span class="text-zinc-505 uppercase text-[8px] tracking-widest block mb-0.5">Device Identity</span>
                                                                                     <div class="text-indigo-300" x-text="cap.ip || 'Not Logged'"></div>
                                                                                 </div>
                                                                             </div>
@@ -1365,7 +1339,7 @@
                                     
                                     <div x-show="filteredMembers.length === 0" class="py-24 flex flex-col items-center justify-center text-zinc-400">
                                         <div class="w-20 h-20 bg-white/50 border border-zinc-200/50 shadow-sm rounded-[2rem] flex items-center justify-center mb-6"><svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-                                        <p class="font-black uppercase text-sm tracking-widest text-zinc-500">No Personnel Found</p>
+                                        <p class="font-black uppercase text-sm tracking-widest text-zinc-505">No Personnel Found</p>
                                     </div>
                                 </div>
                             </div>
@@ -1413,7 +1387,7 @@
                                                         <h4 class="font-black text-lg truncate leading-tight uppercase text-zinc-900" x-text="m.name"></h4>
                                                         <span class="px-2.5 py-0.5 bg-zinc-100 text-zinc-500 rounded text-[10px] font-black tracking-widest uppercase border border-zinc-200/50" x-text="m.empId"></span>
                                                     </div>
-                                                    <p class="text-[10px] font-bold text-zinc-500 uppercase mt-1 tracking-widest" x-text="(m.dept || 'General') + ' • ' + (m.role || 'Staff') + ' • ' + (m.shift || 'General Shift')"></p>
+                                                    <p class="text-[10px] font-bold text-zinc-505 uppercase mt-1 tracking-widest" x-text="(m.dept || 'General') + ' • ' + (m.role || 'Staff') + ' • ' + (m.shift || 'General Shift')"></p>
                                                     <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                                                         <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest" x-text="m.doj ? 'Joined: ' + formatDate(m.doj) : 'DOJ Pending'"></p>
                                                         <span x-show="m.dob" class="text-[9px] text-zinc-300">•</span>
@@ -1464,7 +1438,7 @@
                                     <div id="audit-table-scroll" class="overflow-x-auto min-w-full max-h-[600px] custom-scrollbar">
                                         <table class="w-full text-left border-separate border-spacing-0 relative min-w-[1800px]">
                                             <thead class="sticky top-0 z-10 bg-white/90 backdrop-blur-md">
-                                                <tr class="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-500 border-b border-zinc-200/50">
+                                                <tr class="text-[10px] font-black uppercase tracking-[0.25em] text-zinc-505 border-b border-zinc-200/50">
                                                     <th class="px-8 py-6 pl-10">Identity</th>
                                                     <th class="px-4 py-6 text-center text-emerald-700 bg-emerald-50/50">Present</th>
                                                     <th class="px-4 py-6 text-center text-sky-700 bg-sky-50/50">Half Day</th>
@@ -1493,7 +1467,7 @@
                                                     <tr class="hover:bg-white/50 transition-colors">
                                                         <td class="px-8 py-6 pl-10 border-b border-zinc-200/50">
                                                             <div class="text-zinc-955 text-sm font-black tracking-tight uppercase" x-text="data.name"></div>
-                                                            <div class="text-[10px] text-zinc-500 font-bold uppercase mt-0.5 tracking-widest" x-text="data.empId + ' • ' + (data.dept || 'General')"></div>
+                                                            <div class="text-[10px] text-zinc-505 font-bold uppercase mt-0.5 tracking-widest" x-text="data.empId + ' • ' + (data.dept || 'General')"></div>
                                                         </td>
                                                         <td class="px-4 py-6 text-center text-xl text-emerald-600 font-black border-b border-zinc-200/50 bg-emerald-50/20" x-text="data.presentMTD"></td>
                                                         <td class="px-4 py-6 text-center text-sky-600 font-black border-b border-zinc-200/50 bg-sky-50/20" x-text="data.halfMTD"></td>
@@ -1540,7 +1514,7 @@
                                         <table class="w-full text-left border-collapse relative min-w-[500px]">
                                             <thead class="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-zinc-200/50"><tr class="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500"><th class="p-4 pl-6">Holiday Event</th><th class="p-4">Date</th><th class="p-4">Applicable To</th><th class="p-4 text-right pr-6">Action</th></tr></thead>
                                             <tbody class="text-xs font-bold text-zinc-700">
-                                                <template x-for="holiday in holidayList" :key="holiday.id"><tr class="hover:bg-white/50 transition-colors border-b border-zinc-200/50 last:border-0"><td class="p-4 pl-6 text-zinc-955" x-text="holiday.name"></td><td class="p-4 text-zinc-500" x-text="formatDate(holiday.date)"></td><td class="p-4"><span class="px-2.5 py-1 bg-zinc-100/50 text-zinc-600 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-200/50" x-text="holiday.dept"></span></td><td class="p-4 text-right pr-6"><button @click="removeHoliday(holiday.id)" class="text-zinc-400 hover:text-rose-500 transition-colors"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr></template>
+                                                <template x-for="holiday in holidayList" :key="holiday.id"><tr class="hover:bg-white/50 transition-colors border-b border-zinc-200/50 last:border-0"><td class="p-4 pl-6 text-zinc-955" x-text="holiday.name"></td><td class="p-4 text-zinc-505" x-text="formatDate(holiday.date)"></td><td class="p-4"><span class="px-2.5 py-1 bg-zinc-100/50 text-zinc-600 rounded text-[10px] font-black uppercase tracking-widest border border-zinc-200/50" x-text="holiday.dept"></span></td><td class="p-4 text-right pr-6"><button @click="removeHoliday(holiday.id)" class="text-zinc-400 hover:text-rose-500 transition-colors"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button></td></tr></template>
                                             </tbody>
                                         </table>
                                     </div>
@@ -1567,8 +1541,8 @@
                                     <h5 class="text-xl font-black uppercase tracking-tight text-zinc-900">Shift Timing</h5>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                         <input type="text" x-model="newShift.name" placeholder="SHIFT NAME" class="px-4 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold text-xs outline-none w-full">
-                                        <div class="flex items-center justify-between gap-2 bg-white/50 border border-zinc-200/50 rounded-xl px-4 py-3"><span class="text-[10px] font-black tracking-widest text-zinc-500">IN</span><input type="time" x-model="newShift.inTime" class="bg-transparent outline-none font-bold text-xs text-zinc-900"></div>
-                                        <div class="flex items-center justify-between gap-2 bg-white/50 border border-zinc-200/50 rounded-xl px-4 py-3"><span class="text-[10px] font-black tracking-widest text-zinc-500">OUT</span><input type="time" x-model="newShift.outTime" class="bg-transparent outline-none font-bold text-xs text-zinc-900"></div>
+                                        <div class="flex items-center justify-between gap-2 bg-white/50 border border-zinc-200/50 rounded-xl px-4 py-3"><span class="text-[10px] font-black tracking-widest text-zinc-505">IN</span><input type="time" x-model="newShift.inTime" class="bg-transparent outline-none font-bold text-xs text-zinc-900"></div>
+                                        <div class="flex items-center justify-between gap-2 bg-white/50 border border-zinc-200/50 rounded-xl px-4 py-3"><span class="text-[10px] font-black tracking-widest text-zinc-505">OUT</span><input type="time" x-model="newShift.outTime" class="bg-transparent outline-none font-bold text-xs text-zinc-900"></div>
                                         <button @click="addShift()" class="px-6 py-3 bg-[#0f4c81] hover:bg-[#0a3861] text-white rounded-xl font-black text-[11px] tracking-widest uppercase shadow-md active:scale-95 w-full transition-colors">Add Shift</button>
                                     </div>
                                     <div class="overflow-x-auto border border-zinc-200/50 rounded-[1.5rem] shadow-sm max-h-[320px] overflow-y-auto custom-scrollbar">
@@ -1581,11 +1555,11 @@
             </div>
         </main>
 
-        <!-- Floating Pill Navigation Dock -->
-        <div class="shrink-0 w-full flex justify-center pb-6 pt-2 px-4 relative z-[2000] no-print pointer-events-none">
-            <nav class="pointer-events-auto bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.15)] rounded-full h-16 flex flex-row items-center px-2 md:px-4 transition-all duration-300 w-max max-w-full">
+        <!-- Floating Pill Navigation Dock (FIXED positioning resolves mobile viewport occlusion) -->
+        <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[4000] w-max max-w-[92%] no-print pointer-events-none flex justify-center pb-0 pt-0 px-0">
+            <nav class="pointer-events-auto bg-white/85 backdrop-blur-2xl border border-zinc-200/50 shadow-[0_12px_45px_-8px_rgba(0,0,0,0.2)] rounded-full h-16 flex flex-row items-center px-3 md:px-4 transition-all duration-300">
                 
-                <!-- Left: Logo (Optimized with "hidden sm:flex" to clear horizontal mobile space) -->
+                <!-- Left: Logo (Responsive Visibility) -->
                 <div class="shrink-0 items-center px-2 hidden sm:flex">
                     <img src="logo.png" alt="Logo" class="h-7 object-contain drop-shadow-sm" onerror="this.style.display='none';">
                 </div>
@@ -1593,12 +1567,12 @@
                 <!-- Vertical Divider -->
                 <div class="w-px h-8 bg-zinc-200/80 mx-2 shrink-0 hidden sm:block"></div>
 
-                <!-- Middle: Navigation Items (Widen mobile boundaries from 45vw to 65vw) -->
-                <div class="flex items-center gap-x-1 px-1 md:px-2 overflow-x-auto no-scrollbar py-1 max-w-[65vw] sm:max-w-none">
+                <!-- Middle: Navigation Items -->
+                <div class="flex items-center gap-x-1.5 px-1 md:px-2 overflow-x-auto no-scrollbar py-1 max-w-[70vw] sm:max-w-none">
                     <template x-for="item in menuItems" :key="item.id">
                         <button x-show="!item.admin || isManagerOrLead" 
                                 @click="view = item.id; resetMemberForm()" 
-                                :class="view === item.id ? 'bg-[#f26522] text-white shadow-[0_4px_20px_rgba(242,101,34,0.3)]' : 'text-zinc-500 hover:bg-zinc-100 hover:text-[#f26522]'" 
+                                :class="view === item.id ? 'bg-[#f26522] text-white shadow-[0_4px_20px_rgba(242,101,34,0.3)]' : 'text-zinc-505 hover:bg-zinc-100 hover:text-[#f26522]'" 
                                 class="w-10 h-10 shrink-0 rounded-full transition-all duration-300 flex items-center justify-center group relative active:scale-95">
                             <span x-html="item.icon" class="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 [&>svg]:stroke-[2.5] transition-transform group-hover:scale-110"></span>
                             
@@ -1611,7 +1585,7 @@
                 </div>
 
                 <!-- Vertical Divider -->
-                <div class="w-px h-8 bg-zinc-200/80 mx-1 md:mx-2 shrink-0"></div>
+                <div class="w-px h-8 bg-zinc-200/80 mx-1.5 md:mx-2 shrink-0"></div>
 
                 <!-- Right: Utility Controls & Profile -->
                 <div class="flex items-center gap-x-1 px-1 md:px-2 shrink-0 relative">
@@ -1649,13 +1623,23 @@
                         </div>
                     </button>
 
-                    <div x-show="userSession" class="relative group flex justify-center ml-1">
-    <img :src="`https://api.dicebear.com/7.x/lorelei/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
-         alt="User Profile" 
-         class="w-10 h-10 rounded-full bg-zinc-100 border-2 border-white shadow-md object-cover cursor-pointer hover:ring-2 hover:ring-[#0f4c81]/30 transition-all hover:scale-105" />
+                    <!-- Click-triggered Avatar profile options block -->
+                    <div class="relative flex justify-center ml-1" x-data="{ showUserDropdown: false }">
+                        <img :src="`https://api.dicebear.com/7.x/lorelei/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+                             alt="User Profile" 
+                             @click="showUserDropdown = !showUserDropdown"
+                             @click.away="showUserDropdown = false"
+                             class="w-10 h-10 rounded-full bg-zinc-100 border-2 border-white shadow-md object-cover cursor-pointer hover:ring-2 hover:ring-[#0f4c81]/30 transition-all hover:scale-105" />
                         
-                        <!-- Fixed Dropdown: Now it will spill out cleanly above the pill menu -->
-                        <div class="absolute bottom-full mb-4 right-0 p-4 bg-zinc-900 text-white rounded-[1.25rem] opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all duration-200 z-50 whitespace-nowrap min-w-[200px] shadow-2xl origin-bottom-right scale-95 group-hover:scale-100">
+                        <div x-show="showUserDropdown" 
+                             x-transition:enter="transition ease-out duration-150"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-100"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="absolute bottom-full mb-4 right-0 p-4 bg-zinc-900 text-white rounded-[1.25rem] z-50 whitespace-nowrap min-w-[200px] shadow-2xl origin-bottom-right"
+                             x-cloak>
                             <div class="space-y-1 mb-4 pb-4 border-b border-zinc-800">
                                 <h3 class="text-sm font-black tracking-tight leading-none text-white" x-text="'Hello, ' + userSession?.firstName"></h3>
                                 <p class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1" x-text="(userSession?.role || 'Staff') + ' • ' + (userSession?.dept || 'General')"></p>
@@ -1677,6 +1661,8 @@
                 </div>
             </nav>
         </div>
+    </div>
+
     <div x-show="showNotifications && (userSession || isAdminAuthenticated)" class="fixed inset-0 z-[5000] flex justify-end" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm" @click="showNotifications = false"></div>
         <div class="relative w-full max-w-md bg-white/90 backdrop-blur-xl h-full shadow-2xl flex flex-col p-8 space-y-6 animate-in slide-in-from-right border-l border-white/50">
@@ -1769,6 +1755,12 @@
                 </div>
 
                 <!-- EMPTY STATE (INBOX ZERO) -->
+                <div x-show="((!isAdminAuthenticated && !isManagerOrLead) || pendingLeaveCount === 0) && todayEvents.length === 0 && offenderAlertHere is the remaining half of the HTML code, picking up right from the **Notifications Drawer** container where the previous message was cut off. 
+
+Replace everything from the `showNotifications` drawer down to the closing `</html>` tag with this code:
+
+```html
+                <!-- EMPTY STATE (INBOX ZERO) -->
                 <div x-show="((!isAdminAuthenticated && !isManagerOrLead) || pendingLeaveCount === 0) && todayEvents.length === 0 && offenderAlerts.length === 0" class="py-20 flex flex-col items-center justify-center text-zinc-400">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mb-4 opacity-50"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="m16 19 2 2 4-4"/></svg>
                     <span class="font-black uppercase text-[10px] tracking-widest opacity-80">Inbox Zero</span>
@@ -1778,6 +1770,7 @@
         </div>
     </div>
 
+    <!-- Confirm Exit Modal -->
     <div x-show="showLogoutModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showLogoutModal = false"></div>
         <div class="relative bg-white rounded-[2rem] w-full max-w-sm p-10 space-y-8 animate-in zoom-in-95 shadow-2xl text-center border border-zinc-200/50">
@@ -1786,7 +1779,7 @@
             </div>
             <div class="space-y-2">
                 <h4 class="text-3xl font-black tracking-tighter uppercase leading-none">Confirm Exit</h4>
-                <p class="text-zinc-505 font-bold text-xs md:text-sm">Punch out at <span class="text-zinc-955 font-black" x-text="logoutTimePreview"></span>?</p>
+                <p class="text-zinc-500 font-bold text-xs md:text-sm">Punch out at <span class="text-zinc-955 font-black" x-text="logoutTimePreview"></span>?</p>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <button @click="showLogoutModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors">Cancel</button>
@@ -1795,19 +1788,20 @@
         </div>
     </div>
 
+    <!-- Time-off Request Modal -->
     <div x-show="showLeaveModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-955/80 backdrop-blur-sm" @click="showLeaveModal = false"></div>
         <div class="relative bg-white/90 backdrop-blur-xl rounded-[2.5rem] w-full max-w-lg p-6 md:p-10 space-y-8 animate-in zoom-in-95 shadow-2xl border border-white/50">
             <h4 class="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none">Time-off Request</h4>
             <div class="space-y-6">
                 <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-zinc-505">Category</label>
+                    <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Category</label>
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
                         <button @click="newLeave.type = 'a'" :class="newLeave.type === 'a' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Full Day</button>
                         <button @click="newLeave.type = 'h'" :class="newLeave.type === 'h' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Half Day</button>
                         <button @click="newLeave.type = 'wfh'" :class="newLeave.type === 'wfh' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">WFH</button>
-                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg
-<button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
+                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">1Hr Perm</button>
+                        <button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
                         <button @click="newLeave.type = 'lop'" :class="newLeave.type === 'lop' ? 'bg-rose-600 text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Unplanned</button>
                     </div>
                 </div>
@@ -1821,10 +1815,12 @@
         </div>
     </div>
 
+    <!-- Notification Toast Alerts -->
     <div x-show="notification" x-transition class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[6000] px-8 py-4 rounded-2xl shadow-2xl bg-[#0f4c81] text-white text-[11px] font-black flex items-center gap-3 border border-[#0a3861] w-[90%] md:w-auto text-center md:text-left justify-center md:justify-start">
         <div class="w-2 h-2 rounded-full shrink-0" :class="notification?.type === 'error' ? 'bg-rose-500' : 'bg-[#f26522] animate-pulse'"></div><span x-text="notification?.msg"></span>
     </div>
 
+    <!-- Deletion Confirmation Modal -->
     <div x-show="showDeleteModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showDeleteModal = false"></div>
         <div class="bg-white rounded-[2rem] p-10 max-w-sm w-full relative z-10 text-center space-y-6 shadow-2xl border border-zinc-200/50">
@@ -1833,8 +1829,7 @@
             </div>
             
             <h4 class="text-3xl font-black tracking-tighter uppercase leading-none" x-text="'Confirm Deletion?'"></h4>
-
-            <p class="text-zinc-505 font-bold text-xs">This action cannot be undone. All associated history may be orphaned.</p>
+            <p class="text-zinc-500 font-bold text-xs">This action cannot be undone. All associated history may be orphaned.</p>
 
             <div class="grid grid-cols-2 gap-4 mt-4">
                 <button @click="showDeleteModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-xs uppercase tracking-widest transition-colors hover:bg-zinc-200">Cancel</button>
@@ -1842,5 +1837,139 @@
             </div>
         </div>
     </div>
+
+    <!-- 
+       CRITICAL RECENTRIC SYSTEM EXTENSIONS (SCRIPT BLOCK):
+       Ensures bulletproof time sync on cell networks, maintains persistent sessions, and overrides standard time routines safely.
+    -->
+    <script>
+        // Set up secure globally synchronized network clock
+        window.networkTimeOffset = 0;
+
+        async function syncNetworkTime() {
+            const controllers = [new AbortController(), new AbortController(), new AbortController()];
+            const apis = [
+                { url: 'https://worldtimeapi.org/api/timezone/Asia/Kolkata', parser: d => new Date(d.datetime) },
+                { url: 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Kolkata', parser: d => new Date(d.dateTime) },
+                { url: 'https://now.httpbin.org/', parser: d => new Date(d.now_utc) }
+            ];
+
+            let accurateTime = null;
+
+            // Step A: Attempt primary time APIs
+            for (let i = 0; i < apis.length; i++) {
+                try {
+                    const timeoutId = setTimeout(() => controllers[i].abort(), 2000);
+                    const res = await fetch(apis[i].url, { signal: controllers[i].signal });
+                    clearTimeout(timeoutId);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const parsed = apis[i].parser(data);
+                        if (parsed && !isNaN(parsed.getTime())) {
+                            accurateTime = parsed;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Time API ${apis[i].url} failed:`, e);
+                }
+            }
+
+            // Step B: Resilient Fallback - Fetch current Supabase REST Endpoint headers (Unblocked on mobile carrier cellular bands)
+            if (!accurateTime) {
+                try {
+                    const supabaseUrl = localStorage.getItem('supabaseUrl') || window.supabaseUrl || (window.supabase && window.supabase.supabaseUrl);
+                    if (supabaseUrl) {
+                        const res = await fetch(supabaseUrl, { method: 'HEAD' });
+                        const serverDateStr = res.headers.get('date');
+                        if (serverDateStr) {
+                            const parsed = new Date(serverDateStr);
+                            if (!isNaN(parsed.getTime())) {
+                                accurateTime = parsed;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Supabase Date header fallback failed:", e);
+                }
+            }
+
+            if (accurateTime) {
+                window.networkTimeOffset = accurateTime.getTime() - Date.now();
+                console.log(`Successfully synchronized secure network time! Offset computed: ${window.networkTimeOffset}ms`);
+            } else {
+                console.warn("Could not synchronize with any network clocks. Defaulting directly to system date.");
+            }
+        }
+
+        // Run immediately on bootstrap, and re-sync every 15 minutes
+        syncNetworkTime();
+        setInterval(syncNetworkTime, 15 * 60 * 1000);
+
+        window.getSecureDate = function() {
+            return new Date(Date.now() + window.networkTimeOffset);
+        };
+
+        // Alpine Component Interceptor and Extension Pipeline
+        document.addEventListener('alpine:init', () => {
+            const originalAttendanceApp = window.attendanceApp;
+            if (originalAttendanceApp) {
+                window.attendanceApp = function(...args) {
+                    const app = originalAttendanceApp(...args);
+                    
+                    // Hook into component's native init cycle
+                    const originalInit = app.init;
+                    app.init = function() {
+                        // Restore administrative status automatically from localStorage
+                        if (localStorage.getItem('rc_admin_authenticated') === 'true') {
+                            this.isAdminAuthenticated = true;
+                            this.adminPinInput = localStorage.getItem('rc_admin_pin') || '';
+                        }
+                        
+                        // Execute native app setup routines
+                        if (originalInit) originalInit.call(this);
+                        
+                        // Set up reactive observer to keep Admin/Manager session persistent
+                        this.$watch('isAdminAuthenticated', value => {
+                            localStorage.setItem('rc_admin_authenticated', value ? 'true' : 'false');
+                            if (!value) {
+                                localStorage.removeItem('rc_admin_pin');
+                            }
+                        });
+                    };
+
+                    // Intercept Administrative authorization validation
+                    const originalVerifyAdmin = app.verifyAdmin;
+                    if (originalVerifyAdmin) {
+                        app.verifyAdmin = function() {
+                            const result = originalVerifyAdmin.call(this);
+                            if (this.isAdminAuthenticated) {
+                                localStorage.setItem('rc_admin_authenticated', 'true');
+                                localStorage.setItem('rc_admin_pin', this.adminPinInput || '');
+                            }
+                            return result;
+                        };
+                    }
+
+                    // Intercept session termination and clean memory storage
+                    const originalKillSession = app.killSession;
+                    if (originalKillSession) {
+                        app.killSession = function() {
+                            localStorage.removeItem('rc_admin_authenticated');
+                            localStorage.removeItem('rc_admin_pin');
+                            originalKillSession.call(this);
+                        };
+                    }
+
+                    // Sync the core time retrieval function to use secure dynamic offset rather than raw device system clocks
+                    app.getSecureDate = function() {
+                        return window.getSecureDate();
+                    };
+
+                    return app;
+                };
+            }
+        });
+    </script>
 </body>
 </html>
