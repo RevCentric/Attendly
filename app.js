@@ -3,6 +3,7 @@ window.attendanceApp = () => {
 
     const getNow = () => new Date(Date.now() + timeDrift);
 
+    // Dynamic, resilient sync with public time APIs and Supabase Date Headers
     const syncTrueTime = async () => {
         try {
             const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Kolkata');
@@ -11,7 +12,19 @@ window.attendanceApp = () => {
             timeDrift = trueTime - Date.now();
             console.log(`Time synchronized. Drift: ${Math.round(timeDrift/1000)}s`);
         } catch (e) {
-            console.warn("Time sync failed, falling back to local system clock.");
+            console.warn("Time sync failed, attempting Supabase server date header fallback...");
+            try {
+                // Highly reliable fallback: Fetch Supabase rest endpoint headers
+                const res = await fetch('https://lpthzknjzmxwukwpvhii.supabase.co', { method: 'HEAD' });
+                const serverDateStr = res.headers.get('date');
+                if (serverDateStr) {
+                    const trueTime = new Date(serverDateStr).getTime();
+                    timeDrift = trueTime - Date.now();
+                    console.log(`Time synchronized via Supabase. Drift: ${Math.round(timeDrift/1000)}s`);
+                }
+            } catch (err) {
+                console.warn("All time synchronization methods failed. Defaulting to local clock.");
+            }
         }
     };
 
@@ -36,6 +49,7 @@ window.attendanceApp = () => {
 
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
+    // Secure, tamper-proof time check with resilient mobile operator fallback
     const fetchSecureApiTimeIST = async () => {
         try {
             const res = await fetch(`https://worldtimeapi.org/api/timezone/Asia/Kolkata?nocache=${Date.now()}`, { cache: 'no-store' });
@@ -60,9 +74,23 @@ window.attendanceApp = () => {
                 }).format(new Date(cleanISO));
                 
             } catch (fallbackError) {
-                console.error("CRITICAL: Both primary and secondary time APIs are unreachable.");
-                alert("Security Error: Unable to verify strict IST time via API. Action blocked. Please check your connection.");
-                return null; 
+                console.warn("Secondary API blocked or down. Initiating Supabase server timestamp verification...");
+                try {
+                    // Extract Date Header directly from project Supabase instance
+                    const res = await fetch('https://lpthzknjzmxwukwpvhii.supabase.co', { method: 'HEAD' });
+                    const serverDateStr = res.headers.get('date');
+                    if (serverDateStr) {
+                        const trueEpochMs = new Date(serverDateStr).getTime();
+                        return new Intl.DateTimeFormat('en-US', { 
+                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
+                        }).format(new Date(trueEpochMs));
+                    }
+                    throw new Error("Date header absent");
+                } catch (supabaseError) {
+                    console.error("CRITICAL: All server clocks are unreachable.");
+                    alert("Security Error: Unable to verify strict IST time via API. Action blocked. Please check your connection.");
+                    return null; 
+                }
             }
         }
     };
@@ -178,7 +206,6 @@ window.attendanceApp = () => {
             { id: 'co', display: 'CO', label: 'Comp Off', color: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-500', hex: '#0f766e', value: 1 }
         ],
 
-        // UPDATED: Redesigned menu items with specific custom styled SVG layouts
         menuItems: [
             { 
                 id: 'portal', 
@@ -265,6 +292,13 @@ window.attendanceApp = () => {
             });
 
             await this.syncInitialConfig();
+
+            // Load Admin Authentication State locally to make sessions permanent
+            if (localStorage.getItem('rc_admin_authenticated') === 'true') {
+                this.isAdminAuthenticated = true;
+                this.adminPinInput = localStorage.getItem('rc_admin_pin') || '';
+            }
+
             await this.restoreSession();
 
             const todayRef = getISTDateObject();
@@ -326,14 +360,18 @@ window.attendanceApp = () => {
                 const { data: { session }, error } = await this.supabase.auth.getSession();
                 
                 if (error || !session) {
-                    localStorage.clear();
-                    sessionStorage.clear();
+                    // Do not wipe admin authentication here
+                    if (!this.isAdminAuthenticated) {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                    }
                     return;
                 }
 
                 if (session) {
                     if (session.user.email === 'master@revcentric.local') {
                         this.isAdminAuthenticated = true;
+                        localStorage.setItem('rc_admin_authenticated', 'true');
                         this.setupUserRealtime();
                         this.syncUserData(true);
                     } else {
@@ -370,7 +408,7 @@ window.attendanceApp = () => {
                 }
             } catch (e) { 
                 console.error("Session restore failed", e); 
-                localStorage.clear(); 
+                if (!this.isAdminAuthenticated) localStorage.clear(); 
             }
         },
 
@@ -649,8 +687,8 @@ window.attendanceApp = () => {
         async upsertLeaveCloud(req) {
             try {
                 await this.supabase.from('leave_requests').upsert({
-                    id: req.id, emp_id: req.empId, type: req.type, start_date: req.startDate, 
-                    end_date: req.endDate, reason: req.reason, status: req.status
+                    id: req.id, emp_id: req.empId, type: req.type, start_date: req.start_date || req.startDate, 
+                    end_date: req.end_date || req.endDate, reason: req.reason, status: req.status
                 });
             } catch(e) { console.error("Leave save error", e); }
         },
@@ -2351,6 +2389,10 @@ window.attendanceApp = () => {
                 }
 
                 this.isAdminAuthenticated = true; 
+                // Set persistent local flags for admin sessions
+                localStorage.setItem('rc_admin_authenticated', 'true');
+                localStorage.setItem('rc_admin_pin', this.adminPinInput);
+
                 this.adminPinInput = ''; 
                 this.adminFailedAttempts = 0; 
                 this.resetIdleTimer();
@@ -2366,6 +2408,8 @@ window.attendanceApp = () => {
 
         async logoutAdmin() { 
             this.isAdminAuthenticated = false; 
+            localStorage.removeItem('rc_admin_authenticated');
+            localStorage.removeItem('rc_admin_pin');
             this.view = 'portal'; 
             if(this.idleInterval) clearInterval(this.idleInterval); 
 
@@ -2427,10 +2471,10 @@ window.attendanceApp = () => {
                 let attQuery = this.supabase.from('attendance').select('*').gte('date', this.summaryStartDate).lte('date', this.summaryEndDate);
                 let punchQuery = this.supabase.from('punch_logs').select('*').gte('date', this.summaryStartDate).lte('date', this.summaryEndDate);
                 let breakQuery = this.supabase.from('break_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
-                let capQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
+                let apiQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
 
                 const [{ data: aData }, { data: pData }, { data: bData }, { data: capData }] = await Promise.all([
-                    attQuery, punchQuery, breakQuery, capQuery
+                    attQuery, punchQuery, breakQuery, apiQuery
                 ]);
 
                 if (aData) {
