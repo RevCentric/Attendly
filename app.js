@@ -209,60 +209,51 @@ window.attendanceApp = () => {
         menuItems: [
             { 
                 id: 'portal', 
-                label: 'Personnel', 
-                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="4" width="18" height="16" rx="2"/>
-                    <circle cx="9" cy="12" r="2.5"/>
-                    <path d="M14 9h4M14 13h4M14 17h2"/>
-                </svg>` 
+                label: 'Portal', 
+                admin: false,
+                color: 'text-sky-500 hover:text-sky-600',
+                // iOS Style: Solid rounded house (house.fill)
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.12 2.38a1.5 1.5 0 0 1 1.76 0l8.25 6.09A1.5 1.5 0 0 1 21.5 9.68V20a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5v-5a1.5 1.5 0 0 0-1.5-1.5h-2A1.5 1.5 0 0 0 9.5 16.5v5a.5.5 0 0 1-.5.5H4.5a2 2 0 0 1-2-2V9.68a1.5 1.5 0 0 1 .37-1.21l8.25-6.09z"/></svg>'
             },
             { 
                 id: 'dashboard', 
                 label: 'Stats', 
-                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 20V10M12 20V4M6 20v-6"/>
-                </svg>`, 
-                admin: true 
+                admin: true,
+                color: 'text-indigo-500 hover:text-indigo-600',
+                // iOS Style: Solid rounded bar chart (chart.bar.fill)
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="15" width="4" height="6" rx="1.5"/><rect x="10" y="9" width="4" height="12" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg>'
             },
             { 
                 id: 'record', 
                 label: 'Log', 
-                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
-                </svg>`, 
-                admin: true 
+                admin: true,
+                color: 'text-emerald-500 hover:text-emerald-600',
+                // iOS Style: Solid document with folded corner (doc.text.fill)
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5V8h4.5L13 3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>'
             },
             { 
                 id: 'members', 
                 label: 'Roster', 
-                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>`, 
-                admin: true 
+                admin: true,
+                color: 'text-violet-500 hover:text-violet-600',
+                // iOS Style: Layered multi-person with opacity depth (person.3.fill)
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8c0-2.5 3.5-4 7-4s7 1.5 7 4v1H5v-1z"/><path d="M17 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm3.5 7.5c-1-.7-2.3-1.3-4-1.7.9 1 1.5 2 1.5 3.2v1h4v-.5c0-1.1-.5-2.2-1.5-2z" fill-opacity="0.5"/><path d="M7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3.5 17.5c-1 .2-1.5 1.3-1.5 2.5v1h4v-1c0-1.2.6-2.2 1.5-3.2-1.7.4-3 1-4 1.7z" fill-opacity="0.5"/></svg>'
             },
             { 
                 id: 'summary', 
                 label: 'Reports', 
-                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <path d="M16 13H8M16 17H8M10 9H8"/>
-                </svg>`, 
-                admin: true 
+                admin: true,
+                color: 'text-amber-500 hover:text-amber-600',
+                // iOS Style: Dual-tone segmented pie chart (chart.pie.fill)
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10h-9a1 1 0 0 1-1-1V2z"/><path d="M14 2.1c4.5 1 8 4.6 8.9 9.1h-8.9V2.1z" fill-opacity="0.5"/></svg>'
             },
             { 
                 id: 'master', 
-                label: 'Master', 
-                icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
-                    <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-                    <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/>
-                </svg>`, 
-                admin: true 
+                label: 'Master Config', 
+                admin: true,
+                color: 'text-rose-500 hover:text-rose-600',
+                // iOS Style: Solid mechanical gear (gearshape.fill)
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>'
             }
         ],
 
