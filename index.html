@@ -812,7 +812,90 @@
 
                                         </div>
                                     </div>
-                                </div>                              
+                                </div>  
+<!-- NEW: Admin Exceptions Card -->
+<template x-if="isManagerOrLead">
+    <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow overflow-y-auto custom-scrollbar"
+     x-data="{ openGroup: 'absent' }">
+    
+    <div class="flex items-start justify-between mb-4 border-b border-zinc-200/50 pb-4">
+        <h5 class="text-md font-black tracking-tight uppercase text-zinc-805">Active Shift Exceptions</h5>
+        <span class="px-2 py-1 bg-zinc-100 text-zinc-500 rounded-md text-[9px] font-black uppercase tracking-widest border border-zinc-200/50" x-text="formatDate(getActiveShiftDate())"></span>
+    </div>
+    
+    <div class="space-y-3">
+        <!-- Group 1: Absent / LOP -->
+        <div class="border border-rose-100 rounded-xl overflow-hidden">
+            <button @click="openGroup = (openGroup === 'absent' ? '' : 'absent')" class="w-full p-3 bg-rose-50 flex justify-between items-center text-[10px] font-black uppercase text-rose-600 tracking-widest">
+                Absent / LOP <span x-text="openGroup === 'absent' ? '▼' : '▶'"></span>
+            </button>
+            <div x-show="openGroup === 'absent'" x-collapse class="p-2 space-y-1.5">
+                <template x-for="m in filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === 'a' || attendanceData[getActiveShiftDate()]?.[m.id] === 'lop')" :key="m.id">
+                    <div class="p-2 bg-white border border-rose-100 rounded-lg flex flex-col">
+                        <span class="text-[11px] font-bold text-zinc-900" x-text="m.name"></span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-0.5" x-text="m.dept || 'General'"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Group 2: Permissions -->
+        <div class="border border-amber-100 rounded-xl overflow-hidden">
+            <button @click="openGroup = (openGroup === 'perm' ? '' : 'perm')" class="w-full p-3 bg-amber-50 flex justify-between items-center text-[10px] font-black uppercase text-amber-600 tracking-widest">
+                Permissions <span x-text="openGroup === 'perm' ? '▼' : '▶'"></span>
+            </button>
+            <div x-show="openGroup === 'perm'" x-collapse class="p-2 space-y-1.5">
+                <template x-for="m in filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === '1p' || attendanceData[getActiveShiftDate()]?.[m.id] === '2p')" :key="m.id">
+                    <div class="p-2 bg-white border border-amber-100 rounded-lg flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[11px] font-bold text-zinc-900" x-text="m.name"></span>
+                            <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-0.5" x-text="m.dept || 'General'"></span>
+                        </div>
+                        <span class="text-[11px] font-bold text-amber-700" x-text="attendanceData[getActiveShiftDate()][m.id] === '1p' ? '1HR' : '2HR'"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Group 3: Missing Punch-In -->
+        <div class="border border-zinc-200 rounded-xl overflow-hidden">
+            <button @click="openGroup = (openGroup === 'missing' ? '' : 'missing')" class="w-full p-3 bg-zinc-100 flex justify-between items-center text-[10px] font-black uppercase text-zinc-600 tracking-widest">
+                Missing Punch-In <span x-text="openGroup === 'missing' ? '▼' : '▶'"></span>
+            </button>
+            <div x-show="openGroup === 'missing'" x-collapse class="p-2 space-y-1.5">
+                <template x-for="m in filteredMembers.filter(m => !punchLogs[getActiveShiftDate()]?.[m.id]?.in && !['a', 'h', 'fh', 'co', 'lop', 'w'].includes(attendanceData[getActiveShiftDate()]?.[m.id]))" :key="m.id">
+                    <div class="p-2 bg-white border border-zinc-200 rounded-lg flex flex-col">
+                        <span class="text-[11px] font-bold text-zinc-900" x-text="m.name"></span>
+                        <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-0.5" x-text="m.dept || 'General'"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Group 4: Break Exceeded -->
+        <div class="border border-purple-100 rounded-xl overflow-hidden">
+            <button @click="openGroup = (openGroup === 'break' ? '' : 'break')" class="w-full p-3 bg-purple-50 flex justify-between items-center text-[10px] font-black uppercase text-purple-700 tracking-widest">
+                Break Exceeded <span x-text="openGroup === 'break' ? '▼' : '▶'"></span>
+            </button>
+            <div x-show="openGroup === 'break'" x-collapse class="p-2 space-y-1.5">
+                <template x-for="m in filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60)" :key="m.id">
+                    <div class="p-2 bg-white border border-purple-100 rounded-lg flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[11px] font-bold text-zinc-900" x-text="m.name"></span>
+                            <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-0.5" x-text="m.dept || 'General'"></span>
+                        </div>
+                        <span class="text-[11px] font-bold text-purple-600 animate-pulse" x-text="calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) + 'm'"></span>
+                    </div>
+                </template>
+                <template x-if="filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60).length === 0">
+                    <div class="text-[10px] p-2 text-center text-zinc-400 font-bold uppercase tracking-widest">None</div>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+</template> 
+                         
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
                                         <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Exception Log</h5>
@@ -842,28 +925,44 @@
                                 </div>
 
                                 <template x-if="isManagerOrLead || isAdminAuthenticated">
-                                    <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
-                                        <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                            <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Month's Celebrations</h5>
-                                            <span class="px-2 py-1 bg-pink-50 text-pink-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-pink-200" x-text="monthEvents.length + ' Events'"></span>
-                                        </div>
-                                        <div class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
-                                            <div class="space-y-2">
-                                                <template x-for="ev in monthEvents" :key="ev.id">
-                                                    <div class="p-3 bg-white/50 rounded-xl border border-zinc-200/50 flex items-center gap-4 hover:bg-white hover:border-zinc-300 hover:shadow-sm transition-all">
-                                                        <div class="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl shadow-sm shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
-                                                        <div class="flex-1">
-                                                            <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="ev.member.name"></h5>
-                                                            <p class="text-[10px] font-black text-zinc-505 uppercase tracking-[0.2em] mt-0.5" x-text="ev.title + ' • Day ' + ev.day"></p>
-                                                        </div>
-                                                    </div>
-                                                </template>
-                                                <template x-if="monthEvents.length === 0">
-                                                    <div class="p-8 text-center text-zinc-400 font-bold uppercase tracking-widest text-[10px]">No events this month.</div>
-                                                </template>
-                                            </div>
-                                        </div>
-                                    </div>
+                                  <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow"
+     x-data="{ mainOpen: true, openGroup: 'birthday' }"> <!-- Set mainOpen to true to default to expanded -->
+    
+    <!-- HEADER: Clickable area that toggles the entire card content -->
+    <div @click="mainOpen = !mainOpen" class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0 cursor-pointer hover:bg-zinc-50/50 transition-colors px-2 -mx-2 rounded-xl">
+        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Month's Celebrations</h5>
+        <span class="px-2 py-1 bg-pink-50 text-pink-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-pink-200" 
+              x-text="monthEvents.length + ' Events'">
+        </span>
+    </div>
+
+    <!-- Collapsible Container -->
+    <div x-show="mainOpen" x-collapse class="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+        <div class="space-y-3">
+            <template x-for="type in ['birthday', 'anniversary']" :key="type">
+                <div class="border border-zinc-200 rounded-xl overflow-hidden">
+                    <button @click="openGroup = (openGroup === type ? '' : type)" 
+                            class="w-full p-3 bg-zinc-100 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
+                        <span x-text="type + 's'"></span>
+                        <span x-text="openGroup === type ? '▼' : '▶'"></span>
+                    </button>
+                    
+                    <div x-show="openGroup === type" x-collapse class="p-2 space-y-2">
+                        <template x-for="ev in monthEvents.filter(e => e.type === type)" :key="ev.id">
+                            <div class="p-3 bg-white/50 rounded-xl border border-zinc-200/50 flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center font-black text-xl shadow-sm shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
+                                <div class="flex-1">
+                                    <h5 class="text-sm font-black uppercase text-zinc-900 tracking-tight" x-text="ev.member.name"></h5>
+                                    <p class="text-[10px] font-black text-zinc-505 uppercase tracking-[0.2em] mt-0.5" x-text="ev.title + ' • Day ' + ev.day"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
                                 </template>
 
                                 <template x-if="userSession?.captchaEnabled">
@@ -1632,14 +1731,15 @@
 </button>
 
 <button @click="showNotifications = !showNotifications" 
-        class="w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-indigo-500 transition-all active:scale-95 relative">
+        class="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 relative"
+        :class="notificationGlowClass"> <!-- Using our new dynamic Javascript getter -->
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
         <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
     </svg>
-    <span class="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-900"></span>
+    <!-- Red dot stays as a secondary indicator for active attention required -->
+    <span x-show="todayEvents.length > 0 || ((isAdminAuthenticated || isManagerOrLead) && (pendingLeaveCount > 0 || offenderAlerts.length > 0))" class="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-900"></span>
 </button>
-
                     <!-- Click-triggered Avatar profile options block -->
                     <div class="relative flex justify-center ml-1" x-data="{ showUserDropdown: false }">
                         <img :src="`https://api.dicebear.com/7.x/adventurer/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
@@ -1679,81 +1779,6 @@
         </div>
     </div>
 
-    <div x-show="showNotifications && (userSession || isAdminAuthenticated)" class="fixed inset-0 z-[5000] flex justify-end" x-transition x-cloak>
-        <div class="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm" @click="showNotifications = false"></div>
-        <div class="relative w-full max-w-md bg-white/90 backdrop-blur-xl h-full shadow-2xl flex flex-col p-8 space-y-6 animate-in slide-in-from-right border-l border-white/50">
-            <div class="flex items-center justify-between">
-                <h3 class="text-3xl font-black tracking-tighter uppercase leading-none">Notifications</h3>
-                <button @click="showNotifications = false" class="text-zinc-400 text-sm font-black uppercase tracking-widest hover:text-zinc-955 transition-colors">Close</button>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-2">
-                
-        <!-- 1. TODAY'S CELEBRATIONS -->
-<div x-show="todayEvents.length > 0" class="space-y-3">
-    <h4 class="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] px-1">Today's Celebrations</h4>
-    <template x-for="ev in todayEvents" :key="ev.id">
-        <div class="group relative bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800 p-4 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all duration-300">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
-                <div class="min-w-0 flex-1">
-                    <p class="font-black uppercase text-xs text-zinc-955 dark:text-white truncate" x-text="ev.member.name"></p>
-                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1" :class="ev.color" x-text="ev.title"></p>
-                </div>
-            </div>
-        </div>
-    </template>
-</div>
-
-<!-- 2. AI INSIGHTS -->
-<div x-show="offenderAlerts.length > 0" class="space-y-3">
-    <h4 class="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em] px-1">AI Insights</h4>
-    <template x-for="alert in offenderAlerts" :key="alert.id">
-        <div class="group relative bg-rose-50/50 dark:bg-rose-950/20 backdrop-blur-md border border-rose-200/50 dark:border-rose-900/30 p-4 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all duration-300">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0 bg-rose-100 text-rose-600" x-text="alert.icon"></div>
-                <div class="min-w-0 flex-1">
-                    <p class="font-black uppercase text-xs text-zinc-955 dark:text-white truncate" x-text="alert.member.name"></p>
-                    <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-rose-600" x-text="alert.message"></p>
-                </div>
-            </div>
-        </div>
-    </template>
-</div>
-
-<!-- 3. PENDING APPROVALS -->
-<div x-show="(isAdminAuthenticated || isManagerOrLead) && pendingLeaveCount > 0" class="space-y-3">
-    <h4 class="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] px-1">Pending Approvals</h4>
-    <template x-for="req in leaveRequests.filter(r => r.status === 'pending')" :key="req.id">
-        <div class="group relative bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-zinc-200/50 dark:border-zinc-800 p-4 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all duration-300">
-            <div class="flex items-start gap-4">
-                <div class="w-12 h-12 bg-zinc-950 text-white rounded-2xl flex items-center justify-center font-black text-sm shrink-0" x-text="req.name ? req.name.charAt(0) : '?'"></div>
-                <div class="min-w-0 flex-1 space-y-2">
-                    <div>
-                        <p class="font-black uppercase text-xs text-zinc-955 dark:text-white truncate" x-text="req.name"></p>
-                        <p class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5" x-text="(statusOptions.find(s => s.id === req.type)?.label || 'Leave')"></p>
-                    </div>
-                    <p class="text-[10px] font-bold text-zinc-400" x-text="formatDate(req.startDate) + ' to ' + formatDate(req.endDate)"></p>
-                    <div class="flex gap-2 pt-1">
-                        <button @click="approveLeave(req.id)" class="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-emerald-700 transition-colors">Approve</button>
-                        <button @click="rejectLeave(req.id)" class="flex-1 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-zinc-200 transition-colors">Reject</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </template>
-</div>
-
-<!-- EMPTY STATE -->
-<div x-show="((!isAdminAuthenticated && !isManagerOrLead) || pendingLeaveCount === 0) && todayEvents.length === 0 && offenderAlerts.length === 0" class="py-20 flex flex-col items-center justify-center text-zinc-400">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mb-4 opacity-50"><path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h8"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/><path d="m16 19 2 2 4-4"/></svg>
-    <span class="font-black uppercase text-[10px] tracking-widest opacity-80">Inbox Zero</span>
-</div>
-                
-            </div>
-        </div>
-    </div>
-
     <!-- Confirm Exit Modal -->
     <div x-show="showLogoutModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showLogoutModal = false"></div>
@@ -1772,38 +1797,147 @@
         </div>
     </div>
 
-    <!-- Time-off Request Modal -->
-    <div x-show="showLeaveModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
-        <div class="absolute inset-0 bg-zinc-955/80 backdrop-blur-sm" @click="showLeaveModal = false"></div>
-        <div class="relative bg-white/90 backdrop-blur-xl rounded-[2.5rem] w-full max-w-lg p-6 md:p-10 space-y-8 animate-in zoom-in-95 shadow-2xl border border-white/50">
-            <h4 class="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none">Time-off Request</h4>
-            <div class="space-y-6">
-                <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Category</label>
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        <button @click="newLeave.type = 'a'" :class="newLeave.type === 'a' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Full Day</button>
-                        <button @click="newLeave.type = 'h'" :class="newLeave.type === 'h' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Half Day</button>
-                        <button @click="newLeave.type = 'wfh'" :class="newLeave.type === 'wfh' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">WFH</button>
-                        <button @click="newLeave.type = '1p'" :class="newLeave.type === '1p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">1Hr Perm</button>
-                        <button @click="newLeave.type = '2p'" :class="newLeave.type === '2p' ? 'bg-[#0f4c81] text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">2Hr Perm</button>
-                        <button @click="newLeave.type = 'lop'" :class="newLeave.type === 'lop' ? 'bg-rose-600 text-white shadow-md' : 'bg-white/50 text-zinc-600 hover:bg-white'" class="py-3.5 rounded-xl font-black text-[10px] uppercase transition-all border border-zinc-200/50">Unplanned</button>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Start</label><input type="date" x-model="newLeave.startDate" class="w-full p-4 bg-white/50 border border-zinc-200/50 rounded-2xl font-black text-xs outline-none"></div>
-                    <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">End</label><input type="date" x-model="newLeave.endDate" class="w-full p-4 bg-white/50 border border-zinc-200/50 rounded-2xl font-black text-xs outline-none"></div>
-                </div>
-                <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-500">Notes</label><textarea x-model="newLeave.reason" rows="3" class="w-full p-4 bg-white/50 border border-zinc-200/50 rounded-2xl font-bold text-xs outline-none resize-none"></textarea></div>
-                <div class="flex flex-col md:flex-row gap-4"><button @click="submitLeave()" class="flex-1 py-5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-transform w-full shadow-md">Submit Request</button><button @click="showLeaveModal = false" class="px-8 py-5 bg-zinc-100/80 hover:bg-zinc-200/80 transition-colors text-zinc-700 rounded-2xl font-black text-xs uppercase tracking-widest w-full md:w-auto">Cancel</button></div>
+    <!-- Redesigned Time-off Request Modal -->
+<div x-show="showLeaveModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-4 md:p-6" x-transition x-cloak>
+    <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-md" @click="showLeaveModal = false"></div>
+    
+    <div class="relative bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] w-full max-w-lg p-8 md:p-10 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+        <!-- Header -->
+        <div class="flex justify-between items-start mb-8">
+            <div>
+                <h4 class="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">Time-off Request</h4>
+                <p class="text-[10px] font-black uppercase tracking-widest text-zinc-400 mt-1">Submit your request for leave or permission</p>
             </div>
+            <button @click="showLeaveModal = false" class="text-zinc-400 hover:text-rose-500 transition-colors">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Form Grid -->
+        <div class="space-y-6">
+            <!-- Category Selection -->
+            <div class="space-y-3">
+                <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400">Select Category</label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <template x-for="cat in [
+                        {id: 'a', label: 'Full Day'}, {id: 'h', label: 'Half Day'}, {id: 'wfh', label: 'WFH'}, 
+                        {id: '1p', label: '1 Hr Perm'}, {id: '2p', label: '2 Hr Perm'}, {id: 'lop', label: 'Unplanned'}
+                    ]">
+                        <button @click="newLeave.type = cat.id" 
+                                :class="newLeave.type === cat.id ? 'bg-[#0f4c81] text-white shadow-lg shadow-[#0f4c81]/20' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200'" 
+                                class="py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all">
+                            <span x-text="cat.label"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Date Range -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400">Start Date</label>
+                    <input type="date" x-model="newLeave.startDate" class="w-full p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs outline-none focus:border-[#0f4c81] transition-colors">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400">End Date</label>
+                    <input type="date" x-model="newLeave.endDate" class="w-full p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs outline-none focus:border-[#0f4c81] transition-colors">
+                </div>
+            </div>
+
+            <!-- Reason -->
+            <div class="space-y-1.5">
+                <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400">Reason / Notes</label>
+                <textarea x-model="newLeave.reason" rows="2" placeholder="Briefly explain your request..." class="w-full p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-bold text-xs outline-none focus:border-[#0f4c81] transition-colors resize-none"></textarea>
+            </div>
+
+            <!-- Action Buttons -->
+            <button @click="submitLeave()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-lg shadow-[#f26522]/20 active:scale-[0.98] transition-all">
+                Submit Request
+            </button>
         </div>
     </div>
+</div>
 
-    <!-- Notification Toast Alerts -->
-    <div x-show="notification" x-transition class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[6000] px-8 py-4 rounded-2xl shadow-2xl bg-[#0f4c81] text-white text-[11px] font-black flex items-center gap-3 border border-[#0a3861] w-[90%] md:w-auto text-center md:text-left justify-center md:justify-start">
-        <div class="w-2 h-2 rounded-full shrink-0" :class="notification?.type === 'error' ? 'bg-rose-500' : 'bg-[#f26522] animate-pulse'"></div><span x-text="notification?.msg"></span>
+<!-- Floating Collapsible Notification Window -->
+<div x-show="showNotifications" class="fixed inset-0 z-[5000] flex items-center justify-center p-4" x-cloak>
+    <!-- Dark Background Overlay -->
+    <div class="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm" @click="showNotifications = false"></div>
+    
+    <!-- Centered Medium Window -->
+    <div x-data="{ openGroups: ['events', 'alerts', 'pending'] }" 
+         class="relative w-full max-w-sm bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl rounded-[2rem] shadow-2xl flex flex-col p-6 max-h-[80vh] animate-in zoom-in-95 duration-200 border border-zinc-200 dark:border-zinc-800">
+        
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-black uppercase tracking-tighter">Notifications</h3>
+            <button @click="showNotifications = false" class="text-zinc-400 text-[10px] font-black uppercase tracking-widest hover:text-zinc-955 transition-colors">Close</button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto custom-scrollbar pr-1">
+            
+            <!-- Collapsible Group: Events -->
+            <div class="mb-4">
+                <button @click="openGroups.includes('events') ? openGroups = openGroups.filter(i => i !== 'events') : openGroups.push('events')" 
+                        class="w-full flex justify-between items-center py-3 text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-zinc-200">
+                    Today's Celebrations <span x-text="openGroups.includes('events') ? '▼' : '▶'"></span>
+                </button>
+                <div x-show="openGroups.includes('events')" x-collapse class="py-2 space-y-3">
+                    <template x-for="ev in todayEvents" :key="ev.id">
+                        <div class="bg-white/60 p-4 rounded-[1.5rem] border border-zinc-200 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-black uppercase text-xs text-zinc-955 truncate" x-text="ev.member.name"></p>
+                                <p class="text-[9px] font-bold uppercase tracking-widest mt-1" :class="ev.color" x-text="ev.title"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Collapsible Group: AI Insights -->
+            <div class="mb-4">
+                <button @click="openGroups.includes('alerts') ? openGroups = openGroups.filter(i => i !== 'alerts') : openGroups.push('alerts')" 
+                        class="w-full flex justify-between items-center py-3 text-[10px] font-black uppercase tracking-widest text-rose-500 border-b border-zinc-200">
+                    AI Insights <span x-text="openGroups.includes('alerts') ? '▼' : '▶'"></span>
+                </button>
+                <div x-show="openGroups.includes('alerts')" x-collapse class="py-2 space-y-3">
+                    <template x-for="alert in offenderAlerts" :key="alert.id">
+                        <div class="bg-rose-50/50 p-4 rounded-[1.5rem] border border-rose-200 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner shrink-0 bg-rose-100 text-rose-600" x-text="alert.icon"></div>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-black uppercase text-xs text-zinc-955 truncate" x-text="alert.member.name"></p>
+                                <p class="text-[9px] font-bold uppercase tracking-widest mt-1 text-rose-600" x-text="alert.message"></p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Collapsible Group: Pending Approvals -->
+            <div x-show="(isAdminAuthenticated || isManagerOrLead) && pendingLeaveCount > 0">
+                <button @click="openGroups.includes('pending') ? openGroups = openGroups.filter(i => i !== 'pending') : openGroups.push('pending')" 
+                        class="w-full flex justify-between items-center py-3 text-[10px] font-black uppercase tracking-widest text-indigo-500 border-b border-zinc-200">
+                    Pending Approvals <span x-text="openGroups.includes('pending') ? '▼' : '▶'"></span>
+                </button>
+                <div x-show="openGroups.includes('pending')" x-collapse class="py-2 space-y-3">
+                    <template x-for="req in leaveRequests.filter(r => r.status === 'pending')" :key="req.id">
+                        <div class="bg-white/60 p-4 rounded-[1.5rem] border border-zinc-200 shadow-sm flex items-start gap-4">
+                            <div class="w-12 h-12 bg-zinc-950 text-white rounded-2xl flex items-center justify-center font-black text-sm shrink-0" x-text="req.name ? req.name.charAt(0) : '?'"></div>
+                            <div class="min-w-0 flex-1 space-y-2">
+                                <p class="font-black uppercase text-xs text-zinc-955 truncate" x-text="req.name"></p>
+                                <p class="text-[10px] font-bold text-zinc-400" x-text="formatDate(req.startDate) + ' to ' + formatDate(req.endDate)"></p>
+                                <div class="flex gap-2">
+                                    <button @click="approveLeave(req.id)" class="flex-1 py-2 bg-emerald-600 text-white rounded-lg font-black text-[9px] uppercase tracking-widest">Approve</button>
+                                    <button @click="rejectLeave(req.id)" class="flex-1 py-2 bg-zinc-200 text-zinc-600 rounded-lg font-black text-[9px] uppercase tracking-widest">Reject</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+        </div>
     </div>
-
+</div>
     <!-- Deletion Confirmation Modal -->
     <div x-show="showDeleteModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showDeleteModal = false"></div>
