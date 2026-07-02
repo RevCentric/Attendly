@@ -1251,6 +1251,31 @@ window.attendanceApp = () => {
             return events.sort((a, b) => a.day - b.day);
         },
 
+get notificationGlowClass() {
+            // 1. Pink glow for Birthdays
+            if (this.todayEvents.some(e => e.type === 'birthday')) {
+                return 'shadow-[0_0_15px_rgba(236,72,153,0.6)] animate-pulse text-pink-500';
+            }
+            // 2. Emerald glow for Anniversaries
+            if (this.todayEvents.some(e => e.type === 'anniversary')) {
+                return 'shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse text-emerald-500';
+            }
+            // 3. Rose glow for AI Security Insights (Admins/Managers)
+            if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.offenderAlerts.length > 0) {
+                return 'shadow-[0_0_15px_rgba(244,63,94,0.6)] animate-pulse text-rose-500';
+            }
+            // 4. Indigo glow for Pending Approvals (Admins/Managers)
+            if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.pendingLeaveCount > 0) {
+                return 'shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-pulse text-indigo-500';
+            }
+            // 5. Default Brand Orange for general month events
+            if (this.todayEvents.length > 0 || this.monthEvents.length > 0) {
+                return 'shadow-[0_0_15px_rgba(242,101,34,0.6)] animate-pulse text-[#f26522]';
+            }
+            // 6. Idle state (no notifications)
+            return 'text-zinc-400 hover:text-indigo-500';
+        },
+
         get offenderAlerts() {
             const alerts = [];
             const todayStr = this.getActiveShiftDate();
