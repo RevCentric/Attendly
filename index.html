@@ -482,7 +482,7 @@
         <button @click="dropdownOpen = !dropdownOpen" @click.away="dropdownOpen = false" type="button" 
                 class="w-full px-4 py-3 bg-white/10 dark:bg-zinc-800/50 backdrop-blur-md border border-zinc-200 dark:border-zinc-700 rounded-xl text-[10px] font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 outline-none flex items-center justify-between hover:bg-white/20 dark:hover:bg-zinc-700/50 transition-all shadow-sm">
             
-            <span class="flex items-center gap-2" x-text="selectedBreakType || 'SELECT BREAK CATEGORY'"></span>
+            <span class="flex items-center gap-2" x-text="selectedBreakType || 'BREAK CATEGORY'"></span>
             
             <svg :class="dropdownOpen ? 'rotate-180' : ''" class="w-4 h-4 transition-transform duration-300 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
@@ -1788,7 +1788,7 @@
                 <div class="w-px h-8 bg-zinc-200/80 mx-2 shrink-0 hidden sm:block"></div>
 
                 <!-- Middle: Navigation Items -->
-                <div class="flex items-center gap-x-1.5 px-1 md:px-2 overflow-x-auto no-scrollbar py-1 max-w-[70vw] sm:max-w-none">
+<div class="flex-1 min-w-0 flex items-center gap-x-1.5 px-1 md:px-2 overflow-x-auto no-scrollbar py-1">
                     <template x-for="item in menuItems" :key="item.id">
                         <button x-show="!item.admin || isManagerOrLead" 
         @click="view = item.id; resetMemberForm()" 
@@ -1807,71 +1807,91 @@
                 <!-- Vertical Divider -->
                 <div class="w-px h-8 bg-zinc-200/80 mx-1.5 md:mx-2 shrink-0"></div>
 
-                <!-- Right: Utility Controls & Profile -->
-                <div class="flex items-center gap-x-1 px-1 md:px-2 shrink-0 relative">
+<!-- Right: Utility Controls & Profile -->
+<div class="flex items-center gap-1 md:gap-1.5 pr-1 shrink-0">
 
-                    <button @click="toggleMemberVerification(userSession.id)"
-        class="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95"
-        :class="userSession?.captchaEnabled ? 'text-emerald-500 bg-emerald-50/50' : 'text-zinc-400 hover:text-indigo-500'">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        <path d="m9 12 2 2 4-4" x-show="userSession?.captchaEnabled"/>
-    </svg>
-</button>
+    <!-- Notifications -->
+    <button @click="showNotifications = !showNotifications" 
+            class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:-translate-y-1 relative group"
+            :class="notificationGlowClass">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:origin-top group-hover:rotate-12 transition-transform">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <!-- Enhanced Ping -->
+        <span x-show="todayEvents.length > 0 || ((isAdminAuthenticated || isManagerOrLead) && (pendingLeaveCount > 0 || offenderAlerts.length > 0))" class="absolute top-2 right-2 flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 border border-white dark:border-zinc-900"></span>
+        </span>
+    </button>
 
-<button @click="showLeaveModal = true" 
-        class="w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-amber-500 transition-all active:scale-95">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2"/>
-        <path d="M16 2v4M8 2v4M3 10h18"/>
-    </svg>
-</button>
-
-<button @click="showNotifications = !showNotifications" 
-        class="w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 relative"
-        :class="notificationGlowClass"> <!-- Using our new dynamic Javascript getter -->
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-    </svg>
-    <!-- Red dot stays as a secondary indicator for active attention required -->
-    <span x-show="todayEvents.length > 0 || ((isAdminAuthenticated || isManagerOrLead) && (pendingLeaveCount > 0 || offenderAlerts.length > 0))" class="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-zinc-900"></span>
-</button>
-                    <!-- Click-triggered Avatar profile options block -->
-                    <div class="relative flex justify-center ml-1" x-data="{ showUserDropdown: false }">
-                        <img :src="`https://api.dicebear.com/7.x/adventurer/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
-     alt="User Profile" 
-     @click="showUserDropdown = !showUserDropdown"
-     @click.away="showUserDropdown = false"
-     class="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 border-2 border-white dark:border-zinc-800 shadow-md object-cover cursor-pointer hover:ring-2 hover:ring-[#0f4c81]/50 transition-all hover:scale-105" />                        
-                        <div x-show="showUserDropdown" 
-                             x-transition:enter="transition ease-out duration-150"
-                             x-transition:enter-start="opacity-0 scale-95"
-                             x-transition:enter-end="opacity-100 scale-100"
-                             x-transition:leave="transition ease-in duration-100"
-                             x-transition:leave-start="opacity-100 scale-100"
-                             x-transition:leave-end="opacity-0 scale-95"
-                             class="absolute bottom-full mb-4 right-0 p-4 bg-zinc-900 text-white rounded-[1.25rem] z-50 whitespace-nowrap min-w-[200px] shadow-2xl origin-bottom-right"
-                             x-cloak>
-                            <div class="space-y-1 mb-4 pb-4 border-b border-zinc-800">
-                                <h3 class="text-sm font-black tracking-tight leading-none text-white" x-text="'Hello, ' + userSession?.firstName"></h3>
-                                <p class="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1" x-text="(userSession?.role || 'Staff') + ' • ' + (userSession?.dept || 'General')"></p>
-                            </div>
-                            
-                            <div class="flex flex-col gap-2">
-                                <button @click="initiateLogout()" class="w-full py-2.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-3 px-3">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                                    Punch Out
-                                </button>
-                                <button @click="killSession()" class="w-full py-2.5 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-3 px-3">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                    Exit Portal
-                                </button>
-                            </div>
-                        </div>
+    <!-- Profile Avatar & Menu -->
+    <div class="relative flex justify-center ml-1" x-data="{ showUserDropdown: false }">
+        <!-- Gradient Hover Ring -->
+        <div class="p-0.5 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 hover:from-[#0f4c81] hover:to-[#f26522] transition-colors duration-500 cursor-pointer shadow-sm" @click="showUserDropdown = !showUserDropdown" @click.away="showUserDropdown = false">
+            <img :src="`https://api.dicebear.com/7.x/adventurer/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+                 alt="User Profile" 
+                 class="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 object-cover border-2 border-white dark:border-zinc-900 hover:scale-[0.95] transition-transform duration-300" />                        
+        </div>
+        
+        <!-- Floating Profile Menu -->
+        <div x-show="showUserDropdown" 
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-4 scale-95 blur-sm"
+             x-transition:enter-end="opacity-100 translate-y-0 scale-100 blur-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 translate-y-0 scale-100 blur-0"
+             x-transition:leave-end="opacity-0 translate-y-4 scale-95 blur-sm"
+             class="absolute bottom-[135%] right-0 p-2.5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] z-50 min-w-[220px] max-w-[calc(100vw-2rem)] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.3)] origin-bottom-right"
+             x-cloak>
+            
+            <div class="flex flex-col gap-1.5">
+                
+                <!-- Captcha Tool (Moved) -->
+                <button @click="toggleMemberVerification(userSession.id); showUserDropdown = false;" 
+                        class="w-full py-3 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-between px-4 group"
+                        :class="userSession?.captchaEnabled ? 'text-emerald-600 dark:text-emerald-400' : ''">
+                    <div class="flex items-center gap-3">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <path d="m9 12 2 2 4-4" x-show="userSession?.captchaEnabled"/>
+                        </svg>
+                        Verification
                     </div>
+                    <!-- Toggle Switch UI -->
+                    <div class="w-6 h-3.5 rounded-full relative transition-colors shadow-inner" :class="userSession?.captchaEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'">
+                        <div class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform shadow-sm" :class="userSession?.captchaEnabled ? 'translate-x-2.5' : ''"></div>
+                    </div>
+                </button>
 
-                </div>
+                <!-- Leave Request (Moved) -->
+                <button @click="showLeaveModal = true; showUserDropdown = false;" 
+                        class="w-full py-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-zinc-600 hover:text-amber-600 dark:text-zinc-400 dark:hover:text-amber-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+                        <rect x="3" y="4" width="18" height="18" rx="2"/>
+                        <path d="M16 2v4M8 2v4M3 10h18"/>
+                    </svg>
+                    Time Off Request
+                </button>
+
+               <!-- Visual Divider -->
+        <div class="h-px w-full bg-zinc-200/80 dark:bg-zinc-700/80 my-1"></div>
+
+        <!-- Punch Out -->
+        <button @click="initiateLogout(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:-translate-x-1 transition-transform"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Punch Out
+        </button>
+
+        <!-- Exit Portal -->
+        <button @click="killSession(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:-translate-x-1 transition-transform"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Exit Portal
+        </button>
+            </div>
+        </div>
+    </div>
+</div>
             </nav>
         </div>
     </div>
@@ -1910,22 +1930,23 @@
             </button>
         </div>
 
-        <!-- Form Grid -->
-        <div class="space-y-6">
-            <!-- Category Selection -->
-            <div class="space-y-3">
+        <!-- Category Selection -->
+            <div class="space-y-1.5">
                 <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400">Select Category</label>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <template x-for="cat in [
-                        {id: 'a', label: 'Full Day'}, {id: 'h', label: 'Half Day'}, {id: 'wfh', label: 'WFH'}, 
-                        {id: '1p', label: '1 Hr Perm'}, {id: '2p', label: '2 Hr Perm'}, {id: 'lop', label: 'Unplanned'}
-                    ]">
-                        <button @click="newLeave.type = cat.id" 
-                                :class="newLeave.type === cat.id ? 'bg-[#0f4c81] text-white shadow-lg shadow-[#0f4c81]/20' : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200'" 
-                                class="py-3 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all">
-                            <span x-text="cat.label"></span>
-                        </button>
-                    </template>
+                <div class="relative">
+                    <select x-model="newLeave.type" class="w-full p-3 pr-10 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs outline-none focus:border-[#0f4c81] transition-colors cursor-pointer text-zinc-800 dark:text-zinc-200 appearance-none">
+                        <option value="" disabled selected>Select Leave Type...</option>
+                        <template x-for="cat in [
+                            {id: 'a', label: 'Full Day'}, {id: 'h', label: 'Half Day'}, {id: 'wfh', label: 'WFH'}, 
+                            {id: '1p', label: '1 Hr Perm'}, {id: '2p', label: '2 Hr Perm'}, {id: 'lop', label: 'Unplanned'}
+                        ]">
+                            <option :value="cat.id" x-text="cat.label"></option>
+                        </template>
+                    </select>
+                    <!-- Custom Dropdown Arrow -->
+                    <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-zinc-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
                 </div>
             </div>
 
