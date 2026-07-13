@@ -1788,6 +1788,21 @@ get notificationGlowClass() {
             const limitPerMonth = totalYearlyLeaves / 12;
             const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
             const remainingYTD = proratedLimitYTD + dbYTD.compOffs - dbYTD.leaves;
+// Calculate Leave Forecasting
+const netUsedLeaves = Math.max(0, dbYTD.leaves - dbYTD.compOffs);
+let leaveMonthUtilizedNum = limitPerMonth > 0 ? Math.ceil(netUsedLeaves / limitPerMonth) : 0;
+if (leaveMonthUtilizedNum > 12) leaveMonthUtilizedNum = 12; // Cap visual display to December
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const leaveMonthStr = leaveMonthUtilizedNum > 0 ? monthNames[leaveMonthUtilizedNum - 1] : "N/A";
+const potentialLeaveLOP = Math.max(0, netUsedLeaves - totalYearlyLeaves);
+
+// Calculate Permission Forecasting
+const permLimitPerMonth = user.allowedPerm || 0;
+const totalYearlyPerms = permLimitPerMonth * 12;
+let permMonthUtilizedNum = permLimitPerMonth > 0 ? Math.ceil(dbYTD.permHours / permLimitPerMonth) : 0;
+if (permMonthUtilizedNum > 12) permMonthUtilizedNum = 12;
+const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum - 1] : "N/A";
+const potentialPermLOP = Math.max(0, dbYTD.permHours - totalYearlyPerms);
 
             return {
                 ...stats,
@@ -1808,6 +1823,10 @@ get notificationGlowClass() {
                     prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
                     prmUsedYTD: dbYTD.permHours, 
                     lopMTD: mtd.lop,
+		    leaveMonthUtilized: leaveMonthStr,
+            leaveLOPWarning: Number(potentialLeaveLOP.toFixed(2)),
+            permMonthUtilized: permMonthStr,
+            permLOPWarning: potentialPermLOP,	
                     
                     targetActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.targetActiveMins / mtd.completedDays) : baseTargetMins,
                     targetBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.targetBreakMins / mtd.completedDays) : allowedBreakMins,
