@@ -1,7 +1,7 @@
 window.attendanceApp = () => {
     let timeDrift = 0; 
 
-    const getNow = () => new Date(Date.now() + timeDrift);
+    const getNow = () => typeof window.getSecureDate === 'function' ? window.getSecureDate() : new Date(Date.now() + timeDrift);
 
     // Dynamic, resilient sync with public time APIs and Supabase Date Headers
     const syncTrueTime = async () => {
