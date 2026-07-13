@@ -2093,7 +2093,7 @@
             const controllers = [new AbortController(), new AbortController(), new AbortController()];
             const apis = [
                 { url: 'https://worldtimeapi.org/api/timezone/Asia/Kolkata', parser: d => new Date(d.datetime) },
-                { url: 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Kolkata', parser: d => new Date(d.dateTime) },
+                { url: 'https://timeapi.io/api/Time/current/zone?timeZone=Asia/Kolkata', parser: d => new Date(d.dateTime + '+05:30') },
                 { url: 'https://now.httpbin.org/', parser: d => new Date(d.now_utc) }
             ];
 
