@@ -1661,7 +1661,7 @@ get notificationGlowClass() {
                 const day = getISTDateObject(); day.setDate(day.getDate() - i);
                 const dk = getISTString(day);
                 const sObj = this.statusOptions.find(s => s.id === this.attendanceData[dk]?.[id]) || { id: '-', label: 'Unrecorded', color: 'text-zinc-400', bg: 'bg-zinc-100/50', display: '-' };
-                stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', {month:'short', day:'numeric', weekday:'short'}), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
+                stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', {month:'short', day:'numeric', weekday:'short', timeZone: 'UTC'}), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
             }
 
             let mtd = { 
