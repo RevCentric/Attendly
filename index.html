@@ -1613,76 +1613,130 @@
                                     </div>
                                 </div>
                             </div>
-<div x-show="view === 'members'" class="space-y-6 h-screen flex flex-col w-full bg-slate-50 p-4">
+<div x-show="view === 'members'" class="space-y-6 h-full flex flex-col w-full p-4 relative z-10">
     
+    <!-- Top Action Bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-end gap-4 px-2 shrink-0">
-        <button @click="openNewMemberForm()" x-show="!isAddingMember" class="bg-[#f26522] hover:bg-[#d9561c] text-white px-8 py-3 rounded-xl font-black text-[11px] uppercase shadow-md transition-all hover:scale-105 w-full sm:w-auto">+ Register Profile</button>
+        <button @click="openNewMemberForm()" x-show="!isAddingMember" class="bg-[#f26522] hover:bg-[#d9561c] text-white px-8 py-3 rounded-xl font-black text-[11px] uppercase shadow-md transition-all hover:scale-105 w-full sm:w-auto">
+            + Register Profile
+        </button>
     </div>
 
-    <div x-show="isAddingMember" class="bg-white/70 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] space-y-6 shrink-0">
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">ID</label><input type="text" x-model="newMember.empId" :disabled="isEditing" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">First Name</label><input type="text" x-model="newMember.firstName" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl outline-none font-bold text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Last Name</label><input type="text" x-model="newMember.lastName" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Dept</label><select x-model="newMember.dept" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold appearance-none text-xs"><template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template></select></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Role</label><select x-model="newMember.role" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold appearance-none text-xs"><template x-for="r in roles" :key="r"><option :value="r" x-text="r"></option></template></select></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Shift Type</label><select x-model="newMember.shift" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold appearance-none text-xs"><template x-for="s in shifts" :key="s.name"><option :value="s.name" x-text="s.name + ' (' + formatTimeDisplay(s.inTime) + ' - ' + formatTimeDisplay(s.outTime) + ')'"></option></template></select></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-emerald-600">PL (YTD)</label><input type="number" x-model.number="newMember.allowedPL" class="w-full px-5 py-3 bg-emerald-50/50 border border-emerald-100/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-sky-600">SL (YTD)</label><input type="number" x-model.number="newMember.allowedSL" class="w-full px-5 py-3 bg-sky-50/50 border border-sky-100/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-amber-600">Monthly Perm (H)</label><input type="number" x-model.number="newMember.allowedPerm" class="w-full px-5 py-3 bg-amber-50/50 border border-amber-100/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Date of Birth</label><input type="date" x-model="newMember.dob" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Joining Date</label><input type="date" x-model="newMember.doj" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        <div class="space-y-1.5"><label class="text-[10px] font-black uppercase tracking-widest text-zinc-400">Exit Date</label><input type="date" x-model="newMember.doe" class="w-full px-5 py-3 bg-white/50 border border-zinc-200/50 rounded-xl font-bold outline-none text-xs"></div>
-                                        
-                                        <div class="space-y-1.5 col-span-1 md:col-span-2 lg:col-span-4 mt-2">
-                                            <label class="flex items-center gap-3 cursor-pointer group w-fit">
-                                                <div class="relative">
-                                                    <input type="checkbox" x-model="newMember.captchaEnabled" class="sr-only">
-                                                    <div class="block bg-zinc-200 w-10 h-6 rounded-full transition-colors group-hover:bg-zinc-300" :class="newMember.captchaEnabled ? '!bg-[#f26522]' : ''"></div>
-                                                    <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform shadow-sm" :class="newMember.captchaEnabled ? 'transform translate-x-4' :''"></div>
-                                                </div>
-                                                <span class="text-[10px] font-black uppercase text-zinc-600 tracking-widest group-hover:text-zinc-900 transition-colors">Require Captcha Verification Checks</span>
-                                            </label>
-                                        </div>
+    <!-- Sleek Registration / Edit Form -->
+    <div x-show="isAddingMember" class="relative bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl p-6 md:p-8 rounded-[2.5rem] border border-zinc-200/60 dark:border-zinc-800/60 shadow-[0_8px_30px_rgba(0,0,0,0.06)] space-y-8 shrink-0 overflow-hidden group/form" x-cloak>
+        <div class="absolute -top-32 -left-32 w-64 h-64 bg-gradient-to-br from-[#0f4c81]/10 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-32 -right-32 w-64 h-64 bg-gradient-to-tl from-[#f26522]/10 to-transparent rounded-full blur-3xl pointer-events-none"></div>
 
-                                    </div>
-                                    <div class="flex flex-col sm:flex-row justify-end gap-3"><button @click="resetMemberForm()" class="px-6 py-3 md:py-2.5 bg-zinc-100 text-zinc-600 hover:bg-zinc-200 rounded-xl font-black text-[11px] uppercase tracking-widest transition-colors w-full sm:w-auto">Cancel</button><button @click="addMember()" class="px-8 py-3 md:py-2.5 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-md active:scale-95 transition-all w-full sm:w-auto">Save</button></div>
-                                </div>
-                                <div class="flex flex-col gap-3 flex-1 overflow-y-auto pr-4 custom-scrollbar">
+        <div class="relative z-10 flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800/60 pb-5">
+            <div>
+                <h4 class="text-xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white" x-text="isEditing ? 'Edit Profile' : 'New Personnel Registration'"></h4>
+                <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Configure identity, department, and limits</p>
+            </div>
+            <button @click="resetMemberForm()" class="w-10 h-10 flex items-center justify-center bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-zinc-400 hover:text-rose-500 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all shadow-sm">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Employee ID</label><input type="text" x-model="newMember.empId" :disabled="isEditing" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white disabled:opacity-50"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">First Name</label><input type="text" x-model="newMember.firstName" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Last Name</label><input type="text" x-model="newMember.lastName" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Department</label><select x-model="newMember.dept" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold appearance-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white cursor-pointer"><template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template></select></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Role</label><select x-model="newMember.role" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold appearance-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white cursor-pointer"><template x-for="r in roles" :key="r"><option :value="r" x-text="r"></option></template></select></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Shift Type</label><select x-model="newMember.shift" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold appearance-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white cursor-pointer"><template x-for="s in shifts" :key="s.name"><option :value="s.name" x-text="s.name + ' (' + formatTimeDisplay(s.inTime) + ' - ' + formatTimeDisplay(s.outTime) + ')'"></option></template></select></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 pl-1">PL Limit (Yearly)</label><input type="number" x-model.number="newMember.allowedPL" class="w-full px-4 py-3 bg-emerald-50/50 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-emerald-500/30 transition-all text-emerald-900 dark:text-emerald-100"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400 pl-1">SL Limit (Yearly)</label><input type="number" x-model.number="newMember.allowedSL" class="w-full px-4 py-3 bg-sky-50/50 dark:bg-sky-900/20 border border-sky-200/60 dark:border-sky-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-sky-500/30 transition-all text-sky-900 dark:text-sky-100"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 pl-1">Monthly Perm (H)</label><input type="number" x-model.number="newMember.allowedPerm" class="w-full px-4 py-3 bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200/60 dark:border-amber-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-amber-500/30 transition-all text-amber-900 dark:text-amber-100"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Date of Birth</label><input type="date" x-model="newMember.dob" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Joining Date</label><input type="date" x-model="newMember.doj" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white"></div>
+            <div class="space-y-1.5"><label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Exit Date</label><input type="date" x-model="newMember.doe" class="w-full px-4 py-3 bg-white/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60 rounded-xl font-bold outline-none text-xs focus:ring-2 focus:ring-[#0f4c81]/30 transition-all text-zinc-900 dark:text-white"></div>
+            
+            <div class="space-y-1.5 col-span-1 md:col-span-2 lg:col-span-4 mt-2 p-4 bg-zinc-50/50 dark:bg-zinc-950/30 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 flex items-center justify-between group cursor-pointer" @click="newMember.captchaEnabled = !newMember.captchaEnabled">
+                <div>
+                    <h5 class="text-xs font-black uppercase text-zinc-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <svg class="w-4 h-4 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Security Verification
+                    </h5>
+                    <p class="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1 pl-6">Require mandatory Captcha checks during active shifts</p>
+                </div>
+                <div class="relative z-10 shrink-0">
+                    <div class="w-12 h-6 bg-zinc-200 dark:bg-zinc-700 rounded-full transition-colors duration-300 shadow-inner" :class="newMember.captchaEnabled ? '!bg-indigo-500' : ''"></div>
+                    <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm" :class="newMember.captchaEnabled ? 'translate-x-6' : ''"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="relative z-10 flex flex-col sm:flex-row justify-end gap-3 pt-5 border-t border-zinc-200/60 dark:border-zinc-800/60">
+            <button @click="resetMemberForm()" class="px-6 py-3.5 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl font-black text-[11px] uppercase tracking-widest transition-colors w-full sm:w-auto shadow-sm">Discard</button>
+            <button @click="addMember()" class="px-8 py-3.5 bg-gradient-to-r from-[#f26522] to-[#d9561c] hover:from-[#d9561c] hover:to-[#bf4b18] text-white rounded-xl font-black text-[11px] uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] active:scale-95 transition-all w-full sm:w-auto flex items-center justify-center gap-2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save Identity</button>
+        </div>
+    </div>
+
+    <!-- Sleek Grid Layout -->
+    <div x-show="!isAddingMember" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-24">
         <template x-for="m in filteredMembers" :key="m.empId">
-                                        <div class="bg-white/70 backdrop-blur-xl p-4 md:p-5 rounded-2xl border border-zinc-200/50 hover:shadow-md transition-shadow flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group shadow-sm w-full">
-                                            <div class="flex items-center gap-4 w-full md:w-auto">
-                                                <div class="w-12 h-12 md:w-14 md:h-14 rounded-[1rem] bg-[#0f4c81] text-white flex items-center justify-center font-black text-xl shadow-md shrink-0" x-text="m.firstName.charAt(0)"></div>
-                                                <div class="min-w-0 flex-1">
-                                                    <div class="flex items-center gap-3">
-                                                        <h4 class="font-black text-lg truncate leading-tight uppercase text-zinc-900" x-text="m.name"></h4>
-                                                        <span class="px-2.5 py-0.5 bg-zinc-100 text-zinc-500 rounded text-[10px] font-black tracking-widest uppercase border border-zinc-200/50" x-text="m.empId"></span>
-                                                    </div>
-                                                    <p class="text-[10px] font-bold text-zinc-505 uppercase mt-1 tracking-widest" x-text="(m.dept || 'General') + ' • ' + (m.role || 'Staff') + ' • ' + (m.shift || 'General Shift')"></p>
-                                                    <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                                                        <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest" x-text="m.doj ? 'Joined: ' + formatDate(m.doj) : 'DOJ Pending'"></p>
-                                                        <span x-show="m.dob" class="text-[9px] text-zinc-300">•</span>
-                                                        <p x-show="m.dob" class="text-[9px] font-black text-pink-500 uppercase tracking-widest" x-text="'Born: ' + formatDate(m.dob)"></p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center gap-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-3 md:pt-0 border-zinc-200/50 shrink-0">
-                                                <button @click="toggleMemberVerification(m.id)" class="w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-sm border border-transparent" :class="m.captchaEnabled ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-200' : 'text-zinc-400 bg-white md:bg-transparent hover:text-zinc-600 hover:bg-zinc-50 hover:border-zinc-200'" title="Toggle Verification">
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                                        <circle cx="12" cy="11" r="2.5" x-show="m.captchaEnabled" fill="currentColor" class="animate-pulse" />
-                                                    </svg>
-                                                </button>
-                                                <button @click="resetUserPin(m.id)" x-show="m.pin" class="px-4 py-2 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-colors whitespace-nowrap">Reset PIN</button>
-                                                <button @click="startEdit(m)" class="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-indigo-100 bg-white md:bg-transparent" title="Edit Record"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                                                <button @click="removeMember(m.id)" class="w-10 h-10 flex items-center justify-center text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shadow-sm border border-transparent hover:border-rose-100 bg-white md:bg-transparent" title="Delete Record"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button>
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
+            <div class="relative bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl border border-zinc-200/60 dark:border-zinc-800/60 rounded-[2rem] p-6 shadow-sm hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.08)] transition-all duration-300 group flex flex-col justify-between min-h-[320px] overflow-hidden">
+                
+                <div class="absolute -top-20 -right-20 w-48 h-48 bg-gradient-to-br from-[#0f4c81]/10 to-[#f26522]/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700 pointer-events-none"></div>
 
-                            <div x-show="view === 'summary'" class="space-y-6">
+                <!-- Top Half: Info -->
+                <div>
+                    <div class="flex justify-between items-start mb-5 relative z-10">
+                        <div class="relative">
+                            <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${m.name}&backgroundColor=0f4c81,f26522,10b981&textColor=ffffff`" class="w-16 h-16 rounded-[1.25rem] shadow-md border-2 border-white dark:border-zinc-800 object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <span x-show="m.captchaEnabled" class="absolute -top-2 -right-2 w-7 h-7 bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-md ring-4 ring-white dark:ring-zinc-900" title="Verification Enabled">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                            </span>
+                        </div>
+                        <span class="px-3 py-1.5 bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 rounded-xl text-[10px] font-black tracking-widest uppercase border border-zinc-200/50 dark:border-zinc-700 shadow-sm" x-text="m.empId"></span>
+                    </div>
+
+                    <div class="mb-5 relative z-10">
+                        <h4 class="font-black text-xl tracking-tight leading-tight uppercase text-zinc-955 dark:text-white truncate" x-text="m.name"></h4>
+                        <p class="text-[10px] font-black text-[#f26522] uppercase mt-1 tracking-widest truncate" x-text="m.role || 'Staff'"></p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-y-4 gap-x-3 mb-6 relative z-10 bg-white/50 dark:bg-zinc-950/50 p-4 rounded-[1.25rem] border border-white/60 dark:border-zinc-800/60 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                        <div>
+                            <p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Department</p>
+                            <p class="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate" x-text="m.dept || 'General'"></p>
+                        </div>
+                        <div>
+                            <p class="text-[8px] font-black text-zinc-400 uppercase tracking-widest mb-1">Shift</p>
+                            <p class="text-xs font-bold text-zinc-800 dark:text-zinc-200 truncate" x-text="m.shift || 'General Shift'"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Half: Action Bar -->
+                <div class="mt-auto pt-5 border-t border-zinc-200/60 dark:border-zinc-800/60 flex flex-wrap items-center justify-between gap-3 relative z-10">
+                    <div class="flex items-center gap-2">
+                        <button @click="resetUserPin(m.id)" x-show="m.pin" class="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-[#f26522] hover:border-[#f26522] dark:hover:bg-[#f26522] hover:text-white text-zinc-600 dark:text-zinc-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 shadow-sm border border-zinc-200 dark:border-zinc-700">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            Reset PIN
+                        </button>
+                        <span x-show="!m.pin" class="px-2 text-[9px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">No PIN Set</span>
+                    </div>
+
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button @click="toggleMemberVerification(m.id)" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm border" :class="m.captchaEnabled ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/30' : 'bg-white text-zinc-400 border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:bg-zinc-700'" title="Toggle Verification Status">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                <circle cx="12" cy="11" r="2.5" x-show="m.captchaEnabled" fill="currentColor" class="animate-pulse" />
+                            </svg>
+                        </button>
+                        
+                        <button @click="startEdit(m)" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm border bg-white text-zinc-400 border-zinc-200 hover:text-[#0f4c81] hover:bg-blue-50 hover:border-blue-200 dark:bg-zinc-800 dark:border-zinc-700 dark:hover:text-blue-400 dark:hover:bg-zinc-700" title="Edit Profile">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+</div>                         
+ <div x-show="view === 'summary'" class="space-y-6">
                                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print px-2">
                                     <div class="flex bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-1.5 rounded-2xl items-center gap-2 relative w-full md:w-auto">
                                         <input type="date" x-model="summaryStartDate" class="bg-transparent px-3 py-2 font-black text-zinc-955 text-xs outline-none cursor-pointer hover:bg-white rounded-xl transition-colors w-full md:w-auto text-center">
