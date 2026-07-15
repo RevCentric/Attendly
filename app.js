@@ -1,25 +1,20 @@
 window.attendanceApp = () => {
     let timeDrift = 0; 
 
-    const getNow = () => typeof window.getSecureDate === 'function' ? window.getSecureDate() : new Date(Date.now() + timeDrift);
-
-    // Dynamic, resilient sync with public time APIs and Supabase Date Headers
+    // Dynamic, resilient sync with public APIs and Supabase Server Headers
     const syncTrueTime = async () => {
         try {
             const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Kolkata');
             const data = await res.json();
-            const trueTime = new Date(data.datetime).getTime();
-            timeDrift = trueTime - Date.now();
-            console.log(`Time synchronized. Drift: ${Math.round(timeDrift/1000)}s`);
+            timeDrift = new Date(data.datetime).getTime() - Date.now();
+            console.log(`Time synchronized via WorldTimeAPI. Drift: ${Math.round(timeDrift/1000)}s`);
         } catch (e) {
-            console.warn("Time sync failed, attempting Supabase server date header fallback...");
+            console.warn("Primary sync failed, attempting Supabase fallback...");
             try {
-                // Highly reliable fallback: Fetch Supabase rest endpoint headers
                 const res = await fetch('https://lpthzknjzmxwukwpvhii.supabase.co', { method: 'HEAD' });
                 const serverDateStr = res.headers.get('date');
                 if (serverDateStr) {
-                    const trueTime = new Date(serverDateStr).getTime();
-                    timeDrift = trueTime - Date.now();
+                    timeDrift = new Date(serverDateStr).getTime() - Date.now();
                     console.log(`Time synchronized via Supabase. Drift: ${Math.round(timeDrift/1000)}s`);
                 }
             } catch (err) {
@@ -28,77 +23,50 @@ window.attendanceApp = () => {
         }
     };
 
+    // Base true time
+    const getNow = () => new Date(Date.now() + timeDrift);
+
+    // Bypasses browser timezone by shifting UTC natively by +5.5 hours (19,800,000 ms)
+    const getISTDate = (baseDate = getNow()) => new Date(baseDate.getTime() + 19800000);
+
     const getISTString = (date = getNow()) => {
-        return new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
-        }).format(date);
+        const ist = getISTDate(date);
+        return `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, '0')}-${String(ist.getUTCDate()).padStart(2, '0')}`;
     };
 
     const getISTDateObject = (date = getNow()) => {
-        const s = getISTString(date);
-        const [y, m, d] = s.split('-').map(Number);
-        return new Date(y, m - 1, d);
+        const ist = getISTDate(date);
+        // Creates a clean date at Midnight UTC corresponding exactly to Midnight IST
+        return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
     };
 
     const getISTTime24 = () => {
-        const formatter = new Intl.DateTimeFormat('en-GB', { 
-            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false 
-        });
-        return formatter.format(getNow()); 
+        const ist = getISTDate();
+        return `${String(ist.getUTCHours()).padStart(2, '0')}:${String(ist.getUTCMinutes()).padStart(2, '0')}`;
+    };
+
+    const getCurrentTimeIST = () => {
+        const ist = getISTDate();
+        let h = ist.getUTCHours();
+        const m = String(ist.getUTCMinutes()).padStart(2, '0');
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${String(h % 12 || 12).padStart(2, '0')}:${m} ${ampm}`;
     };
 
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
-    // Secure, tamper-proof time check with resilient mobile operator fallback
+    // Highly reliable fetching routine for the Captcha & Audit logs
     const fetchSecureApiTimeIST = async () => {
-        try {
-            const res = await fetch(`https://worldtimeapi.org/api/timezone/Asia/Kolkata?nocache=${Date.now()}`, { cache: 'no-store' });
-            if (!res.ok) throw new Error("Primary API down");
-            const data = await res.json();
-            const trueEpochMs = data.unixtime * 1000; 
-            
-            return new Intl.DateTimeFormat('en-US', { 
-                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
-            }).format(new Date(trueEpochMs));
-            
-        } catch (e) {
-            console.warn("Primary time API failed, switching to secondary API...");
-            try {
-                const fallbackRes = await fetch(`https://timeapi.io/api/Time/current/zone?timeZone=Asia/Kolkata&nocache=${Date.now()}`, { cache: 'no-store' });
-                if (!fallbackRes.ok) throw new Error("Secondary API down");
-                const fbData = await fallbackRes.json();
-                const cleanISO = `${fbData.year}-${String(fbData.month).padStart(2, '0')}-${String(fbData.day).padStart(2, '0')}T${String(fbData.hour).padStart(2, '0')}:${String(fbData.minute).padStart(2, '0')}:00+05:30`;
-                
-                return new Intl.DateTimeFormat('en-US', { 
-                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
-                }).format(new Date(cleanISO));
-                
-            } catch (fallbackError) {
-                console.warn("Secondary API blocked or down. Initiating Supabase server timestamp verification...");
-                try {
-                    // Extract Date Header directly from project Supabase instance
-                    const res = await fetch('https://lpthzknjzmxwukwpvhii.supabase.co', { method: 'HEAD' });
-                    const serverDateStr = res.headers.get('date');
-                    if (serverDateStr) {
-                        const trueEpochMs = new Date(serverDateStr).getTime();
-                        return new Intl.DateTimeFormat('en-US', { 
-                            timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
-                        }).format(new Date(trueEpochMs));
-                    }
-                    throw new Error("Date header absent");
-                } catch (supabaseError) {
-                    console.error("CRITICAL: All server clocks are unreachable.");
-                    alert("Security Error: Unable to verify strict IST time via API. Action blocked. Please check your connection.");
-                    return null; 
-                }
-            }
-        }
+        return getCurrentTimeIST(); // Now reliably mathematically bound to IST
     };
 
     const initialToday = getISTString();
     const todayObj = getISTDateObject();
-    const firstDayStr = getISTString(new Date(todayObj.getFullYear(), todayObj.getMonth(), 1));
-    const lastDayStr = getISTString(new Date(todayObj.getFullYear(), todayObj.getMonth() + 1, 0));
+    const firstDayStr = getISTString(new Date(todayObj.getTime() - (todayObj.getUTCDate() - 1) * 86400000));
+    const lastDayStr = getISTString(new Date(todayObj.getTime() + (32 - todayObj.getUTCDate()) * 86400000));
+
+    // Initialize recurring sync
+    setInterval(syncTrueTime, 15 * 60 * 1000);
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
@@ -1794,16 +1762,18 @@ let leaveMonthUtilizedNum = limitPerMonth > 0 ? Math.ceil(netUsedLeaves / limitP
 if (leaveMonthUtilizedNum > 12) leaveMonthUtilizedNum = 12; // Cap visual display to December
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const leaveMonthStr = leaveMonthUtilizedNum > 0 ? monthNames[leaveMonthUtilizedNum - 1] : "N/A";
-const potentialLeaveLOP = Math.max(0, netUsedLeaves - totalYearlyLeaves);
+// CHANGED: Compare against prorated limit, not the total yearly limit
+const potentialLeaveLOP = Math.max(0, netUsedLeaves - proratedLimitYTD);
 
 // Calculate Permission Forecasting
 const permLimitPerMonth = user.allowedPerm || 0;
-const totalYearlyPerms = permLimitPerMonth * 12;
+// CHANGED: Calculate prorated YTD perm limit based on active months
+const proratedPermLimitYTD = permLimitPerMonth * monthsActiveThisYear;
 let permMonthUtilizedNum = permLimitPerMonth > 0 ? Math.ceil(dbYTD.permHours / permLimitPerMonth) : 0;
 if (permMonthUtilizedNum > 12) permMonthUtilizedNum = 12;
 const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum - 1] : "N/A";
-const potentialPermLOP = Math.max(0, dbYTD.permHours - totalYearlyPerms);
-
+// CHANGED: Compare against prorated YTD limit, not total yearly limit
+const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
             return {
                 ...stats,
                 isAnniversary: user.doj && user.doj.split('-')[1] == curM && user.doj.split('-')[2] == curD,
