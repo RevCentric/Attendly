@@ -68,9 +68,22 @@ window.attendanceApp = () => {
     // Initialize recurring sync
     setInterval(syncTrueTime, 15 * 60 * 1000);
  
-    const isMobileDevice = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    };		
+const isMobileDevice = () => {
+    // 1. Standard User Agent Check
+    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // 2. Hardware Touch Check (Catches "Desktop Site" spoofing)
+    const hasTouchScreen = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
+    
+    // 3. Physical Screen Size Check
+    const isSmallScreen = window.screen.width <= 1024;
+
+    // 4. iPadOS 13+ Specific Catch
+    const isSpoofedMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+
+    // Trigger mobile block if ANY of these conditions are met
+    return uaMobile || isSpoofedMac || (hasTouchScreen && isSmallScreen);
+};	
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
