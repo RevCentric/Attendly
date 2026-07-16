@@ -69,20 +69,25 @@ window.attendanceApp = () => {
     setInterval(syncTrueTime, 15 * 60 * 1000);
  
 const isMobileDevice = () => {
-    // 1. Standard User Agent Check
-    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // 2. Hardware Touch Check (Catches "Desktop Site" spoofing)
-    const hasTouchScreen = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
-    
-    // 3. Physical Screen Size Check
-    const isSmallScreen = window.screen.width <= 1024;
+    // 1. The Ultimate Truth: Modern Client Hints
+    // Even in "Desktop Site" mode, modern browsers often still report true here at the hardware level.
+    if (navigator.userAgentData && navigator.userAgentData.mobile) {
+        return true;
+    }
 
-    // 4. iPadOS 13+ Specific Catch
+    // 2. The Input Hardware Check (The Loophole Killer)
+    // "Desktop Site" cannot change the fact that the user is tapping with a finger ("coarse" pointer).
+    // Desktop monitors with a mouse report a "fine" pointer.
+    const hasCoarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    
+    // 3. Apple Device Spoofing (iPadOS pretends to be a Mac)
     const isSpoofedMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 
-    // Trigger mobile block if ANY of these conditions are met
-    return uaMobile || isSpoofedMac || (hasTouchScreen && isSmallScreen);
+    // 4. Standard User Agent Check (Fallback for older browsers)
+    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // If any of these hit, it's a mobile device.
+    return hasCoarsePointer || isSpoofedMac || uaMobile;
 };	
 
     return {
