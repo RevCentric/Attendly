@@ -67,6 +67,10 @@ window.attendanceApp = () => {
 
     // Initialize recurring sync
     setInterval(syncTrueTime, 15 * 60 * 1000);
+ 
+    const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    };		
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
@@ -929,6 +933,12 @@ window.attendanceApp = () => {
         },
 
         triggerCaptcha(forceTime = null) {
+	   if (isMobileDevice()) {
+        this.showNote("Verification Failed: Mobile devices are strictly prohibited.", "error");
+        this.recordCaptchaResult('Failed'); 
+        this.startBreak(null, 'Penalty'); // Automatically penalizes the mobile user
+        return;
+    }
             this.clearCaptchaTimers();
             this.checkExpiredCaptchas();
             
@@ -1510,6 +1520,10 @@ get notificationGlowClass() {
         },
 
         async startBreak(timeOverride = null, type = null) {
+	    if (isMobileDevice()) {
+        this.showNote("Action Denied: Breaks cannot be initiated from a mobile device.", "error");
+        return;
+  	 }		
             if (!this.userSession) return;
             
             let breakType = type || this.selectedBreakType;
@@ -1570,6 +1584,11 @@ get notificationGlowClass() {
         },
 
         async endBreak() {
+	    if (isMobileDevice()) {
+        this.showNote("Action Denied: Breaks cannot be ended from a mobile device.", "error");
+        return;
+	    } 		   
+	
             if (!this.userSession) return;
             const secureTime = await fetchSecureApiTimeIST();
             if (!secureTime) return;
@@ -2039,9 +2058,25 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
             this.scheduleNextCaptcha();
         },
         
-        initiateLogout() { if (!this.userSession) return; this.logoutTimePreview = this.getCurrentTimeIST(); this.showLogoutModal = true; },
+        initiateLogout() { 
+    // 1. Block mobile devices immediately
+    if (isMobileDevice()) {
+        this.showNote("Action Denied: You cannot punch out using a mobile device.", "error");
+        return;
+    }
+    
+    // 2. Proceed normally for desktop users
+    if (!this.userSession) return; 
+    this.logoutTimePreview = this.getCurrentTimeIST(); 
+    this.showLogoutModal = true; 
+	},
         
         async confirmLogoutPortal() {
+	if (isMobileDevice()) {
+        this.showLogoutModal = false;
+        this.showNote("Action Denied: Mobile punch-out is strictly prohibited.", "error");
+        return;
+	    }
             this.clearCaptchaTimers();
             const secureTime = await fetchSecureApiTimeIST();
             if (!secureTime) {
