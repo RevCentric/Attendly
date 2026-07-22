@@ -69,29 +69,48 @@ window.attendanceApp = () => {
     setInterval(syncTrueTime, 15 * 60 * 1000);
  
 const isMobileDevice = () => {
-    // 1. The Ultimate Truth: Modern Client Hints
-    // Even in "Desktop Site" mode, modern browsers often still report true here at the hardware level.
-    if (navigator.userAgentData && navigator.userAgentData.mobile) {
-        return true;
-    }
-
-    // 2. The Input Hardware Check (The Loophole Killer)
-    // "Desktop Site" cannot change the fact that the user is tapping with a finger ("coarse" pointer).
-    // Desktop monitors with a mouse report a "fine" pointer.
-    const hasCoarsePointer = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    // 1. Standard User Agent Check
+    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    // 3. Apple Device Spoofing (iPadOS pretends to be a Mac)
+    // 2. Hardware Touch Check (Catches "Desktop Site" spoofing)
+    const hasTouchScreen = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
+    
+    // 3. Physical Screen Size Check
+    const isSmallScreen = window.screen.width <= 1024;
+
+    // 4. iPadOS 13+ Specific Catch
     const isSpoofedMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 
-    // 4. Standard User Agent Check (Fallback for older browsers)
-    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    // If any of these hit, it's a mobile device.
-    return hasCoarsePointer || isSpoofedMac || uaMobile;
+    // Trigger mobile block if ANY of these conditions are met
+    return uaMobile || isSpoofedMac || (hasTouchScreen && isSmallScreen);
 };	
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
+	splitShiftEmps: [],
+
+        get availableBreakTypes() {
+            let base = ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'];
+            if (this.userSession && this.splitShiftEmps && this.splitShiftEmps.includes(this.userSession.id)) {
+                base.push('Split Shift');
+            }
+            return base;
+        },
+
+        toggleSplitShiftAccess(mId) {
+            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!this.splitShiftEmps) this.splitShiftEmps = [];
+            const idx = this.splitShiftEmps.indexOf(mId);
+            if (idx > -1) {
+                this.splitShiftEmps.splice(idx, 1);
+            } else {
+                this.splitShiftEmps.push(mId);
+            }
+            this.splitShiftEmps = [...this.splitShiftEmps]; 
+            this.upsertConfigCloud('split_shift_emps', this.splitShiftEmps);
+            this.showNote(`Split Shift Access Updated`, "success");
+        },
+
         breakTypes: ['Lunch', 'Dinner','Tea', 'Bio', 'Meeting', 'Other'],
         selectedBreakType: '',
         view: 'portal', 
@@ -301,16 +320,19 @@ const isMobileDevice = () => {
                     timeZone: 'Asia/Kolkata', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
                 }).format(now);
 
-                if (this.userSession) {
+		if (this.userSession) {
                     const dateKey = this.getActiveShiftDate();
                     const log = this.punchLogs[dateKey]?.[this.userSession.id];
                     if (log && log.in) {
                         const outTime = log.out || this.getCurrentTimeIST();
                         const grossMins = Math.max(0, this.diffInMins(log.in, outTime));
-                        const breakMins = this.calculateTotalBreakMins(log.breaks);
-                        this.liveShiftMins = grossMins;
-                        this.liveActiveMins = Math.max(0, grossMins - breakMins);
-                        this.liveTotalBreakMins = breakMins;	
+                        const regularBreakMins = this.calculateTotalBreakMins(log.breaks);
+                        const splitShiftMins = this.calculateSplitShiftMins(log.breaks);
+                        const allBreaks = regularBreakMins + splitShiftMins;
+                        
+                        this.liveShiftMins = Math.max(0, grossMins - splitShiftMins); 
+                        this.liveActiveMins = Math.max(0, grossMins - allBreaks);
+                        this.liveTotalBreakMins = regularBreakMins;	
                     } else {
                         this.liveShiftMins = 0;
                         this.liveActiveMins = 0;
@@ -689,6 +711,7 @@ const isMobileDevice = () => {
                         if(row.key === 'departments') this.departments = row.value;
                         if(row.key === 'shifts') this.shifts = row.value;
                         if(row.key === 'master_pin') this.masterPin = row.value;
+			if(row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
                     });
                 }
 
@@ -1650,13 +1673,29 @@ get notificationGlowClass() {
         calculateTotalBreakMins(breaks) {
             if (!breaks || !breaks.length) return 0;
             const now = this.getCurrentTimeIST();
-            return breaks.reduce((acc, b) => acc + this.diffInMins(b.start, b.end || now), 0);
+            return breaks.reduce((acc, b) => {
+                if (b.type === 'Split Shift') return acc; // Exclude from regular break penalty
+                return acc + this.diffInMins(b.start, b.end || now);
+            }, 0);
         },
+
+        calculateSplitShiftMins(breaks) {
+            if (!breaks || !breaks.length) return 0;
+            const now = this.getCurrentTimeIST();
+            return breaks.reduce((acc, b) => {
+                if (b.type === 'Split Shift') return acc + this.diffInMins(b.start, b.end || now);
+                return acc;
+            }, 0);
+        },
+
         getActiveMinsForLog(log, dateKey) {
             if (!log || !log.in) return 0;
             const outTime = log.out || (dateKey === getISTString() ? this.getCurrentTimeIST() : null);
             if (!outTime) return 0;
-            return Math.max(0, this.diffInMins(log.in, outTime) - this.calculateTotalBreakMins(log.breaks));
+            const gross = this.diffInMins(log.in, outTime);
+            // Exclude ALL breaks (including Split Shift) from Net Active time.
+            const allBreaks = log.breaks ? log.breaks.reduce((acc, b) => acc + this.diffInMins(b.start, b.end || outTime), 0) : 0;
+            return Math.max(0, gross - allBreaks);
         },
 
         formatBreakDisplay(mins) {
