@@ -215,57 +215,56 @@ const isMobileDevice = () => {
             { id: 'co', display: 'CO', label: 'Comp Off', color: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-500', hex: '#0f766e', value: 1 }
         ],
 
-        menuItems: [
+menuItems: [
             { 
                 id: 'portal', 
                 label: 'Portal', 
                 admin: false,
                 color: 'text-sky-500 hover:text-sky-600',
-                // iOS Style: Solid rounded house (house.fill)
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.12 2.38a1.5 1.5 0 0 1 1.76 0l8.25 6.09A1.5 1.5 0 0 1 21.5 9.68V20a2 2 0 0 1-2 2h-4.5a.5.5 0 0 1-.5-.5v-5a1.5 1.5 0 0 0-1.5-1.5h-2A1.5 1.5 0 0 0 9.5 16.5v5a.5.5 0 0 1-.5.5H4.5a2 2 0 0 1-2-2V9.68a1.5 1.5 0 0 1 .37-1.21l8.25-6.09z"/></svg>'
+                // Fluent UI: Home 24 Filled
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.26 2.38a2.25 2.25 0 0 1 2.48 0l8.5 6.13c.61.44.96 1.12.96 1.83V20.5A1.5 1.5 0 0 1 20.7 22H16.5a1.5 1.5 0 0 1-1.5-1.5v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5A1.5 1.5 0 0 1 7.5 22H3.3A1.5 1.5 0 0 1 1.8 20.5V10.34c0-.72.35-1.4.96-1.83l8.5-6.13Z"/></svg>'
             },
             { 
                 id: 'dashboard', 
                 label: 'Stats', 
                 admin: true,
                 color: 'text-indigo-500 hover:text-indigo-600',
-                // iOS Style: Solid rounded bar chart (chart.bar.fill)
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="15" width="4" height="6" rx="1.5"/><rect x="10" y="9" width="4" height="12" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg>'
+                // Fluent UI: Data Bar Vertical 24 Filled
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-3 0V6A1.5 1.5 0 0 1 12 4.5Zm-6 6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-3 0v-7A1.5 1.5 0 0 1 6 10.5Zm12-3a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-3 0v-10A1.5 1.5 0 0 1 18 7.5Z"/></svg>'
             },
             { 
                 id: 'record', 
                 label: 'Log', 
                 admin: true,
                 color: 'text-emerald-500 hover:text-emerald-600',
-                // iOS Style: Solid document with folded corner (doc.text.fill)
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 3.5V8h4.5L13 3.5zM8 12h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>'
+                // Fluent UI: Document Text 24 Filled
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v6a2 2 0 0 0 2 2h6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h6Zm1.5.5V6a.5.5 0 0 0 .5.5h3.5l-4-4ZM8 12a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2H8Zm0 4a1 1 0 1 0 0 2h5a1 1 0 1 0 0-2H8Z"/></svg>'
             },
             { 
                 id: 'members', 
                 label: 'Roster', 
                 admin: true,
                 color: 'text-violet-500 hover:text-violet-600',
-                // iOS Style: Layered multi-person with opacity depth (person.3.fill)
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8c0-2.5 3.5-4 7-4s7 1.5 7 4v1H5v-1z"/><path d="M17 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm3.5 7.5c-1-.7-2.3-1.3-4-1.7.9 1 1.5 2 1.5 3.2v1h4v-.5c0-1.1-.5-2.2-1.5-2z" fill-opacity="0.5"/><path d="M7 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3.5 17.5c-1 .2-1.5 1.3-1.5 2.5v1h4v-1c0-1.2.6-2.2 1.5-3.2-1.7.4-3 1-4 1.7z" fill-opacity="0.5"/></svg>'
+                // Fluent UI: People 24 Filled
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.25 10.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Zm-4.5 0a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM5.5 13a2.5 2.5 0 0 0-2.5 2.5v2c0 1.1.9 2 2 2h9a2 2 0 0 0 2-2v-2a2.5 2.5 0 0 0-2.5-2.5h-8Zm11.08.5a3.5 3.5 0 0 1 2.42 3.33v1.67a.75.75 0 0 0 1.5 0v-1.67a5 5 0 0 0-3.92-4.88.75.75 0 1 0-.32 1.47l.32-.02Z"/></svg>'
             },
             { 
                 id: 'summary', 
                 label: 'Reports', 
                 admin: true,
                 color: 'text-amber-500 hover:text-amber-600',
-                // iOS Style: Dual-tone segmented pie chart (chart.pie.fill)
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10h-9a1 1 0 0 1-1-1V2z"/><path d="M14 2.1c4.5 1 8 4.6 8.9 9.1h-8.9V2.1z" fill-opacity="0.5"/></svg>'
+                // Fluent UI: Chart Pie 24 Filled
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2.05v8.95c0 .55.45 1 1 1h8.95A10 10 0 0 0 13 2.05ZM11 2.05a10 10 0 1 0 10.95 10.95H12a1 1 0 0 1-1-1V2.05Z"/></svg>'
             },
             { 
                 id: 'master', 
                 label: 'Master Config', 
                 admin: true,
                 color: 'text-rose-500 hover:text-rose-600',
-                // iOS Style: Solid mechanical gear (gearshape.fill)
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>'
+                // Fluent UI: Settings 24 Filled
+                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.88 2c.98 0 1.83.67 2.04 1.63l.11.64c.26.11.52.24.77.39l.6-.22a2.09 2.09 0 0 1 2.48.87l.08.13 1 1.73a2.09 2.09 0 0 1-.36 2.56l-.09.08-.47.43c.04.29.04.59 0 .88l.47.43c.75.68.96 1.78.53 2.69l-.08.15-1 1.73a2.09 2.09 0 0 1-2.43.95l-.13-.05-.6-.22c-.25.15-.51.28-.77.39l-.11.64a2.09 2.09 0 0 1-1.92 1.73l-.12.01h-2a2.09 2.09 0 0 1-2.04-1.63l-.11-.64a8.1 8.1 0 0 1-.77-.39l-.6.22a2.09 2.09 0 0 1-2.56-.74l-.08-.13-1-1.73a2.09 2.09 0 0 1 .36-2.56l.09-.08.47-.43a8.3 8.3 0 0 1 0-.88l-.47-.43a2.09 2.09 0 0 1-.53-2.69l.08-.15 1-1.73a2.09 2.09 0 0 1 2.43-.95l.13.05.6.22c.25-.15.51-.28.77-.39l.11-.64A2.09 2.09 0 0 1 9.88 2h2ZM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/></svg>'
             }
         ],
-
         toggleTheme() {
             this.theme = this.theme === 'light' ? 'dark' : 'light';
             localStorage.setItem('appTheme', this.theme);
