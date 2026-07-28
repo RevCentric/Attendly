@@ -142,6 +142,13 @@ const isMobileDevice = () => {
 
         captchaTimer: null,
         captchaTimeoutTimer: null,
+	captchaCountdownInterval: null, // NEW: Tracks the second-by-second countdown
+        captchaSecondsRemaining: 120,
+	get formattedCaptchaTime() {
+            const mins = Math.floor(this.captchaSecondsRemaining / 60).toString().padStart(2, '0');
+            const secs = (this.captchaSecondsRemaining % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
+        },
         titleFlashInterval: null,
         showCaptchaModal: false,
         captchaTargetNumber: '',
@@ -949,6 +956,7 @@ menuItems: [
         clearCaptchaTimers() {
             if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
             if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
+	if (this.captchaCountdownInterval) { clearInterval(this.captchaCountdownInterval); this.captchaCountdownInterval = null; }	
 
             if (this._unlockAudioHandler) {
                 document.removeEventListener('click', this._unlockAudioHandler);
@@ -1110,6 +1118,14 @@ menuItems: [
             this.captchaTimeoutTimer = setTimeout(() => {
                 this.handleCaptchaTimeout();
             }, 120000);
+	this.captchaSecondsRemaining = 120;
+            this.captchaCountdownInterval = setInterval(() => {
+                if (this.captchaSecondsRemaining > 0) {
+                    this.captchaSecondsRemaining--;
+                } else {
+                    clearInterval(this.captchaCountdownInterval);
+                }
+            }, 1000);	
         },
 
         submitCaptcha() {
