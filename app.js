@@ -403,6 +403,9 @@ menuItems: [
                             this.setupUserRealtime();
                             this.syncUserData(true);
                             await this.fetchExceptionHistory();	
+                            
+                            // NEW: Restart the background timer after browser refresh
+                            this.scheduleNextCaptcha();
                         } else {
                             await this.supabase.auth.signOut();
                         }
@@ -541,18 +544,21 @@ menuItems: [
 
             if (table === 'punch_logs') {
                 const record = payload.new || payload.old;
-                if (record && record.date === this.currentDate) {
-                    if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+                const dateKey = record?.date;
+                
+                // DYNAMIC DATE KEY: Update memory for whatever date arrived in the live WebSocket payload
+                if (dateKey) {
+                    if (!this.punchLogs[dateKey]) this.punchLogs[dateKey] = {};
                     if (eventType === 'DELETE') {
-                        delete this.punchLogs[this.currentDate][record.member_id];
+                        delete this.punchLogs[dateKey][record.member_id];
                     } else {
-                        if (!this.punchLogs[this.currentDate][record.member_id]) {
-                            this.punchLogs[this.currentDate][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                        if (!this.punchLogs[dateKey][record.member_id]) {
+                            this.punchLogs[dateKey][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         }
-                        this.punchLogs[this.currentDate][record.member_id].in = record.in_time || '';
-                        this.punchLogs[this.currentDate][record.member_id].out = record.out_time || '';
-                        this.punchLogs[this.currentDate][record.member_id].in_ip = record.in_ip || '';
-                        this.punchLogs[this.currentDate][record.member_id].out_ip = record.out_ip || '';
+                        this.punchLogs[dateKey][record.member_id].in = record.in_time || '';
+                        this.punchLogs[dateKey][record.member_id].out = record.out_time || '';
+                        this.punchLogs[dateKey][record.member_id].in_ip = record.in_ip || '';
+                        this.punchLogs[dateKey][record.member_id].out_ip = record.out_ip || '';
                     }
                     this.punchLogs = { ...this.punchLogs };
                 }
@@ -560,13 +566,16 @@ menuItems: [
 
             if (table === 'break_logs') {
                 const record = payload.new || payload.old;
-                if (record && record.log_date === this.currentDate) {
-                    if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-                    if (!this.punchLogs[this.currentDate][record.member_id]) {
-                        this.punchLogs[this.currentDate][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                const dateKey = record?.log_date;
+                
+                // DYNAMIC DATE KEY: Update memory for whatever date arrived in the live WebSocket payload
+                if (dateKey) {
+                    if (!this.punchLogs[dateKey]) this.punchLogs[dateKey] = {};
+                    if (!this.punchLogs[dateKey][record.member_id]) {
+                        this.punchLogs[dateKey][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     }
                     
-                    const breaks = this.punchLogs[this.currentDate][record.member_id].breaks || [];
+                    const breaks = this.punchLogs[dateKey][record.member_id].breaks || [];
                     const idx = breaks.findIndex(b => b.start === record.start_time);
                     if (eventType === 'DELETE') {
                         if (idx > -1) breaks.splice(idx, 1);
@@ -578,13 +587,20 @@ menuItems: [
                             breaks.push(bObj);
                         }
                     }
-                    this.punchLogs[this.currentDate][record.member_id].breaks = breaks;
+                    this.punchLogs[dateKey][record.member_id].breaks = breaks;
                     this.punchLogs = { ...this.punchLogs };
                 }
             }
 
             if (table === 'captcha_logs') {
                 const record = payload.new || payload.old;
+                
+                // 1. UNCONDITIONAL TRIGGER: If an admin inserted a Pending check for this user, trigger the modal immediately!
+                if (eventType === 'INSERT' && record?.status === 'Pending' && this.userSession && record.member_id === this.userSession.id) {
+                    this.triggerCaptcha(record.check_time);
+                }
+
+                // 2. Local State Sync: Only update local punchLogs memory if the date matches the currently viewed tab
                 if (record && record.log_date === this.currentDate) {
                     if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
                     if (!this.punchLogs[this.currentDate][record.member_id]) {
@@ -830,6 +846,18 @@ menuItems: [
                 }
                 this.punchLogs = newPunch;
                 
+                // NEW: Open modal if there is an active pending check from the cloud
+                if (this.userSession) {
+                    const today = this.getActiveShiftDate();
+                    const log = this.punchLogs[today]?.[this.userSession.id];
+                    if (log && log.captchas) {
+                        const activePending = log.captchas.find(c => c.status === 'Pending');
+                        if (activePending && !this.showCaptchaModal) {
+                            this.triggerCaptcha(activePending.time);
+                        }
+                    }
+                }
+
                 this.checkExpiredCaptchas();
                 
                 this.syncError = false;
