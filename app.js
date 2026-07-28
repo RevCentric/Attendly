@@ -1543,7 +1543,7 @@ get notificationGlowClass() {
                                 
                             if (!this.userOnBreak) {
                                 this.showNote("Verification Missed (Timeout). Tool Locked.", "error");
-                                this.startBreak(cap.time); 
+                                this.startBreak(null, 'Penalty'); 
                             }
                         }
                     }
@@ -1570,7 +1570,7 @@ get notificationGlowClass() {
                                     
                                     const breaks = log.breaks || [];
                                     if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
-                                        breaks.push({ start: cap.time, end: '', type: 'Penalty' });
+                                        breaks.push({ start: now, end: '', type: 'Penalty' });
                                         this.supabase.from('break_logs').insert({
                                             member_id: mId, log_date: checkDate, start_time: cap.time, type: 'Penalty'
                                         }).then();
@@ -2304,7 +2304,7 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
                 }
                 this.punchLogs = { ...this.punchLogs }; 
                 
-                this.startBreak(penaltyTime);
+                this.startBreak(null, 'Penalty');
                 this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
                 return; 
             }
@@ -2420,7 +2420,7 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
                         }
                         this.punchLogs = { ...this.punchLogs };
                         
-                        this.startBreak(penaltyTime);
+                        this.startBreak(null, 'Penalty');
                         this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
                         return;
                     }
