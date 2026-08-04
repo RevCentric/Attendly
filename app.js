@@ -1266,13 +1266,24 @@ menuItems: [
         },
         
         get todayEvents() {
-            const curM = getISTDateObject().getMonth() + 1, curD = getISTDateObject().getDate();
+            const curObj = getISTDateObject();
+            // Force JS to read the strict UTC values
+            const curM = curObj.getUTCMonth() + 1;
+            const curD = curObj.getUTCDate();
+            const curY = curObj.getUTCFullYear();
             const events = [];
+            
             this.members.forEach(m => {
-                if (m.dob && parseInt(m.dob.split('-')[1]) === curM && parseInt(m.dob.split('-')[2]) === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
-                if (m.doj && parseInt(m.doj.split('-')[1]) === curM && parseInt(m.doj.split('-')[2]) === curD) {
-                    const yrs = getISTDateObject().getFullYear() - parseInt(m.doj.split('-')[0]);
-                    events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+                if (m.dob) {
+                    const [bY, bM, bD] = m.dob.split('-').map(Number);
+                    if (bM === curM && bD === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
+                }
+                if (m.doj) {
+                    const [jY, jM, jD] = m.doj.split('-').map(Number);
+                    if (jM === curM && jD === curD) {
+                        const yrs = curY - jY;
+                        events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+                    }
                 }
             });
             return events;
@@ -1280,8 +1291,9 @@ menuItems: [
 
         get monthEvents() {
             const curObj = getISTDateObject();
-            const curM = curObj.getMonth() + 1;
-            const curY = curObj.getFullYear();
+            // Force JS to read the strict UTC values
+            const curM = curObj.getUTCMonth() + 1;
+            const curY = curObj.getUTCFullYear();
             const events = [];
             
             this.members.forEach(m => {
@@ -1762,10 +1774,17 @@ get notificationGlowClass() {
             return { totals, grandTotal: Object.values(totals).reduce((a, b) => a + b, 0) };
         },
 
-        get individualStats() {
+get individualStats() {
             if (!this.userSession) return null;
             const user = this.members.find(m => m.id === this.userSession.id) || this.userSession;
-            const id = user.id, curRef = getISTDateObject(), curY = curRef.getFullYear(), curM = curRef.getMonth() + 1, curD = curRef.getDate();
+            
+            const curRef = getISTDateObject();
+            // Force JS to read the strict UTC values
+            const curY = curRef.getUTCFullYear();
+            const curM = curRef.getUTCMonth() + 1;
+            const curD = curRef.getUTCDate();
+            const id = user.id;
+
             const stats = { periodTotals: {}, history: [] };
             this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
 
@@ -1895,8 +1914,9 @@ const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum 
 const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
             return {
                 ...stats,
-                isAnniversary: user.doj && user.doj.split('-')[1] == curM && user.doj.split('-')[2] == curD,
-                isBirthday: user.dob && user.dob.split('-')[1] == curM && user.dob.split('-')[2] == curD,
+                // Updated strict date parsing for UI banners
+                isAnniversary: user.doj ? (user.doj.split('-').map(Number)[1] === curM && user.doj.split('-').map(Number)[2] === curD) : false,
+                isBirthday: user.dob ? (user.dob.split('-').map(Number)[1] === curM && user.dob.split('-').map(Number)[2] === curD) : false,
                 holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
                 metrics: {
                     presentMTD: mtd.p, 
