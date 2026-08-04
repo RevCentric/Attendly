@@ -88,6 +88,8 @@ const isMobileDevice = () => {
     return {
         theme: localStorage.getItem('appTheme') || 'light',
 	splitShiftEmps: [],
+	receivedWishes: [],
+        systemBroadcastChannel: null,
 
         get availableBreakTypes() {
             let base = ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'];
@@ -516,7 +518,39 @@ menuItems: [
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .subscribe();
             }
+if (this.systemBroadcastChannel) {
+                this.supabase.removeChannel(this.systemBroadcastChannel);
+            }
+            
+            this.systemBroadcastChannel = this.supabase.channel('public-events')
+                .on('broadcast', { event: 'send_wish' }, (payload) => {
+                    if (this.userSession && payload.payload.targetId === this.userSession.id) {
+                        if (!this.receivedWishes.includes(payload.payload.senderName)) {
+                            this.receivedWishes.push(payload.payload.senderName);
+                            this.showNote(`🎊 You received a wish from ${payload.payload.senderName}!`, "success");
+                        }
+                    }
+                })
+                .subscribe();
         },
+
+sendWish(targetId) {
+            if (!this.userSession || !this.systemBroadcastChannel) return;
+            
+            if (targetId === this.userSession.id) return;
+
+            this.systemBroadcastChannel.send({
+                type: 'broadcast',
+                event: 'send_wish',
+                payload: {
+                    targetId: targetId,
+                    senderName: this.userSession.firstName || this.userSession.name
+                }
+            });
+            
+            this.showNote("Wish sent successfully! ✨", "success");
+        },
+
 
         handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
