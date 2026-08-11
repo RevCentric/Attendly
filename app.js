@@ -87,6 +87,8 @@ const isMobileDevice = () => {
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
+	originalAdminSession: null, // ADD THIS NEW VARIABLE
+	roleAccess: {}, // ADD THIS: Stores granular permissions per role
 	splitShiftEmps: [],
 	receivedWishes: [],
         systemBroadcastChannel: null,
@@ -770,7 +772,8 @@ sendWish(targetId) {
                         if(row.key === 'departments') this.departments = row.value;
                         if(row.key === 'shifts') this.shifts = row.value;
                         if(row.key === 'master_pin') this.masterPin = row.value;
-			if(row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
+                        if(row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
+                        if(row.key === 'role_access') this.roleAccess = row.value || {}; // ADD THIS
                     });
                 }
 
@@ -1279,8 +1282,19 @@ sendWish(targetId) {
 
         get isManagerOrLead() {
             if (!this.userSession) return false;
-            const r = (this.userSession.role || '').toLowerCase();
-            return r.includes('manager') || r.includes('lead') || r.includes('admin') || r.includes('hr');
+            if (this.isAdminAuthenticated) return true;
+            
+            const r = this.userSession.role;
+            const allowedMenus = this.roleAccess[r] || [];
+            
+            // If they have ANY elevated permissions configured, treat them as a Lead for widgets
+            if (Object.keys(this.roleAccess).length > 0) {
+                return allowedMenus.length > 0; 
+            }
+            
+            // Legacy Fallback
+            const rLower = (r || '').toLowerCase();
+            return rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr');
         },
 
         get formattedIdleTime() {
@@ -2954,6 +2968,99 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
             const fileName = `RevCentric_DB_Snapshot_${getISTString()}.xlsx`;
             XLSX.writeFile(wb, fileName); 
             this.showNote("Snapshot Downloaded Successfully", "success");
+        },
+
+	viewAsStaff(mId) {
+            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            const member = this.members.find(m => m.id === mId);
+            if (member) {
+                // 1. Cache the original Manager session before overwriting it
+                if (this.userSession && !this.originalAdminSession) {
+                    this.originalAdminSession = JSON.parse(JSON.stringify(this.userSession));
+                }
+                
+                // 2. Clone the member data into the active session
+                this.userSession = JSON.parse(JSON.stringify(member));
+                this.fetchExceptionHistory(); 
+                this.view = 'portal'; 
+                this.showNote(`Viewing portal as ${member.firstName}`, "success");
+            }
+        },
+
+        closeStaffView() {
+            // 1. Restore the Manager's original session (or clear it if it was the Master Admin)
+            if (this.originalAdminSession) {
+                this.userSession = JSON.parse(JSON.stringify(this.originalAdminSession));
+                this.originalAdminSession = null;
+                this.fetchExceptionHistory(); // Reload Manager's exception history
+            } else {
+                this.userSession = null;
+            }
+            
+            // 2. Return safely to the Roster
+            this.view = 'members';
+            this.showNote("Returned to Admin Roster", "success");
+        },
+
+hasAccess(menuId) {
+            if (this.isAdminAuthenticated) return true; // Master Admin gets everything
+            if (menuId === 'portal') return true; // Everyone gets the portal
+            if (!this.userSession) return false;
+            
+            const userRole = this.userSession.role;
+            const allowedMenus = this.roleAccess[userRole] || [];
+            
+            // Legacy Name-based Fallback
+            if (Object.keys(this.roleAccess).length === 0) {
+                const rLower = (userRole || '').toLowerCase();
+                if (rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr')) return true;
+            }
+            
+            return allowedMenus.includes(menuId);
+        },
+
+        // NEW: Evaluates if a role has modification rights for a specific module
+        hasWriteAccess(menuId) {
+            if (this.isAdminAuthenticated) return true; // Master Admin gets full write access
+            if (!this.userSession) return false;
+            
+            const userRole = this.userSession.role;
+            const allowedMenus = this.roleAccess[userRole] || [];
+            
+            // Legacy Name-based Fallback
+            if (Object.keys(this.roleAccess).length === 0) {
+                const rLower = (userRole || '').toLowerCase();
+                if (rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr')) return true;
+            }
+            
+            return allowedMenus.includes(menuId + '_write');
+        },
+
+        // UPDATED: Handles toggling read vs write configurations interactively
+        toggleRoleAccess(role, menuId, isWrite = false) {
+            if (!this.roleAccess[role]) this.roleAccess[role] = [];
+            const accessKey = isWrite ? `${menuId}_write` : menuId;
+            const idx = this.roleAccess[role].indexOf(accessKey);
+            
+            if (idx > -1) {
+                this.roleAccess[role].splice(idx, 1);
+                // If turning off Read, also turn off Write automatically
+                if (!isWrite) {
+                    const writeIdx = this.roleAccess[role].indexOf(`${menuId}_write`);
+                    if (writeIdx > -1) this.roleAccess[role].splice(writeIdx, 1);
+                }
+            } else {
+                this.roleAccess[role].push(accessKey);
+                // If turning on Write, also turn on Read automatically
+                if (isWrite) {
+                    if (!this.roleAccess[role].includes(menuId)) {
+                        this.roleAccess[role].push(menuId);
+                    }
+                }
+            }
+            
+            this.roleAccess = { ...this.roleAccess };
+            this.upsertConfigCloud('role_access', this.roleAccess);
         },
 
         openNewMemberForm() { this.isAddingMember = true; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
