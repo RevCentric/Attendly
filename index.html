@@ -303,9 +303,13 @@
                 <span class="animate-bounce inline-block" style="animation-duration: 1.2s;">🎊</span>
             </div>
             <div>
-                <h3 class="text-3xl font-black tracking-tighter uppercase leading-none">Happy Anniversary!</h3>
-                <p class="text-emerald-50 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-1 opacity-80">Celebrating your Joining Anniversary with the Organization!</p>
-                
+    <h3 class="text-3xl font-black tracking-tighter uppercase leading-none" 
+        x-text="`Happy ${new Date(Date.now() + 19800000).getUTCFullYear() - parseInt(userSession?.doj?.split('-')[0])} Year Anniversary!`">
+        Happy Anniversary!
+    </h3>
+    <p class="text-emerald-50 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-1 opacity-80">
+        Thank you for your continued dedication to the organization!
+    </p>
                 <!-- NEW: Live Wishes Display -->
                 <div x-show="receivedWishes.length > 0" x-transition class="mt-3 flex items-center gap-2 flex-wrap">
                     <span class="text-[9px] font-black uppercase tracking-widest text-emerald-100/70 bg-black/20 px-2 py-1 rounded-md">Wishes From:</span>
