@@ -2723,13 +2723,16 @@
                         <select x-model="newLeave.type" class="w-full p-3.5 pr-10 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100 appearance-none uppercase tracking-wider">
                             <option value="" disabled selected>SELECT LEAVE CATEGORY...</option>
                             <template x-for="cat in [
-                                {id: 'a', label: '🌴 Full Day Leave'}, 
-                                {id: 'h', label: '⏳ Half Day Leave'}, 
-                                {id: 'wfh', label: '🏠 Work From Home (WFH)'}, 
-                                {id: '1p', label: '⏱️ 1 Hour Permission'}, 
-                                {id: '2p', label: '⏱️ 2 Hour Permission'}, 
-                                {id: 'lop', label: '🚨 Unplanned Absence / LOP'}
-                            ]" :key="cat.id">
+    {id: 'a', label: '🌴 Full Day Leave'}, 
+    {id: 'h', label: '⏳ Half Day Leave'}, 
+    {id: 'wfh', label: '🏠 Work From Home (WFH)'}, 
+    {id: '1p', label: '⏱️ 1 Hour Permission'}, 
+    {id: '2p', label: '⏱️ 2 Hour Permission'}, 
+    {id: 'lop', label: '🚨 Unplanned Absence / LOP'},
+    {id: 'lop1', label: '🚨 1 Hour LOP'},
+    {id: 'lop2', label: '🚨 2 Hour LOP'},
+    {id: 'loph', label: '🚨 Half Day LOP'}
+]" :key="cat.id">
                                 <option :value="cat.id" x-text="cat.label"></option>
                             </template>
                         </select>
