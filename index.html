@@ -1274,7 +1274,7 @@
                     <div class="space-y-6 pb-10">
 
                         <!-- Redesigned High-Security Admin Vault Interface -->
-                        <div x-show="!isAdminAuthenticated" class="max-w-md mx-auto py-12 px-4 relative group animate-in fade-in duration-500">
+                        <div x-show="!hasAccess(view)" class="max-w-md mx-auto py-12 px-4 relative group animate-in fade-in duration-500">
                             <div class="absolute -inset-1.5 bg-gradient-to-r from-rose-955/20 via-zinc-900/40 to-amber-955/20 rounded-[2.5rem] blur-xl opacity-40 group-hover:opacity-60 transition duration-700"></div>
 
                             <div class="relative bg-zinc-950 border border-zinc-800/80 p-8 md:p-10 rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] text-center space-y-8 overflow-hidden">
@@ -1323,7 +1323,7 @@
                             </div>
                         </div>
 
-                        <div x-show="isAdminAuthenticated" class="space-y-6 animate-in fade-in duration-700">
+                        <div x-show="hasAccess(view)" class="space-y-6 animate-in fade-in duration-700">
 <div x-show="view === 'dashboard'" class="flex flex-col gap-y-8 py-2 animate-in fade-in duration-700">
     
     <!-- Top Control Bar with Context Tag -->
