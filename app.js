@@ -220,6 +220,9 @@ const isMobileDevice = () => {
             { id: 'fh', display: 'FH', label: 'Holiday', color: 'text-violet-700', bg: 'bg-violet-50', ring: 'ring-violet-500', hex: '#8b5cf6' },
             { id: 'a', display: 'A', label: 'Absent', color: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-500', hex: '#ef4444', value: 1 },
             { id: 'lop', display: 'LOP', label: 'Loss of Pay', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 1 },
+	    { id: 'lop1', display: 'L1', label: 'LOP-1HR', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 1 },
+    { id: 'lop2', display: 'L2', label: 'LOP-2HR', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 2 },
+    { id: 'loph', display: 'LH', label: 'LOP-Half Day', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 0.5 },		
             { id: 'w', display: 'W', label: 'Weekend', color: 'text-slate-600', bg: 'bg-slate-100', ring: 'ring-slate-400', hex: '#64748b' },
             { id: 'co', display: 'CO', label: 'Comp Off', color: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-500', hex: '#0f766e', value: 1 }
         ],
@@ -1855,17 +1858,18 @@ get individualStats() {
                     if (s === 'a') ytd.lv += 1; if (s === 'h') ytd.lv += 0.5;
                     if (s === '1p') ytd.prm += 1; if (s === '2p') ytd.prm += 2;
                     
-                    if (['p', 'wfh', '1p', '2p', 'co', 'h'].includes(s)) {
-                        const log = this.punchLogs[dk]?.[id];
-                        const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
-                        
-                        if (!isActiveShift) {
-                            let dailyActiveTarget = baseTargetMins;
-                            if (s === '1p') dailyActiveTarget = (baseTargetMins - 60); 
-                            else if (s === '2p') dailyActiveTarget = (baseTargetMins - 120); 
-                            else if (s === 'h') dailyActiveTarget = (baseTargetMins / 2); 
+                    if (['p', 'wfh', '1p', '2p', 'co', 'h', 'lop1', 'lop2', 'loph'].includes(s)) {
+    const log = this.punchLogs[dk]?.[id];
+    const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
+    
+    if (!isActiveShift) {
+        let dailyActiveTarget = baseTargetMins;
+        // UPDATE TO INCLUDE LOP VARIANTS:
+        if (s === '1p' || s === 'lop1') dailyActiveTarget = (baseTargetMins - 60); 
+        else if (s === '2p' || s === 'lop2') dailyActiveTarget = (baseTargetMins - 120); 
+        else if (s === 'h' || s === 'loph') dailyActiveTarget = (baseTargetMins / 2); 
 
-                            let dailyBreakTarget = ['h'].includes(s) ? (allowedBreakMins / 2) : allowedBreakMins; 
+        let dailyBreakTarget = ['h', 'loph'].includes(s) ? (allowedBreakMins / 2) : allowedBreakMins; 
 
                             ytd.completedDays++;
 
@@ -1877,12 +1881,19 @@ get individualStats() {
                         }
                     }
 
-                    if (dm === curM) {
-                        if (['p','wfh','1p','2p','co'].includes(s)) mtd.p += 1;
-                        if (s === 'h') { mtd.p += 0.5; mtd.lv += 0.5; }
-                        if (s === 'a') mtd.lv += 1;
-                        if (s === 'lop') mtd.lop += 1;
-                    }
+                   if (dm === curM) {
+    if (['p','wfh','1p','2p','co', 'lop1', 'lop2'].includes(s)) mtd.p += 1; // 1HR/2HR still count as a Present day overall
+    if (s === 'h' || s === 'loph') { mtd.p += 0.5; }
+    
+    if (s === 'h') mtd.lv += 0.5;
+    if (s === 'a') mtd.lv += 1;
+    
+    // UPDATE LOP CALCULATIONS:
+    if (s === 'lop') mtd.lop += 1;
+    if (s === 'loph') mtd.lop += 0.5;
+    if (s === 'lop1') mtd.lop += 0.125; 
+    if (s === 'lop2') mtd.lop += 0.25;  
+}
                 }
             });
 
@@ -2014,22 +2025,26 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
                 let ytd={ act:0, brk:0, days:0 }, mtd={ act:0, brk:0, days:0 };
 
                 Object.keys(this.attendanceData).forEach(dk => {
-                    const s = this.attendanceData[dk]?.[m.id];
-                    if (!s) return;
-                    if (dk >= sDate && dk <= eDate) {
-                        if (s === 'p' || s === 'wfh') d.presentMTD += 1;
-                        if (s === 'a') d.absentMTD += 1;
-                        if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
-                        
-                        if (s === 'wfh') d.wfhMTD += 1;
-                        if (s === 'co') d.coMTD += 1;
-                        
-                        if (s === '1p') { d.presentMTD += 1; d.prmHrsMTD += 1; }
-                        if (s === '2p') { d.presentMTD += 1; d.prmHrsMTD += 2; }
-                        if (s === 'lop') d.lopMTD += 1; 
-                        if (s === 'fh') d.holidayMTD += 1;
-                    }
-                });
+    const s = this.attendanceData[dk]?.[m.id];
+    if (!s) return;
+    if (dk >= sDate && dk <= eDate) {
+        if (s === 'p' || s === 'wfh') d.presentMTD += 1;
+        if (s === 'a') d.absentMTD += 1;
+        if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
+        if (s === 'wfh') d.wfhMTD += 1;
+        if (s === 'co') d.coMTD += 1;
+        
+        if (s === '1p') { d.presentMTD += 1; d.prmHrsMTD += 1; }
+        if (s === '2p') { d.presentMTD += 1; d.prmHrsMTD += 2; }
+        
+        if (s === 'lop') d.lopMTD += 1; 
+        // ADD THESE LINES:
+        if (s === 'loph') { d.presentMTD += 0.5; d.lopMTD += 0.5; }
+        if (s === 'lop1') { d.presentMTD += 1; d.lopMTD += 0.125; }
+        if (s === 'lop2') { d.presentMTD += 1; d.lopMTD += 0.25; }
+        if (s === 'fh') d.holidayMTD += 1;
+    }
+});
 
                 Object.keys(this.punchLogs).forEach(dk => {
                     const log = this.punchLogs[dk]?.[m.id];
