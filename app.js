@@ -2179,9 +2179,9 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
         },
 
         async adminToggleBreak(mId) {
-            if (!this.isAdminAuthenticated) return;
-            if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-            if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return; 
+        if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+    if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             
             const breaks = this.punchLogs[this.currentDate][mId].breaks;
             const currentTime = this.getCurrentTimeIST();
