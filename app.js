@@ -2263,17 +2263,17 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
                 l.endDate >= activeDate
             );
 
-            // 3. Set LOP Warning Message if under 7 hours (420 mins)
+// 3. Set LOP Warning Message based on new thresholds
             this.logoutPenaltyWarning = null; 
-            if (!hasApprovedLeave && activeMins < 420) {
-                if (activeMins === 0) {
-                    this.logoutPenaltyWarning = "Full Day LOP (No active time logged)";
-                } else if (activeMins < 240) {
-                    this.logoutPenaltyWarning = "Half Day LOP (Less than 4 hours active)";
+            if (!hasApprovedLeave && activeMins < 470) {
+                if (activeMins < 240) {
+                    this.logoutPenaltyWarning = "Full Day LOP (Less than 4 hours active)";
                 } else if (activeMins < 360) {
-                    this.logoutPenaltyWarning = "2 HR LOP (Less than 6 hours active)";
+                    this.logoutPenaltyWarning = "Half Day LOP (Between 4 - 5h 59m active)";
                 } else if (activeMins < 420) {
-                    this.logoutPenaltyWarning = "1 HR LOP (Less than 7 hours active)";
+                    this.logoutPenaltyWarning = "2 HR LOP (Between 6 - 6h 59m active)";
+                } else if (activeMins < 470) {
+                    this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 50m active)";
                 }
             }
 
@@ -2309,43 +2309,28 @@ async confirmLogoutPortal() {
             
             await this.upsertPunchCloud(activeDate, uId); 
 
-            // --- LOP AUTOMATION LOGIC START ---
-            const activeMins = this.getActiveMinsForLog(this.punchLogs[activeDate][uId], activeDate);
+            // --- SILENT LOP DATABASE ENFORCEMENT ---
+            const finalActiveMins = this.getActiveMinsForLog(this.punchLogs[activeDate][uId], activeDate);
             const hasApprovedLeave = this.leaveRequests.some(l => 
                 l.empId === uId && l.status === 'approved' && l.startDate <= activeDate && l.endDate >= activeDate
             );
 
             if (!hasApprovedLeave) {
                 let penaltyStatus = null;
-                let alertMessage = "";
 
-                if (activeMins === 0) {
-                    penaltyStatus = 'lop';
-                    alertMessage = "Penalty Applied: Full Day LOP (No active time logged).";
-                } else if (activeMins < 240) {
-                    penaltyStatus = 'loph';
-                    alertMessage = "Penalty Applied: Half Day LOP (Less than 4 hours active).";
-                } else if (activeMins < 360) {
-                    penaltyStatus = 'lop2';
-                    alertMessage = "Penalty Applied: 2 HR LOP (Less than 6 hours active).";
-                } else if (activeMins < 420) {
-                    penaltyStatus = 'lop1';
-                    alertMessage = "Penalty Applied: 1 HR LOP (Less than 7 hours active).";
-                }
+                if (finalActiveMins < 240) penaltyStatus = 'lop';       // < 4 hours
+                else if (finalActiveMins < 360) penaltyStatus = 'loph'; // 4 to 5.59 hours
+                else if (finalActiveMins < 420) penaltyStatus = 'lop2'; // 6 to 6.59 hours
+                else if (finalActiveMins < 470) penaltyStatus = 'lop1'; // 7 to 7.50 hours
 
                 if (penaltyStatus) {
                     if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
                     this.attendanceData[activeDate][uId] = penaltyStatus;
-                    
                     this.attendanceData = { ...this.attendanceData };
                     this.upsertAttCloud(activeDate, uId, penaltyStatus);
-                    
-                    // Native alert forces the user to acknowledge the penalty before the app reloads
-                    alert(alertMessage); 
                 }
             }
-            // --- LOP AUTOMATION LOGIC END ---
-            
+
             this.showLogoutModal = false; 
             this.showNote("Shift Logged Out", "success");
             await this.logoutUser(); 
