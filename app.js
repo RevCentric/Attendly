@@ -205,6 +205,7 @@ const isMobileDevice = () => {
         showNotifications: false,
         showLogoutModal: false,
         logoutTimePreview: '',
+	logoutPenaltyWarning: null,
         editingLogId: null,
         tempPunches: { in: '', out: '' },
         memberToDelete: null,
@@ -2182,7 +2183,7 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
             if (!this.isAdminAuthenticated && !this.isManagerOrLead) return; 
         if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
     if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-            
+           
             const breaks = this.punchLogs[this.currentDate][mId].breaks;
             const currentTime = this.getCurrentTimeIST();
 
@@ -2242,24 +2243,50 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
         },
         
         initiateLogout() { 
-    // 1. Block mobile devices immediately
-    if (isMobileDevice()) {
-        this.showNote("Action Denied: You cannot punch out using a mobile device.", "error");
-        return;
-    }
-    
-    // 2. Proceed normally for desktop users
-    if (!this.userSession) return; 
-    this.logoutTimePreview = this.getCurrentTimeIST(); 
-    this.showLogoutModal = true; 
-	},
+            // 1. Block mobile devices immediately
+            if (isMobileDevice()) {
+                this.showNote("Action Denied: You cannot punch out using a mobile device.", "error");
+                return;
+            }
+            
+            if (!this.userSession) return; 
+
+            // 2. Compute Active Time & Check for Approved Leaves
+            const activeMins = this.liveActiveMins; 
+            const activeDate = this.getActiveShiftDate();
+            const uId = this.userSession.id;
+            
+            const hasApprovedLeave = this.leaveRequests.some(l => 
+                l.empId === uId && 
+                l.status === 'approved' && 
+                l.startDate <= activeDate && 
+                l.endDate >= activeDate
+            );
+
+            // 3. Set LOP Warning Message if under 7 hours (420 mins)
+            this.logoutPenaltyWarning = null; 
+            if (!hasApprovedLeave && activeMins < 420) {
+                if (activeMins === 0) {
+                    this.logoutPenaltyWarning = "Full Day LOP (No active time logged)";
+                } else if (activeMins < 240) {
+                    this.logoutPenaltyWarning = "Half Day LOP (Less than 4 hours active)";
+                } else if (activeMins < 360) {
+                    this.logoutPenaltyWarning = "2 HR LOP (Less than 6 hours active)";
+                } else if (activeMins < 420) {
+                    this.logoutPenaltyWarning = "1 HR LOP (Less than 7 hours active)";
+                }
+            }
+
+            this.logoutTimePreview = this.getCurrentTimeIST(); 
+            this.showLogoutModal = true; 
+        },
         
-        async confirmLogoutPortal() {
-	if (isMobileDevice()) {
-        this.showLogoutModal = false;
-        this.showNote("Action Denied: Mobile punch-out is strictly prohibited.", "error");
-        return;
-	    }
+async confirmLogoutPortal() {
+            if (isMobileDevice()) {
+                this.showLogoutModal = false;
+                this.showNote("Action Denied: Mobile punch-out is strictly prohibited.", "error");
+                return;
+            }
             this.clearCaptchaTimers();
             const secureTime = await fetchSecureApiTimeIST();
             if (!secureTime) {
@@ -2281,6 +2308,43 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
             this.punchLogs = { ...this.punchLogs };
             
             await this.upsertPunchCloud(activeDate, uId); 
+
+            // --- LOP AUTOMATION LOGIC START ---
+            const activeMins = this.getActiveMinsForLog(this.punchLogs[activeDate][uId], activeDate);
+            const hasApprovedLeave = this.leaveRequests.some(l => 
+                l.empId === uId && l.status === 'approved' && l.startDate <= activeDate && l.endDate >= activeDate
+            );
+
+            if (!hasApprovedLeave) {
+                let penaltyStatus = null;
+                let alertMessage = "";
+
+                if (activeMins === 0) {
+                    penaltyStatus = 'lop';
+                    alertMessage = "Penalty Applied: Full Day LOP (No active time logged).";
+                } else if (activeMins < 240) {
+                    penaltyStatus = 'loph';
+                    alertMessage = "Penalty Applied: Half Day LOP (Less than 4 hours active).";
+                } else if (activeMins < 360) {
+                    penaltyStatus = 'lop2';
+                    alertMessage = "Penalty Applied: 2 HR LOP (Less than 6 hours active).";
+                } else if (activeMins < 420) {
+                    penaltyStatus = 'lop1';
+                    alertMessage = "Penalty Applied: 1 HR LOP (Less than 7 hours active).";
+                }
+
+                if (penaltyStatus) {
+                    if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
+                    this.attendanceData[activeDate][uId] = penaltyStatus;
+                    
+                    this.attendanceData = { ...this.attendanceData };
+                    this.upsertAttCloud(activeDate, uId, penaltyStatus);
+                    
+                    // Native alert forces the user to acknowledge the penalty before the app reloads
+                    alert(alertMessage); 
+                }
+            }
+            // --- LOP AUTOMATION LOGIC END ---
             
             this.showLogoutModal = false; 
             this.showNote("Shift Logged Out", "success");
