@@ -10,10 +10,22 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     
+    <style>
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.2s ease-in-out 0s 2;
+        }
+    </style>
+
     <link rel="stylesheet" href="styles.css">
     <script src="app.js"></script>
 </head>
@@ -21,6 +33,23 @@
 <body :class="theme === 'dark' ? 'bg-zinc-900 text-zinc-100' : 'bg-slate-50/80 text-zinc-900'" 
       class="h-[100dvh] w-full flex flex-col overflow-hidden transition-colors duration-300" 
       x-data="attendanceApp()" x-init="init()" x-cloak>
+
+<!-- Global Toast Notification -->
+<div x-show="notification" 
+     x-transition:enter="transition ease-out duration-300 transform"
+     x-transition:enter-start="opacity-0 translate-y-[-100%]"
+     x-transition:enter-end="opacity-100 translate-y-0"
+     x-transition:leave="transition ease-in duration-300 transform"
+     x-transition:leave-start="opacity-100 translate-y-0"
+     x-transition:leave-end="opacity-0 translate-y-[-100%]"
+     class="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-xl border border-white/20"
+     :class="notification?.type === 'error' ? 'bg-rose-600/95 text-white shadow-[0_10px_40px_-10px_rgba(225,29,72,0.6)]' : 'bg-emerald-600/95 text-white shadow-[0_10px_40px_-10px_rgba(16,185,129,0.6)]'" x-cloak>
+    
+    <svg x-show="notification?.type === 'error'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <svg x-show="notification?.type !== 'error'" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    
+    <span x-text="notification?.msg" class="font-black tracking-widest uppercase text-[10px]"></span>
+</div>
 
 <div x-show="showCaptchaModal" class="fixed inset-0 z-[6000] bg-zinc-950 flex flex-col items-center justify-center text-white" x-transition x-cloak>
         <div class="w-24 h-24 bg-[#0f4c81] text-white rounded-[2rem] mx-auto shadow-[0_0_60px_-15px_rgba(15,76,129,0.5)] mb-6 relative overflow-hidden flex items-center justify-center animate-pulse">
@@ -207,7 +236,6 @@
                                     <h3 class="text-2xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">Identity Portal</h3>
                                     <p class="text-zinc-500 dark:text-zinc-400 text-xs font-semibold max-w-xs mx-auto leading-relaxed">Please authenticate with your Employee ID.</p>
                                 </div>
-                                
                                 <div class="space-y-4">
                                     <div class="relative group/input">
                                         <div class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within/input:text-[#0f4c81] transition-colors">
@@ -235,7 +263,9 @@
                                 
                                 <div class="space-y-4">
                                     <div class="relative">
-                                        <input type="password" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" placeholder="••••••" class="w-full px-6 py-4 bg-zinc-50/50 dark:bg-zinc-900/40 border-2 border-zinc-200 dark:border-zinc-800 focus:border-[#f26522]/50 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-sm focus:bg-white dark:focus:bg-zinc-950 transition-all placeholder:text-zinc-300 dark:placeholder:text-zinc-700">
+                                        <input type="password" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" placeholder="••••••" 
+                                        :class="pinErrorShake ? 'animate-shake border-rose-500 text-rose-500 bg-rose-50 dark:bg-rose-900/20' : 'border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white bg-zinc-50/50 dark:bg-zinc-900/40 focus:border-[#f26522]/50 focus:bg-white dark:focus:bg-zinc-950'"
+                                        class="w-full px-6 py-4 border-2 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-sm transition-all placeholder:text-zinc-300 dark:placeholder:text-zinc-700">
                                     </div>
                                     
                                     <button @click="handlePinVerification()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98]">
@@ -523,15 +553,17 @@
 
             <!-- Dropdown Menu Positioned with Extreme High Layering & Fixed Width -->
             <div x-show="unifiedOpen" x-transition.opacity.duration.200ms 
-                 class="absolute top-full right-0 xl:left-0 mt-2 w-[220px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col max-h-[180px] overflow-y-auto custom-scrollbar p-1.5" 
+                 class="absolute top-full right-0 xl:left-0 mt-2 w-[280px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col p-3" 
                  style="z-index: 999999;" x-cloak>
-                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400 px-3 py-2">Select Category to Start:</span>
-                <template x-for="type in availableBreakTypes" :key="type">
-                    <button @click="selectedBreakType = type; unifiedOpen = false; startBreak();" type="button" class="w-full px-3 py-2.5 rounded-xl flex items-center justify-between hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors text-left group">
-                        <span class="text-[10px] font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-300 group-hover:text-amber-600 dark:group-hover:text-amber-400" x-text="type"></span>
-                        <svg class="w-3.5 h-3.5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                    </button>
-                </template>
+                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400 mb-2 px-1">Select Category to Start:</span>
+                <div class="grid grid-cols-3 gap-2">
+                    <template x-for="type in availableBreakTypes" :key="type">
+                        <button @click="selectedBreakType = type; unifiedOpen = false; startBreak();" type="button" class="flex flex-col items-center justify-center p-2 rounded-xl border border-zinc-100 dark:border-zinc-800 hover:border-amber-300 dark:hover:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors group">
+                            <span class="text-xl mb-1 group-hover:scale-110 transition-transform" x-text="getBreakIcon(type)"></span>
+                            <span class="text-[8px] font-black uppercase tracking-wider text-zinc-600 dark:text-zinc-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 text-center" x-text="type"></span>
+                        </button>
+                    </template>
+                </div>
             </div>
         </div>
     </template>
@@ -553,7 +585,6 @@
                                 </div>
                             </div>
 
-                            <!-- Team Break Status (For Administrators/Managers) -->
 <!-- Team Break Status & Exceptions (For Administrators/Managers) -->
 <div x-show="isManagerOrLead" x-data="{ floorTab: 'activity' }" class="relative overflow-hidden p-5 rounded-[1.75rem] bg-white/40 dark:bg-zinc-900/40 backdrop-blur-2xl border border-white/60 dark:border-zinc-800/50 shadow-lg flex flex-col justify-center w-full relative z-10 transition-all duration-300">
     
@@ -749,265 +780,215 @@
         </template>
     </div>
 
-    <!-- TAB 5: Break Exceeded Content -->
-    <div x-show="floorTab === 'break'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
+<!-- TAB 5: Break Exceeded Content -->
+    <div x-show="floorTab === 'break'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
         <template x-if="filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60).length > 0">
-            <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-2 relative z-10 -mx-1 px-1">
+            <div class="flex gap-3 overflow-x-auto custom-scrollbar pb-3 relative z-10 -mx-1 px-1 pt-1">
                 <template x-for="member in filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60)" :key="member.id">
-                    <div class="p-2.5 rounded-[1.25rem] border flex items-center gap-3 shrink-0 min-w-[200px] transition-all hover:-translate-y-0.5 group cursor-default relative overflow-hidden bg-rose-50/80 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/50 shadow-[0_4px_15px_rgba(244,63,94,0.1)]">
-                        <div class="absolute -right-4 -top-4 w-12 h-12 bg-rose-500/20 rounded-full blur-md animate-pulse"></div>
+                    <div class="p-3 rounded-2xl border flex items-center gap-3 shrink-0 min-w-[210px] transition-all group cursor-default relative overflow-hidden backdrop-blur-xl bg-gradient-to-br from-rose-50/90 to-rose-100/50 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-300/60 dark:border-rose-800/80 shadow-[0_8px_20px_-6px_rgba(244,63,94,0.3)] hover:-translate-y-0.5 hover:shadow-[0_12px_25px_-6px_rgba(244,63,94,0.4)]">
+                        
+                        <div class="absolute -right-6 -top-6 w-16 h-16 bg-rose-500/30 rounded-full blur-xl animate-pulse pointer-events-none"></div>
+                        
                         <div class="relative shrink-0">
-                            <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=a855f7,9333ea,7e22ce&textColor=ffffff`" class="w-10 h-10 rounded-xl shadow-sm border border-white/50 dark:border-zinc-700 object-cover" />
-                            <span class="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-purple-500 border-2 border-white dark:border-zinc-900 rounded-full shadow-sm animate-pulse"></span>
+                            <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=e11d48,be123c,9f1239&textColor=ffffff`" class="w-10 h-10 rounded-xl shadow-sm border border-rose-200 dark:border-rose-800 object-cover group-hover:scale-105 transition-transform" />
+                            <span class="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_10px_rgba(244,63,94,0.8)] animate-pulse"></span>
                         </div>
-                        <div class="min-w-0 flex-1">
-                            <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white truncate" x-text="member.name"></h5>
-                            <p class="text-[9px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate mt-0.5" x-text="member.dept || 'General'"></p>
+                        
+                        <div class="min-w-0 flex-1 relative z-10">
+                            <h5 class="text-xs font-black uppercase tracking-tight text-rose-950 dark:text-rose-100 truncate leading-none" x-text="member.name"></h5>
+                            <p class="text-[8px] font-bold uppercase tracking-widest text-rose-700/80 dark:text-rose-300/80 truncate mt-1" x-text="member.dept || 'General'"></p>
                         </div>
-                        <div class="shrink-0 flex flex-col items-end pl-2 border-l border-zinc-200 dark:border-zinc-700/50">
-                            <span class="text-[9px] font-black uppercase tracking-widest text-purple-500">Exceeded</span>
-                            <span class="text-sm font-black leading-none text-purple-600 dark:text-purple-400 mt-0.5 animate-pulse tabular-nums" x-text="calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) + 'm'"></span>
+                        
+                        <div class="shrink-0 flex flex-col items-end pl-3 border-l border-rose-200/80 dark:border-rose-800/60 relative z-10">
+                            <span class="text-[8px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">Exceeded</span>
+                            <span class="text-sm font-black leading-none text-rose-700 dark:text-rose-300 mt-0.5 animate-pulse tabular-nums" x-text="calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) + 'm'"></span>
                         </div>
                     </div>
                 </template>
             </div>
         </template>
         <template x-if="filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60).length === 0">
-            <div class="py-3 px-4 bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-2xl flex items-center gap-3 relative z-10">
-                <div class="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-800/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-sm">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            <div class="py-2.5 px-4 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/30 rounded-2xl flex items-center gap-3 relative z-10 shadow-sm">
+                <div class="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                 </div>
                 <div class="flex flex-col">
-                    <span class="font-black uppercase tracking-tight text-[11px] text-emerald-900 dark:text-emerald-300">Clean Adherence</span>
-                    <span class="font-bold uppercase tracking-widest text-[8px] text-emerald-600 dark:text-emerald-500 mt-0.5">No personnel over daily break limit</span>
+                    <span class="font-black uppercase tracking-tight text-[10px] text-emerald-900 dark:text-emerald-300">Clean Adherence</span>
+                    <span class="font-bold uppercase tracking-widest text-[8px] text-emerald-600/80 dark:text-emerald-500/80">No personnel over daily break limit</span>
                 </div>
             </div>
         </template>
     </div>
 </div>
 </div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+
+<!-- Horizontally Stacked Container for Calendar, MTD, and YTD Cards -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6 items-stretch">
     
-    <!-- 1. ACTIVE ATTENDANCE CARD -->
-    <div class="relative bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/60 dark:border-zinc-700/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-15px_rgba(15,76,129,0.2)] overflow-hidden flex flex-col justify-between h-full group transition-all duration-500 panel-glow">
-        <div class="absolute inset-0 opacity-[0.02] dark:opacity-[0.04] pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+    <!-- 1. Sleek Interactive Calendar -->
+    <div class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] p-4 md:p-5 shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full relative overflow-hidden group">
+        <div class="absolute -right-20 -top-20 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl pointer-events-none group-hover:bg-blue-500/10 transition-colors duration-500"></div>
         
-        <!-- Restored Vibrant Glow Orb -->
-        <div class="absolute -top-10 -right-10 w-32 h-32 bg-[#0f4c81]/15 rounded-full blur-2xl group-hover:bg-[#0f4c81]/30 group-hover:scale-110 transition-all duration-500"></div>
-        
-        <div class="relative z-10 flex justify-between items-start mb-4">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#0f4c81] to-[#0a3861] flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform duration-500">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </div>
-            <span class="px-3 py-1.5 bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-zinc-200/80 dark:border-zinc-700 shadow-sm backdrop-blur-md">MTD Cycle</span>
-        </div>
-
-        <div class="relative z-10 mb-4">
-            <p class="text-[10px] font-black text-[#0f4c81] dark:text-blue-400 uppercase tracking-widest mb-1">Active Attendance</p>
-            <div class="flex items-baseline gap-2">
-                <h4 class="text-5xl font-black tracking-tighter text-zinc-900 dark:text-white leading-none" x-text="individualStats?.metrics.presentMTD"></h4>
-                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Days Logged</span>
+        <div class="flex items-center justify-between mb-3 relative z-10">
+            <h4 class="text-base md:text-lg font-black uppercase tracking-tight text-zinc-950 dark:text-white" x-text="monthName + ' ' + calYear"></h4>
+            <div class="flex items-center gap-1 bg-zinc-50 dark:bg-zinc-950 p-1 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                <button @click="calMonth--; if(calMonth<0){calMonth=11; calYear--;}" class="p-1.5 bg-transparent rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <button @click="syncCalendar()" class="px-2 py-1 bg-[#0f4c81] text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-[#0a3861] transition-colors flex items-center gap-1 shadow-sm active:scale-95">
+                    <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" :class="isSyncing ? 'animate-spin' : ''"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                    Sync
+                </button>
+                <button @click="calMonth++; if(calMonth>11){calMonth=0; calYear++;}" class="p-1.5 bg-transparent rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
             </div>
         </div>
+        
+        <div class="grid grid-cols-7 gap-1 text-center mb-2 relative z-10">
+            <template x-for="day in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="day">
+                <div class="text-[8px] font-black uppercase tracking-widest text-zinc-400" x-text="day"></div>
+            </template>
+        </div>
+        
+        <div class="grid grid-cols-7 gap-x-1 gap-y-1 place-items-center relative z-10 flex-1 content-start">
+            <template x-for="(cell, index) in calendarDays" :key="index">
+    <div class="relative w-8 h-8 sm:w-10 sm:h-10 rounded-full flex flex-col items-center justify-center transition-all cursor-pointer hover:scale-110 active:scale-95"
+         @click="if(cell) selectedCalDate = cell.dateStr"
+         :class="!cell ? 'border-transparent bg-transparent cursor-default' : (cell.status ? statusOptions.find(s => s.id === cell.status)?.bg + ' ' + statusOptions.find(s => s.id === cell.status)?.color + ' border border-current shadow-[0_4px_10px_-2px_rgba(0,0,0,0.1)] font-black' : 'border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 hover:bg-white dark:hover:bg-zinc-900') + (selectedCalDate === cell?.dateStr ? ' ring-4 ring-zinc-300 dark:ring-zinc-600 scale-110' : '')">
+        <template x-if="cell">
+            <span class="text-xs" :class="cell.status ? '' : 'text-zinc-800 dark:text-zinc-200 font-black'" x-text="cell.day"></span>
+        </template>
+    </div>
+</template>
+        </div>
+    </div>
 
-        <!-- Productivity Bullet Graph -->
-        <div class="relative z-10 mt-auto bg-white/50 dark:bg-zinc-950/50 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 shadow-inner flex flex-col justify-center min-h-[80px]">
-            <div class="flex justify-between items-end mb-2.5">
-                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-500">Avg Shift Duration</span>
-                <span class="text-[9px] font-bold text-zinc-800 dark:text-zinc-200 tabular-nums">
-                    <span x-text="formatBreakDisplay(individualStats?.metrics.avgActiveMTD)"></span>
-                    <span class="text-zinc-400 mx-0.5">/</span>
-                    <span x-text="formatBreakDisplay(individualStats?.metrics.targetActiveMTD)"></span>
+    <!-- 2. Dynamic MTD Cycle Summary Card -->
+    <div class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] p-4 md:p-5 shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full relative overflow-hidden group">
+        <div class="absolute -left-20 -bottom-20 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
+
+        <div class="flex items-center gap-2 mb-3 shrink-0 relative z-10">
+            <span class="flex items-center justify-center w-5 h-5 rounded bg-[#0f4c81]/10 text-[#0f4c81] dark:text-blue-400 border border-[#0f4c81]/20">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white">MTD Cycle Summary</h5>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2 mb-3 flex-1 content-start relative z-10">
+            <div class="bg-zinc-50 dark:bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800/80 flex flex-col justify-center">
+                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-500">Total Logged</span>
+                <span class="text-xl font-black text-zinc-950 dark:text-white tabular-nums leading-tight mt-0.5" x-text="individualStats?.metrics?.presentMTD ?? 0"></span>
+            </div>
+            <div class="bg-rose-50/50 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-100/50 dark:border-rose-900/30 flex flex-col justify-center">
+                <span class="text-[8px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">Total LOP</span>
+                <span class="text-xl font-black text-rose-600 dark:text-rose-400 tabular-nums leading-tight mt-0.5" x-text="individualStats?.metrics?.lopMTD ?? 0"></span>
+            </div>
+            <div class="bg-teal-50/50 dark:bg-teal-950/20 p-2.5 rounded-xl border border-teal-100/50 dark:border-teal-900/30 flex flex-col justify-center">
+                <span class="text-[8px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-400">Comp Off</span>
+                <span class="text-xl font-black text-teal-600 dark:text-teal-400 tabular-nums leading-tight mt-0.5" x-text="individualStats?.metrics?.coMTD ?? 0"></span>
+            </div>
+            <div class="bg-amber-50/50 dark:bg-amber-950/20 p-2.5 rounded-xl border border-amber-100/50 dark:border-amber-900/30 flex flex-col justify-center">
+                <span class="text-[8px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Perm Availed</span>
+                <span class="text-xl font-black text-amber-600 dark:text-amber-400 tabular-nums leading-tight mt-0.5" x-text="(individualStats?.metrics?.prmUsedMTD ?? 0) + 'h'"></span>
+            </div>
+            <div class="bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-100/50 dark:border-emerald-900/30 flex flex-col justify-center">
+                <span class="text-[8px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Leave Availed</span>
+                <span class="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight mt-0.5" x-text="individualStats?.metrics?.lvMTD ?? 0"></span>
+            </div>
+            <div class="bg-blue-50/50 dark:bg-blue-950/20 p-2.5 rounded-xl border border-blue-100/50 dark:border-blue-900/30 flex flex-col justify-center">
+                <span class="text-[8px] font-black uppercase tracking-widest text-[#0f4c81] dark:text-blue-400">Avg Net Hrs</span>
+                <span class="text-base font-black text-[#0f4c81] dark:text-[#5289c0] tabular-nums leading-tight mt-0.5" x-text="formatBreakDisplay(individualStats?.metrics?.avgActiveMTD)"></span>
+            </div>
+        </div>
+
+        <!-- Daily Log Move (Bottom of MTD) -->
+        <div x-show="selectedCalDate" class="mt-auto pt-3 border-t border-zinc-200/80 dark:border-zinc-800/80 flex flex-col gap-2 relative z-10" x-transition>
+            <div class="flex items-center justify-between">
+                <span class="text-[9px] font-black text-zinc-500 uppercase tracking-widest" x-text="formatDate(selectedCalDate)"></span>
+                <span class="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border shadow-sm"
+                      :class="attendanceData && attendanceData[selectedCalDate] && attendanceData[selectedCalDate][userSession?.id] ? (statusOptions.find(s => s.id === attendanceData[selectedCalDate][userSession?.id])?.bg + ' ' + statusOptions.find(s => s.id === attendanceData[selectedCalDate][userSession?.id])?.color + ' border-current') : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-200 dark:border-zinc-700'"
+                      x-text="attendanceData && attendanceData[selectedCalDate] && attendanceData[selectedCalDate][userSession?.id] ? statusOptions.find(s => s.id === attendanceData[selectedCalDate][userSession?.id])?.label : 'NO STATUS'"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 bg-zinc-50 dark:bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800 shadow-inner text-center">
+                <div class="flex flex-col border-r border-zinc-200 dark:border-zinc-800 pr-1.5">
+                    <span class="text-[7px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-0.5">Punch In</span>
+                    <span class="text-xs font-black text-zinc-900 dark:text-white tabular-nums" x-text="punchLogs[selectedCalDate]?.[userSession?.id]?.in || '--:--'"></span>
+                </div>
+                <div class="flex flex-col border-r border-zinc-200 dark:border-zinc-800 px-1.5">
+                    <span class="text-[7px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-0.5">Punch Out</span>
+                    <span class="text-xs font-black text-zinc-900 dark:text-white tabular-nums" x-text="punchLogs[selectedCalDate]?.[userSession?.id]?.out || '--:--'"></span>
+                </div>
+                <div class="flex flex-col pl-1.5">
+                    <span class="text-[7px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-0.5">Brk Accum</span>
+                    <span class="text-xs font-black text-zinc-900 dark:text-white tabular-nums" x-text="formatBreakDisplay(calculateTotalBreakMins(punchLogs[selectedCalDate]?.[userSession?.id]?.breaks))"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- 3. Dynamic YTD Cycle Summary Card (Usage-Based Coloring) -->
+<div x-data="{
+        permPct() { return ((individualStats?.metrics?.prmUsedYTD ?? 0) / Math.max(1, individualStats?.metrics?.permQuotaYTD ?? 1)) * 100; },
+        leavePct() { return ((individualStats?.metrics?.usedLeavesYTD ?? 0) / Math.max(1, individualStats?.metrics?.leaveQuotaYTD ?? 1)) * 100; }
+     }"
+     class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] p-4 md:p-5 shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full relative overflow-hidden group">
+    
+    <div class="absolute -right-20 -bottom-20 w-40 h-40 bg-zinc-500/5 rounded-full blur-3xl pointer-events-none group-hover:bg-zinc-500/10 transition-colors duration-500"></div>
+
+    <div class="flex items-center gap-2 mb-3 shrink-0 relative z-10">
+        <span class="flex items-center justify-center w-5 h-5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+        </span>
+        <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white">YTD Cycle Summary</h5>
+    </div>
+    
+    <div class="flex flex-col gap-2.5 flex-1 content-start relative z-10">
+        <!-- Perm Progress Block -->
+        <div class="bg-zinc-50 dark:bg-zinc-950/60 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/80 transition-colors">
+            <div class="flex justify-between items-end mb-1.5">
+                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-500">Perm (Avail / Used / Quota)</span>
+                <span class="text-sm font-black tabular-nums leading-none transition-colors duration-500"
+                      :class="permPct() > 85 ? 'text-rose-600 dark:text-rose-400' : (permPct() > 50 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')">
+                    <span x-text="(individualStats?.metrics?.prmAvailYTD ?? 0) + 'h'"></span>
+                    <span class="text-zinc-300 dark:text-zinc-700 text-xs mx-0.5">/</span>
+                    <span x-text="(individualStats?.metrics?.prmUsedYTD ?? 0) + 'h'"></span>
                 </span>
             </div>
-            <div class="relative w-full h-3 rounded-md overflow-hidden flex border border-zinc-200/50 dark:border-zinc-700/50 shadow-inner">
-                <div class="h-full bg-rose-500/10 dark:bg-rose-500/20" style="width: 75%"></div>
-                <div class="h-full bg-amber-500/10 dark:bg-amber-500/20" style="width: 15%"></div>
-                <div class="h-full bg-emerald-500/10 dark:bg-emerald-500/20" style="width: 10%"></div>
-                <div class="absolute left-0 top-0.5 bottom-0.5 rounded-sm transition-all duration-1000 z-10 shadow-[0_0_8px_rgba(0,0,0,0.1)]"
-                     :class="{
-                         'bg-emerald-500': (((individualStats?.metrics.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics.targetActiveMTD || 470)) * 100) >= 95,
-                         'bg-amber-500': (((individualStats?.metrics.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics.targetActiveMTD || 470)) * 100) >= 85 && (((individualStats?.metrics.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics.targetActiveMTD || 470)) * 100) < 95,
-                         'bg-rose-500': (((individualStats?.metrics.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics.targetActiveMTD || 470)) * 100) < 85
-                     }"
-                     :style="`width: ${Math.min(100, Math.max(0, ((individualStats?.metrics.avgActiveMTD || 0) / Math.max(1, individualStats?.metrics.targetActiveMTD || 470)) * 100))}%`">
-                </div>
-                <div class="absolute top-0 bottom-0 right-0 w-0.5 bg-emerald-500 z-20 shadow-[0_0_4px_rgba(16,185,129,0.5)]"></div>
-                <div class="absolute top-0 bottom-0 left-[90%] w-px bg-amber-500/60 z-20"></div>
-            </div>
-            <div class="flex justify-between mt-1.5 relative px-0.5">
-                <span class="text-[7px] font-black uppercase text-zinc-400">Critical</span>
-                <span class="text-[7px] font-black uppercase text-zinc-400 absolute left-[85%] -translate-x-1/2">Warn</span>
-                <span class="text-[7px] font-black uppercase text-emerald-600 dark:text-emerald-500">Goal</span>
+            <div class="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 mt-1 overflow-hidden">
+                <div class="h-1 rounded-full transition-all duration-700 ease-out" 
+                     :class="permPct() > 85 ? 'bg-rose-500' : (permPct() > 50 ? 'bg-amber-500' : 'bg-emerald-500')"
+                     :style="`width: ${Math.min(100, permPct())}%`"></div>
             </div>
         </div>
-    </div>
-
-    <!-- 2. LEAVE QUOTA CARD -->
-    <div class="relative bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/60 dark:border-zinc-700/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-15px_rgba(16,185,129,0.2)] overflow-hidden flex flex-col justify-between h-full group transition-all duration-500 panel-glow"
-         x-data="{ showTooltip: false }">
-        <div class="absolute inset-0 opacity-[0.02] dark:opacity-[0.04] pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
         
-        <!-- Restored Vibrant Glow Orb -->
-        <div class="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/25 group-hover:scale-110 transition-all duration-500"></div>
-
-        <div class="relative z-10 flex justify-between items-start mb-2">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform duration-500">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <!-- Leave Progress Block -->
+        <div class="bg-zinc-50 dark:bg-zinc-950/60 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/80 transition-colors">
+            <div class="flex justify-between items-end mb-1.5">
+                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-500">Leave (Avail / Used / Quota)</span>
+                <span class="text-sm font-black tabular-nums leading-none transition-colors duration-500"
+                      :class="leavePct() > 85 ? 'text-rose-600 dark:text-rose-400' : (leavePct() > 50 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')">
+                    <span x-text="individualStats?.metrics?.remainingLeavesYTD ?? 0"></span>
+                    <span class="text-zinc-300 dark:text-zinc-700 text-xs mx-0.5">/</span>
+                    <span x-text="individualStats?.metrics?.usedLeavesYTD ?? 0"></span>
+                </span>
             </div>
-            <span class="px-3 py-1.5 bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-zinc-200/80 dark:border-zinc-700 shadow-sm backdrop-blur-md">Leave Quota</span>
-        </div>
-
-
-
-        <!-- 180 Degree Dashboard Dial -->
-        <div class="relative w-full h-28 shrink-0 mx-auto flex items-end justify-center mb-2 overflow-hidden cursor-pointer group-hover:scale-105 transition-transform duration-500"
-             @mouseenter="showTooltip = true" @mouseleave="showTooltip = false">
-            <svg class="w-full h-40 absolute top-0 drop-shadow-sm" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet">
-                <!-- Base Track: Unused / Available Leave (Green) -->
-                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" class="text-emerald-400 dark:text-emerald-500" stroke-width="8" stroke-linecap="round"/>
-                
-                <!-- Progress Track: Used Leave (Orange, turns Red if over quota) -->
-                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="currentColor" 
-                      :class="(individualStats?.metrics.remainingLeavesYTD < 0) ? 'text-rose-500' : 'text-amber-500'"
-                      stroke-width="8" stroke-linecap="round"
-                      stroke-dasharray="251.2"
-                      :stroke-dashoffset="251.2 * (1 - Math.min(1, Math.max(0, (individualStats?.metrics.usedLeavesYTD || 0) / Math.max(1, individualStats?.metrics.proratedLeaveLimitYTD))))"
-                      class="transition-all duration-1000 ease-out" />
-            </svg>
-            <div class="absolute bottom-0 flex flex-col items-center">
-                <span class="text-4xl font-black tracking-tighter leading-none text-zinc-900 dark:text-white" x-text="individualStats?.metrics.remainingLeavesYTD"></span>
-                <span class="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-500 mt-1">Avail. Balance</span>
-            </div>
-
-            <div x-show="showTooltip" x-transition.opacity.duration.200ms class="absolute bottom-full mb-2 z-50 bg-zinc-900/95 backdrop-blur-xl text-white p-3 rounded-2xl shadow-2xl border border-zinc-700 pointer-events-none min-w-[140px] text-center">
-                <span class="text-[8px] font-black uppercase tracking-widest text-emerald-400 block mb-1">YTD Consumed</span>
-                <span class="font-black text-sm" x-text="individualStats?.metrics.usedLeavesYTD + ' / ' + individualStats?.metrics.proratedLeaveLimitYTD"></span>
+            <div class="w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1 mt-1 overflow-hidden">
+                <div class="h-1 rounded-full transition-all duration-700 ease-out"
+                     :class="leavePct() > 85 ? 'bg-rose-500' : (leavePct() > 50 ? 'bg-amber-500' : 'bg-emerald-500')"
+                     :style="`width: ${Math.min(100, leavePct())}%`"></div>
             </div>
         </div>
-
-        <div class="relative z-10 mt-auto w-full grid grid-cols-2 gap-3">
-            <div class="bg-white/50 dark:bg-zinc-950/50 rounded-2xl p-3 border border-zinc-200/50 dark:border-zinc-800/50 flex flex-col shadow-sm">
-                <span class="text-[7px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Annual Burn</span>
-                <div class="flex items-baseline gap-1 mt-auto">
-                    <span class="text-sm font-black text-zinc-900 dark:text-white leading-none" x-text="individualStats?.metrics.usedLeavesYTD"></span>
-                    <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">/ <span x-text="individualStats?.metrics.proratedLeaveLimitYTD"></span></span>
-                </div>
-            </div>
-            <div class="bg-white/50 dark:bg-zinc-950/50 rounded-2xl p-3 border border-zinc-200/50 dark:border-zinc-800/50 flex flex-col shadow-sm">
-                <span class="text-[7px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">Month Limit</span>
-                <div class="flex items-baseline gap-1 mt-auto">
-                    <span class="text-sm font-black text-zinc-900 dark:text-white leading-none" x-text="individualStats?.metrics.usedLeavesMTD"></span>
-                    <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">/ <span x-text="individualStats?.metrics.monthlyLeaveLimit"></span></span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. ALLOWANCES CARD -->
-    <div class="relative bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/60 dark:border-zinc-700/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-15px_rgba(245,158,11,0.2)] overflow-hidden flex flex-col justify-between h-full group transition-all duration-500 panel-glow"
-         x-data="{ showTooltip: false }">
-        <div class="absolute inset-0 opacity-[0.02] dark:opacity-[0.04] pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
         
-        <!-- Restored Vibrant Glow Orb -->
-        <div class="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/15 rounded-full blur-2xl group-hover:bg-amber-500/30 group-hover:scale-110 transition-all duration-500"></div>
-
-        <div class="relative z-10 flex justify-between items-start mb-6">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform duration-500">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <span class="px-3 py-1.5 bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border border-zinc-200/80 dark:border-zinc-700 shadow-sm backdrop-blur-md">Permission</span>
-        </div>
-
-        <div class="relative z-10 mb-6">
-            <p class="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest mb-1">Permission Hours Available</p>
-            <div class="flex items-baseline gap-2">
-                <h4 class="text-5xl font-black tracking-tighter leading-none" :class="individualStats?.metrics.prmAvailYTD < 0 ? 'text-rose-600' : 'text-zinc-900 dark:text-white'" x-text="individualStats?.metrics.prmAvailYTD"></h4>
-                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Hours</span>
-            </div>
-        </div>
-
-        <!-- Linear Tracks -->
-        <div class="relative z-10 mt-auto bg-white/50 dark:bg-zinc-950/50 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 flex flex-col gap-4 shadow-inner">
-            <div>
-                <div class="flex justify-between items-center mb-1.5">
-                    <span class="text-[8px] font-black uppercase text-zinc-500 tracking-widest">Perm Utilization</span>
-                    <span class="text-[9px] font-bold text-zinc-800 dark:text-zinc-200 tabular-nums"><span x-text="individualStats?.metrics.prmUsedYTD"></span><span class="text-zinc-400 mx-0.5">/</span><span x-text="((individualStats?.metrics.prmAvailYTD || 0) + (individualStats?.metrics.prmUsedYTD || 0))"></span>h</span>
-                </div>
-                <div class="relative w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-visible">
-                    <div class="absolute left-0 top-0 bottom-0 rounded-full transition-all duration-1000 flex items-center justify-end"
-                         :class="(individualStats?.metrics.prmAvailYTD < 0) ? 'bg-rose-500' : 'bg-gradient-to-r from-amber-400 to-amber-500'"
-                         :style="`width: ${Math.min(100, Math.max(2, ((individualStats?.metrics.prmUsedYTD || 0) / Math.max(1, (individualStats?.metrics.prmUsedYTD || 0) + Math.max(0, individualStats?.metrics.prmAvailYTD || 0))) * 100))}%`">
-                        <div class="w-4 h-4 bg-white border-2 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.8)] translate-x-2" :class="(individualStats?.metrics.prmAvailYTD < 0) ? 'border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]' : 'border-amber-500'"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div>
-                <div class="flex justify-between items-center mb-1.5">
-                    <span class="text-[8px] font-black uppercase text-zinc-500 tracking-widest">Avg Daily Break</span>
-                    <span class="text-[9px] font-bold text-zinc-800 dark:text-zinc-200 tabular-nums"><span x-text="individualStats?.metrics.avgBreakMTD"></span><span class="text-zinc-400 mx-0.5">/</span><span x-text="individualStats?.metrics.targetBreakMTD"></span>m</span>
-                </div>
-                <div class="relative w-full h-2.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-visible">
-                    <div class="absolute left-0 top-0 bottom-0 rounded-full transition-all duration-1000 flex items-center justify-end"
-                         :class="((individualStats?.metrics.avgBreakMTD || 0) > (individualStats?.metrics.targetBreakMTD || 60)) ? 'bg-rose-500' : 'bg-gradient-to-r from-emerald-400 to-emerald-500'"
-                         :style="`width: ${Math.min(100, Math.max(2, ((individualStats?.metrics.avgBreakMTD || 0) / Math.max(1, individualStats?.metrics.targetBreakMTD || 60)) * 100))}%`">
-                        <div class="w-4 h-4 bg-white border-2 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.8)] translate-x-2" :class="((individualStats?.metrics.avgBreakMTD || 0) > (individualStats?.metrics.targetBreakMTD || 60)) ? 'border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]' : 'border-emerald-500'"></div>
-                    </div>
-                </div>
-            </div>
+        <!-- YTD LOP -->
+        <div class="bg-rose-50/50 dark:bg-rose-950/20 p-3 rounded-xl border border-rose-100/50 dark:border-rose-900/30 flex justify-between items-center mt-auto">
+            <span class="text-[9px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">Total LOP (YTD)</span>
+            <span class="text-xl font-black text-rose-600 dark:text-rose-400 tabular-nums leading-none" x-text="individualStats?.metrics?.lopYTD ?? 0"></span>
         </div>
     </div>
-
-    <!-- 4. PAYROLL EXCEPTIONS CARD -->
-    <div class="relative bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl p-6 rounded-[2.5rem] border border-white/60 dark:border-zinc-700/50 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_-15px_rgba(244,63,94,0.2)] overflow-hidden flex flex-col justify-between h-full group transition-all duration-500 panel-glow"
-         :class="individualStats?.metrics.lopMTD > 0 ? 'ring-1 ring-rose-300 dark:ring-rose-500/50' : ''">
-        <div class="absolute inset-0 opacity-[0.02] dark:opacity-[0.04] pointer-events-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-        
-        <!-- Restored Vibrant Glow Orb -->
-        <div class="absolute -top-10 -right-10 w-32 h-32 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/25 group-hover:scale-110 transition-all duration-500"></div>
-        <div x-show="individualStats?.metrics.lopMTD > 0" class="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-rose-500/5 to-transparent pointer-events-none"></div>
-
-        <div class="relative z-10 flex justify-between items-start mb-6">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500"
-                 :class="individualStats?.metrics.lopMTD > 0 ? 'from-rose-500 to-rose-700 text-white' : 'from-zinc-400 to-zinc-600 text-white shadow-none'">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            </div>
-            <span class="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] border shadow-sm backdrop-blur-md"
-                  :class="individualStats?.metrics.lopMTD > 0 ? 'bg-rose-100/90 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800 animate-pulse' : 'bg-zinc-100/80 dark:bg-zinc-800/80 text-zinc-500 border-zinc-200 dark:border-zinc-700'" 
-                  x-text="individualStats?.metrics.lopMTD > 0 ? 'Payroll Alert' : 'Clear'"></span>
-        </div>
-
-        <div class="relative z-10 mb-4">
-            <p class="text-[10px] font-black uppercase tracking-widest mb-1.5" :class="individualStats?.metrics.lopMTD > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-400 dark:text-zinc-500'">Payroll Exceptions</p>
-            <div class="flex items-baseline gap-2">
-                <h4 class="text-5xl font-black tracking-tighter leading-none" :class="individualStats?.metrics.lopMTD > 0 ? 'text-rose-600 dark:text-rose-500' : 'text-zinc-900 dark:text-white'" x-text="individualStats?.metrics.lopMTD"></h4>
-                <span class="text-xs font-bold text-zinc-400 uppercase tracking-widest">Unpaid Days</span>
-            </div>
-        </div>
-
-        <!-- Threat-Level Equalizer -->
-        <div class="relative z-10 mt-auto w-full bg-white/50 dark:bg-zinc-950/50 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 shadow-inner flex flex-col justify-center min-h-[80px]">
-            <div class="flex justify-between items-end mb-3">
-                <span class="text-[8px] font-black uppercase tracking-widest" :class="individualStats?.metrics.lopMTD > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-500'" x-text="individualStats?.metrics.lopMTD > 0 ? 'Financial Impact Severity' : 'No Deductions Pending'"></span>
-            </div>
-            
-            <div class="flex items-end justify-center gap-1 w-full h-8">
-                <template x-for="i in 10">
-                    <div class="flex-1 rounded-sm transition-all duration-500"
-                         :style="`height: ${[20, 40, 60, 80, 100, 100, 80, 60, 40, 20][i-1]}%`"
-                         :class="{
-                             'bg-emerald-400/50': individualStats?.metrics.lopMTD === 0,
-                             'bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.6)] animate-pulse': individualStats?.metrics.lopMTD > 0 && i <= Math.ceil(Math.min(10, individualStats?.metrics.lopMTD * 2)),
-                             'bg-zinc-200 dark:bg-zinc-800': individualStats?.metrics.lopMTD > 0 && i > Math.ceil(Math.min(10, individualStats?.metrics.lopMTD * 2))
-                         }">
-                    </div>
-                </template>
-            </div>
-        </div>
-    </div>
-
-</div>                        <div class="relative group w-full mt-2" x-data="{
+</div>
+</div>
+                        <div class="relative group w-full mt-2" x-data="{
                             scroll(dir) {
                                 const slider = $refs.cardSlider;
                                 const scrollAmount = slider.querySelector('.snap-start').offsetWidth + 24; 
@@ -1020,27 +1001,6 @@
                             </button>
 
                             <div x-ref="cardSlider" class="flex overflow-x-auto gap-6 pb-6 pt-4 px-4 snap-x snap-mandatory scroll-smooth w-full" style="scrollbar-width: none;">
-
-                                <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
-                                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
-                                        <h5 class="text-lg font-black tracking-tight uppercase text-zinc-805">Last 15 Days</h5>
-                                    </div>
-                                    <div class="space-y-2 flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
-                                        <template x-for="log in individualStats?.history" :key="log.date">
-                                            <div class="flex items-center justify-between p-3 rounded-xl border transition-all" :class="log.status.id === '-' ? 'bg-zinc-50/50 border-zinc-200/50 opacity-60' : 'bg-white/50 border-zinc-200/50 hover:shadow-sm'">
-                                                <div class="flex flex-col"><span class="text-sm font-black text-zinc-900" x-text="log.label"></span><span class="text-[10px] text-zinc-505 font-bold uppercase tracking-widest mt-0.5" x-text="log.date"></span></div>
-                                                <div class="flex items-center gap-3">
-                                                    <div x-show="log.status.id !== '-'" class="flex flex-col text-[9px] font-black uppercase text-zinc-505 tracking-widest text-right">
-                                                        <span x-text="'IN: ' + (log.punch?.in || '--:--')"></span>
-                                                        <span x-text="'OUT: ' + (log.punch?.out || '--:--')"></span>
-                                                        <span x-show="calculateTotalBreakMins(log.punch?.breaks) > 0" x-text="'BRK: ' + formatBreakDisplay(calculateTotalBreakMins(log.punch?.breaks))" class="text-amber-500 mt-0.5"></span>
-                                                    </div>
-                                                    <span :class="log.status.bg + ' ' + log.status.color" class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-current shadow-sm" x-text="log.status.label"></span>
-                                                </div>
-                                            </div>
-                                        </template>
-                                    </div>
-                                </div>
 
                                 <div class="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-zinc-200/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] flex flex-col shrink-0 w-[85vw] md:w-[calc(25%-1.125rem)] snap-start h-[420px] panel-glow">
                                     <div class="flex items-center justify-between mb-4 pb-4 border-b border-zinc-200/50 shrink-0">
@@ -1296,7 +1256,8 @@
                                                @keyup.enter="verifyAdmin()" 
                                                placeholder="••••••" 
                                                maxlength="6" 
-                                               class="w-full px-6 py-4 bg-zinc-900 border-2 border-zinc-800 focus:border-rose-500/40 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] text-white placeholder:text-zinc-800 transition-all">
+                                               :class="pinErrorShake ? 'animate-shake border-rose-500 text-rose-500' : 'border-zinc-800 text-white'"
+                                               class="w-full px-6 py-4 bg-zinc-900 border-2 focus:border-rose-500/40 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-[inset_0_2px_4px_rgba(0,0,0,0.4)] placeholder:text-zinc-800 transition-all">
                                     </div>
                                     
                                     <button @click="verifyAdmin()" class="group/btn w-full py-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(244,63,94,0.3)] transition-all active:scale-[0.98] flex items-center justify-center gap-2">
@@ -2289,7 +2250,7 @@
                 </button>
             </div>
 
-            <!-- Interactive Pill-Grid (RESTORED FOR DEPARTMENTS) -->
+            <!-- Interactive Pill-Grid -->
             <div class="flex flex-wrap gap-2 overflow-y-auto custom-scrollbar pr-1 flex-1 content-start max-h-[300px]">
                 <template x-for="dept in departments" :key="dept">
                     <div class="group flex items-center justify-between gap-3 pl-3.5 pr-2 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 hover:border-[#0f4c81] dark:hover:border-[#5289c0] transition-all shadow-sm">
@@ -2321,7 +2282,7 @@
                 </button>
             </div>
 
-            <!-- Interactive Privileges Grid (MOVED TO CORRECT SPOT) -->
+            <!-- Interactive Privileges Grid -->
             <div class="flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-1 flex-1 max-h-[300px]">
                 <template x-for="role in roles" :key="role">
                     <div class="flex flex-col p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 transition-all shadow-sm group">
@@ -2486,13 +2447,13 @@
                 <div class="w-px h-8 bg-zinc-200/80 mx-2 shrink-0 hidden sm:block"></div>
 
                 <!-- Middle: Navigation Items -->
-<div class="flex-1 min-w-0 flex items-center gap-x-1.5 px-1 md:px-2 overflow-x-auto no-scrollbar py-1">
+                <div class="flex-1 min-w-0 flex items-center gap-x-1.5 px-1 md:px-2 overflow-x-auto no-scrollbar py-1">
                     <template x-for="item in menuItems" :key="item.id">
                         <button x-show="hasAccess(item.id)" 
-        @click="view = item.id; resetMemberForm()" 
-        :class="view === item.id ? 'bg-[#f26522] text-white shadow-[0_4px_20px_rgba(242,101,34,0.3)]' : item.color" 
-        class="w-10 h-10 shrink-0 rounded-full transition-all duration-300 flex items-center justify-center group relative active:scale-95 hover:bg-zinc-100/70">
-    <span x-html="item.icon" class="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 transition-transform group-hover:scale-110"></span>
+                                @click="view = item.id; resetMemberForm()" 
+                                :class="view === item.id ? 'bg-[#f26522] text-white shadow-[0_4px_20px_rgba(242,101,34,0.3)]' : item.color" 
+                                class="w-10 h-10 shrink-0 rounded-full transition-all duration-300 flex items-center justify-center group relative active:scale-95 hover:bg-zinc-100/70">
+                            <span x-html="item.icon" class="w-5 h-5 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 transition-transform group-hover:scale-110"></span>
                             
                             <div class="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-50 whitespace-nowrap hidden md:block shadow-xl origin-bottom scale-95 group-hover:scale-100">
                                 <div class="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-zinc-900"></div>
@@ -2505,116 +2466,116 @@
                 <!-- Vertical Divider -->
                 <div class="w-px h-8 bg-zinc-200/80 mx-1.5 md:mx-2 shrink-0"></div>
 
-<!-- Right: Utility Controls & Profile -->
-<div class="flex items-center gap-1 md:gap-1.5 pr-1 shrink-0">
+                <!-- Right: Utility Controls & Profile -->
+                <div class="flex items-center gap-1 md:gap-1.5 pr-1 shrink-0">
 
-    <!-- Notifications -->
-    <button @click="showNotifications = !showNotifications" 
-            class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:-translate-y-1 relative group"
-            :class="notificationGlowClass">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:origin-top group-hover:rotate-12 transition-transform">
-            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <!-- Enhanced Ping -->
-        <span x-show="todayEvents.length > 0 || ((isAdminAuthenticated || isManagerOrLead) && (pendingLeaveCount > 0 || offenderAlerts.length > 0))" class="absolute top-2 right-2 flex h-2.5 w-2.5">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 border border-white dark:border-zinc-900"></span>
-        </span>
-    </button>
-
-    <!-- Profile Avatar & Menu -->
-    <div class="relative flex justify-center ml-1" x-data="{ showUserDropdown: false }">
-        <!-- Gradient Hover Ring -->
-        <div class="p-0.5 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 hover:from-[#0f4c81] hover:to-[#f26522] transition-colors duration-500 cursor-pointer shadow-sm" @click="showUserDropdown = !showUserDropdown" @click.away="showUserDropdown = false">
-            <img :src="`https://api.dicebear.com/7.x/adventurer/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
-                 alt="User Profile" 
-                 class="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 object-cover border-2 border-white dark:border-zinc-900 hover:scale-[0.95] transition-transform duration-300" />                        
-        </div>
-        
-        <!-- Floating Profile Menu -->
-        <div x-show="showUserDropdown" 
-             x-transition:enter="transition ease-out duration-200"
-             x-transition:enter-start="opacity-0 translate-y-4 scale-95 blur-sm"
-             x-transition:enter-end="opacity-100 translate-y-0 scale-100 blur-0"
-             x-transition:leave="transition ease-in duration-150"
-             x-transition:leave-start="opacity-100 translate-y-0 scale-100 blur-0"
-             x-transition:leave-end="opacity-0 translate-y-4 scale-95 blur-sm"
-             class="absolute bottom-[135%] right-0 p-2.5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] z-50 min-w-[220px] max-w-[calc(100vw-2rem)] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.3)] origin-bottom-right"
-             x-cloak>
-            
-            <div class="flex flex-col gap-1.5">
-                
-                <!-- Captcha Tool (Moved) -->
-                <button @click="toggleMemberVerification(userSession.id); showUserDropdown = false;" 
-                        class="w-full py-3 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-between px-4 group"
-                        :class="userSession?.captchaEnabled ? 'text-emerald-600 dark:text-emerald-400' : ''">
-                    <div class="flex items-center gap-3">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                            <path d="m9 12 2 2 4-4" x-show="userSession?.captchaEnabled"/>
+                    <!-- Notifications -->
+                    <button @click="showNotifications = !showNotifications" 
+                            class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 hover:-translate-y-1 relative group"
+                            :class="notificationGlowClass">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:origin-top group-hover:rotate-12 transition-transform">
+                            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                         </svg>
-                        Verification
+                        <!-- Enhanced Ping -->
+                        <span x-show="todayEvents.length > 0 || ((isAdminAuthenticated || isManagerOrLead) && (pendingLeaveCount > 0 || offenderAlerts.length > 0))" class="absolute top-2 right-2 flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 border border-white dark:border-zinc-900"></span>
+                        </span>
+                    </button>
+
+                    <!-- Profile Avatar & Menu -->
+                    <div class="relative flex justify-center ml-1" x-data="{ showUserDropdown: false }">
+                        <!-- Gradient Hover Ring -->
+                        <div class="p-0.5 rounded-full bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-700 dark:to-zinc-800 hover:from-[#0f4c81] hover:to-[#f26522] transition-colors duration-500 cursor-pointer shadow-sm" @click="showUserDropdown = !showUserDropdown" @click.away="showUserDropdown = false">
+                            <img :src="`https://api.dicebear.com/7.x/adventurer/svg?seed=${userSession?.id}-${new Date().toDateString()}`" 
+                                 alt="User Profile" 
+                                 class="w-10 h-10 rounded-full bg-white dark:bg-zinc-900 object-cover border-2 border-white dark:border-zinc-900 hover:scale-[0.95] transition-transform duration-300" />                        
+                        </div>
+                        
+                        <!-- Floating Profile Menu -->
+                        <div x-show="showUserDropdown" 
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 translate-y-4 scale-95 blur-sm"
+                             x-transition:enter-end="opacity-100 translate-y-0 scale-100 blur-0"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 translate-y-0 scale-100 blur-0"
+                             x-transition:leave-end="opacity-0 translate-y-4 scale-95 blur-sm"
+                             class="absolute bottom-[135%] right-0 p-2.5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl border border-zinc-200/80 dark:border-zinc-800/80 rounded-[1.5rem] z-50 min-w-[220px] max-w-[calc(100vw-2rem)] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.3)] origin-bottom-right"
+                             x-cloak>
+                            
+                            <div class="flex flex-col gap-1.5">
+                                
+                                <!-- Captcha Tool (Moved) -->
+                                <button @click="toggleMemberVerification(userSession.id); showUserDropdown = false;" 
+                                        class="w-full py-3 bg-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-600 dark:text-zinc-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-between px-4 group"
+                                        :class="userSession?.captchaEnabled ? 'text-emerald-600 dark:text-emerald-400' : ''">
+                                    <div class="flex items-center gap-3">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                            <path d="m9 12 2 2 4-4" x-show="userSession?.captchaEnabled"/>
+                                        </svg>
+                                        Verification
+                                    </div>
+                                    <!-- Toggle Switch UI -->
+                                    <div class="w-6 h-3.5 rounded-full relative transition-colors shadow-inner" :class="userSession?.captchaEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'">
+                                        <div class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform shadow-sm" :class="userSession?.captchaEnabled ? 'translate-x-2.5' : ''"></div>
+                                    </div>
+                                </button>
+                                
+                                <!-- Split Shift Toggle (Under Profile Avatar) -->
+                                <div class="w-full py-3 bg-transparent hover:bg-cyan-50 dark:hover:bg-cyan-500/10 text-zinc-600 dark:text-zinc-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-between px-4 group">
+                                    <div class="flex items-center gap-3 cursor-pointer flex-1" @click="toggleSplitShiftAccess(userSession.id); showUserDropdown = false;">
+                                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+                                            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/>
+                                        </svg>
+                                        <span>Split Shift</span>
+                                    </div>
+                                    <!-- Toggle Switch UI -->
+                                    <div @click="toggleSplitShiftAccess(userSession.id); showUserDropdown = false;" class="w-6 h-3.5 rounded-full relative transition-colors shadow-inner cursor-pointer" :class="(splitShiftEmps || []).includes(userSession?.id) ? 'bg-cyan-500' : 'bg-zinc-300 dark:bg-zinc-600'">
+                                        <div class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform shadow-sm" :class="(splitShiftEmps || []).includes(userSession?.id) ? 'translate-x-2.5' : ''"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Leave Request (Moved) -->
+                                <button @click="showLeaveModal = true; showUserDropdown = false;" 
+                                        class="w-full py-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-zinc-600 hover:text-amber-600 dark:text-zinc-400 dark:hover:text-amber-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
+                                        <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                        <path d="M16 2v4M8 2v4M3 10h18"/>
+                                    </svg>
+                                    Time Off Request
+                                </button>
+
+                                <!-- Visual Divider -->
+                                <div class="h-px w-full bg-zinc-200/80 dark:bg-zinc-700/80 my-1"></div>
+
+                                <!-- Close Staff View (Admin/Manager Only) -->
+                                <button x-show="(isAdminAuthenticated || isManagerOrLead) && originalAdminSession" @click="closeStaffView(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:scale-110 transition-transform"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                    Close Staff View
+                                </button>
+
+                                <!-- Punch Out -->
+                                <button @click="initiateLogout(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:-translate-x-1 transition-transform"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                                    Punch Out
+                                </button>
+
+                                <!-- Exit Portal -->
+                                <button @click="killSession(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:-translate-x-1 transition-transform"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    Exit Portal
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <!-- Toggle Switch UI -->
-                    <div class="w-6 h-3.5 rounded-full relative transition-colors shadow-inner" :class="userSession?.captchaEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-600'">
-                        <div class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform shadow-sm" :class="userSession?.captchaEnabled ? 'translate-x-2.5' : ''"></div>
-                    </div>
-                </button>
-<!-- Split Shift Toggle (Under Profile Avatar) -->
-<div class="w-full py-3 bg-transparent hover:bg-cyan-50 dark:hover:bg-cyan-500/10 text-zinc-600 dark:text-zinc-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-between px-4 group">
-    <div class="flex items-center gap-3 cursor-pointer flex-1" @click="toggleSplitShiftAccess(userSession.id); showUserDropdown = false;">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
-            <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/>
-        </svg>
-        <span>Split Shift</span>
-    </div>
-          <!-- Toggle Switch UI -->
-        <div @click="toggleSplitShiftAccess(userSession.id); showUserDropdown = false;" class="w-6 h-3.5 rounded-full relative transition-colors shadow-inner cursor-pointer" :class="(splitShiftEmps || []).includes(userSession?.id) ? 'bg-cyan-500' : 'bg-zinc-300 dark:bg-zinc-600'">
-            <div class="absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform shadow-sm" :class="(splitShiftEmps || []).includes(userSession?.id) ? 'translate-x-2.5' : ''"></div>
-        </div>
-    </div>
-</div>
-                <!-- Leave Request (Moved) -->
-                <button @click="showLeaveModal = true; showUserDropdown = false;" 
-                        class="w-full py-3 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-500/10 text-zinc-600 hover:text-amber-600 dark:text-zinc-400 dark:hover:text-amber-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:scale-110 transition-transform">
-                        <rect x="3" y="4" width="18" height="18" rx="2"/>
-                        <path d="M16 2v4M8 2v4M3 10h18"/>
-                    </svg>
-                    Time Off Request
-                </button>
-
-               <!-- Visual Divider -->
-        <div class="h-px w-full bg-zinc-200/80 dark:bg-zinc-700/80 my-1"></div>
-
-<!-- Close Staff View (Admin/Manager Only) -->
-<button x-show="(isAdminAuthenticated || isManagerOrLead) && originalAdminSession" @click="closeStaffView(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-zinc-600 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:scale-110 transition-transform"><path d="M18 6L6 18M6 6l12 12"/></svg>
-    Close Staff View
-</button>
-
-        <!-- Punch Out -->
-        <button @click="initiateLogout(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:-translate-x-1 transition-transform"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Punch Out
-        </button>
-
-        <!-- Exit Portal -->
-        <button @click="killSession(); showUserDropdown = false;" class="w-full py-3 bg-transparent hover:bg-rose-50 dark:hover:bg-rose-500/10 text-zinc-600 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 px-4 group">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="group-hover:-translate-x-1 transition-transform"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Exit Portal
-        </button>
-            </div>
-        </div>
-    </div>
-</div>
+                </div>
             </nav>
         </div>
     </div>
 
-    <!-- Confirm Exit (Punch Out) Modal -->
-<!-- Ultra-Premium Confirm Exit Modal (With Date) -->
+    <!-- Ultra-Premium Confirm Exit Modal (With Date) -->
     <div x-show="showLogoutModal" class="fixed inset-0 z-[5000] flex items-center justify-center p-4 md:p-6" x-transition.opacity.duration.400ms x-cloak>
         <!-- Backdrop with Deep Blur -->
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-xl" @click="showLogoutModal = false"></div>
@@ -2713,7 +2674,7 @@
         </div>
     </div>
 
-<!-- Revamped Time-off Request Modal -->
+    <!-- Revamped Time-off Request Modal -->
     <div x-show="showLeaveModal" class="fixed inset-0 z-[5000] flex items-center justify-center p-4 md:p-6" x-transition.opacity.duration.300ms x-cloak>
         <!-- Backdrop with Blur -->
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-md" @click="showLeaveModal = false"></div>
@@ -2822,155 +2783,158 @@
         </div>
     </div>
 
-<!-- Floating Collapsible Notification Window -->
-<div x-show="showNotifications" class="fixed inset-0 z-[5000] flex items-center justify-center p-4" x-transition.opacity.duration.300ms x-cloak>
-    <!-- Backdrop with Blur -->
-    <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-md" @click="showNotifications = false"></div>
-    
-    <!-- Centered Glassmorphic Window -->
-    <div x-data="{ openGroups: [] }" 
-         class="relative w-full max-w-md bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col p-6 md:p-8 max-h-[85vh] animate-in zoom-in-95 duration-300 border border-zinc-200/60 dark:border-zinc-800/80 overflow-hidden">
+    <!-- Floating Collapsible Notification Window -->
+    <div x-show="showNotifications" class="fixed inset-0 z-[5000] flex items-center justify-center p-4" x-transition.opacity.duration.300ms x-cloak>
+        <!-- Backdrop with Blur -->
+        <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-md" @click="showNotifications = false"></div>
         
-        <!-- Ambient Background Glows -->
-        <div class="absolute -top-24 -right-24 w-48 h-48 bg-[#0f4c81]/15 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-[#f26522]/15 rounded-full blur-3xl pointer-events-none"></div>
-
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-6 border-b border-zinc-200/60 dark:border-zinc-800 pb-4 relative z-10">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0f4c81]/10 to-transparent border border-[#0f4c81]/20 text-[#0f4c81] dark:text-blue-400 flex items-center justify-center shadow-inner">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white leading-none">Notifications</h3>
-                    <p class="text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-1">System updates and pending alerts</p>
-                </div>
-            </div>
-            <button @click="showNotifications = false" class="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            </button>
-        </div>
-        
-        <!-- Scrollable Content Area -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 relative z-10">
+        <!-- Centered Glassmorphic Window -->
+        <div x-data="{ openGroups: [] }" 
+             class="relative w-full max-w-md bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col p-6 md:p-8 max-h-[85vh] animate-in zoom-in-95 duration-300 border border-zinc-200/60 dark:border-zinc-800/80 overflow-hidden">
             
-            <!-- Collapsible Group: Events -->
-            <div class="bg-zinc-50/80 dark:bg-zinc-950/50 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden shadow-sm">
-                <button @click="openGroups.includes('events') ? openGroups = openGroups.filter(i => i !== 'events') : openGroups.push('events')" 
-                        class="w-full flex justify-between items-center p-4 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/60 dark:hover:bg-zinc-900 transition-colors">
-                    <span class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-pink-500"></span>
-                        Today's Celebrations
-                        <span class="px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 text-[8px]" x-text="todayEvents.length"></span>
-                    </span>
-                    <span class="text-zinc-400 font-mono" x-text="openGroups.includes('events') ? '▼' : '▶'"></span>
-                </button>
-                <div x-show="openGroups.includes('events')" x-collapse class="p-3 pt-0 space-y-2.5">
-                    <template x-for="ev in todayEvents" :key="ev.id">
-    <div class="bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm flex items-center gap-3.5">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-inner shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
-        <div class="min-w-0 flex-1">
-            <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="ev.member.name"></p>
-            <p class="text-[9px] font-bold uppercase tracking-wider mt-0.5" :class="ev.color" x-text="ev.title"></p>
-        </div>
-        
-        <!-- NEW: Send Wish Button -->
-        <button x-show="userSession && ev.member.id !== userSession.id" 
-                @click="sendWish(ev.member.id)" 
-                class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 shrink-0 border"
-                :class="ev.type === 'birthday' ? 'bg-pink-50 text-pink-600 border-pink-200 hover:bg-pink-100' : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'">
-            Send Wish ✨
-        </button>
-    </div>
-</template>
-                    <template x-if="todayEvents.length === 0">
-                        <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No events scheduled for today.</p>
-                    </template>
-                </div>
-            </div>
+            <!-- Ambient Background Glows -->
+            <div class="absolute -top-24 -right-24 w-48 h-48 bg-[#0f4c81]/15 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-[#f26522]/15 rounded-full blur-3xl pointer-events-none"></div>
 
-            <!-- Collapsible Group: AI Insights / Offender Alerts -->
-            <div class="bg-zinc-50/80 dark:bg-zinc-950/50 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden shadow-sm">
-                <button @click="openGroups.includes('alerts') ? openGroups = openGroups.filter(i => i !== 'alerts') : openGroups.push('alerts')" 
-                        class="w-full flex justify-between items-center p-4 text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 hover:bg-zinc-100/60 dark:hover:bg-zinc-900 transition-colors">
-                    <span class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                        AI Insights & Alerts
-                        <span class="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 text-[8px]" x-text="offenderAlerts.length"></span>
-                    </span>
-                    <span class="text-zinc-400 font-mono" x-text="openGroups.includes('alerts') ? '▼' : '▶'"></span>
-                </button>
-                <div x-show="openGroups.includes('alerts')" x-collapse class="p-3 pt-0 space-y-2.5">
-                    <template x-for="alert in offenderAlerts" :key="alert.id">
-                        <div class="bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-rose-200/60 dark:border-rose-900/50 shadow-sm flex items-center gap-3.5">
-                            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-base shadow-inner shrink-0 bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400" x-text="alert.icon"></div>
-                            <div class="min-w-0 flex-1">
-                                <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="alert.member.name"></p>
-                                <p class="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-rose-600 dark:text-rose-400" x-text="alert.message"></p>
-                            </div>
-                        </div>
-                    </template>
-                    <template x-if="offenderAlerts.length === 0">
-                        <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No active workflow alerts.</p>
-                    </template>
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6 border-b border-zinc-200/60 dark:border-zinc-800 pb-4 relative z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0f4c81]/10 to-transparent border border-[#0f4c81]/20 text-[#0f4c81] dark:text-blue-400 flex items-center justify-center shadow-inner">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white leading-none">Notifications</h3>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-zinc-400 mt-1">System updates and pending alerts</p>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Collapsible Group: Pending Approvals (Admin / Manager) -->
-            <div x-show="isAdminAuthenticated || isManagerOrLead" class="bg-zinc-50/80 dark:bg-zinc-950/50 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden shadow-sm">
-                <button @click="openGroups.includes('pending') ? openGroups = openGroups.filter(i => i !== 'pending') : openGroups.push('pending')" 
-                        class="w-full flex justify-between items-center p-4 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:bg-zinc-100/60 dark:hover:bg-zinc-900 transition-colors">
-                    <span class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
-                        Pending Approvals
-                        <span class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-[8px]" x-text="leaveRequests.filter(r => r.status === 'pending').length"></span>
-                    </span>
-                    <span class="text-zinc-400 font-mono" x-text="openGroups.includes('pending') ? '▼' : '▶'"></span>
+                <button @click="showNotifications = false" class="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-all">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
-                <div x-show="openGroups.includes('pending')" x-collapse class="p-3 pt-0 space-y-2.5">
-                    <template x-for="req in leaveRequests.filter(r => r.status === 'pending')" :key="req.id">
-                        <div class="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-3">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="req.name"></p>
-                                <span class="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40 rounded text-[8px] font-black uppercase tracking-widest shrink-0"
-                                      x-text="statusOptions.find(s => s.id === req.type)?.label || 'Leave'">
-                                </span>
-                            </div>
-                            
-                            <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider" x-text="formatDate(req.startDate) + (req.startDate !== req.endDate ? ' to ' + formatDate(req.endDate) : '')"></p>
-                            
-                            <div class="grid grid-cols-2 gap-2 pt-1">
-                                <button @click="approveLeave(req.id)" class="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-sm active:scale-95 transition-all">Approve</button>
-                                <button @click="rejectLeave(req.id)" class="py-2.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-rose-500 hover:text-white text-zinc-700 dark:text-zinc-300 rounded-xl font-black text-[9px] uppercase tracking-widest shadow-sm active:scale-95 transition-all">Reject</button>
-                            </div>
-                        </div>
-                    </template>
-                    <template x-if="leaveRequests.filter(r => r.status === 'pending').length === 0">
-                        <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No pending leave requests.</p>
-                    </template>
-                </div>
             </div>
             
+            <!-- Scrollable Content Area -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 relative z-10">
+                
+                <!-- Collapsible Group: Events -->
+                <div class="bg-zinc-50/80 dark:bg-zinc-950/50 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden shadow-sm">
+                    <button @click="openGroups.includes('events') ? openGroups = openGroups.filter(i => i !== 'events') : openGroups.push('events')" 
+                            class="w-full flex justify-between items-center p-4 text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/60 dark:hover:bg-zinc-900 transition-colors">
+                        <span class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-pink-500"></span>
+                            Today's Celebrations
+                            <span class="px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-950/80 text-pink-600 dark:text-pink-400 text-[8px]" x-text="todayEvents.length"></span>
+                        </span>
+                        <span class="text-zinc-400 font-mono" x-text="openGroups.includes('events') ? '▼' : '▶'"></span>
+                    </button>
+                    <div x-show="openGroups.includes('events')" x-collapse class="p-3 pt-0 space-y-2.5">
+                        <template x-for="ev in todayEvents" :key="ev.id">
+                            <div class="bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm flex items-center gap-3.5">
+                                <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-inner shrink-0" :class="ev.bg + ' ' + ev.color" x-text="ev.icon"></div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="ev.member.name"></p>
+                                    <p class="text-[9px] font-bold uppercase tracking-wider mt-0.5" :class="ev.color" x-text="ev.title"></p>
+                                </div>
+                                
+                                <!-- NEW: Send Wish Button -->
+                                <button x-show="userSession && ev.member.id !== userSession.id" 
+                                        @click="sendWish(ev.member.id)" 
+                                        class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 shrink-0 border"
+                                        :class="ev.type === 'birthday' ? 'bg-pink-50 text-pink-600 border-pink-200 hover:bg-pink-100' : 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'">
+                                    Send Wish ✨
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="todayEvents.length === 0">
+                            <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No events scheduled for today.</p>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Collapsible Group: AI Insights / Offender Alerts -->
+                <div class="bg-zinc-50/80 dark:bg-zinc-950/50 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden shadow-sm">
+                    <button @click="openGroups.includes('alerts') ? openGroups = openGroups.filter(i => i !== 'alerts') : openGroups.push('alerts')" 
+                            class="w-full flex justify-between items-center p-4 text-[10px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 hover:bg-zinc-100/60 dark:hover:bg-zinc-900 transition-colors">
+                        <span class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                            AI Insights & Alerts
+                            <span class="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 text-[8px]" x-text="offenderAlerts.length"></span>
+                        </span>
+                        <span class="text-zinc-400 font-mono" x-text="openGroups.includes('alerts') ? '▼' : '▶'"></span>
+                    </button>
+                    <div x-show="openGroups.includes('alerts')" x-collapse class="p-3 pt-0 space-y-2.5">
+                        <template x-for="alert in offenderAlerts" :key="alert.id">
+                            <div class="bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-rose-200/60 dark:border-rose-900/50 shadow-sm flex items-center gap-3.5">
+                                <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-base shadow-inner shrink-0 bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400" x-text="alert.icon"></div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="alert.member.name"></p>
+                                    <p class="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-rose-600 dark:text-rose-400" x-text="alert.message"></p>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="offenderAlerts.length === 0">
+                            <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No active workflow alerts.</p>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Collapsible Group: Pending Approvals (Admin / Manager) -->
+                <div x-show="isAdminAuthenticated || isManagerOrLead" class="bg-zinc-50/80 dark:bg-zinc-950/50 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden shadow-sm">
+                    <button @click="openGroups.includes('pending') ? openGroups = openGroups.filter(i => i !== 'pending') : openGroups.push('pending')" 
+                            class="w-full flex justify-between items-center p-4 text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:bg-zinc-100/60 dark:hover:bg-zinc-900 transition-colors">
+                        <span class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                            Pending Approvals
+                            <span class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-[8px]" x-text="leaveRequests.filter(r => r.status === 'pending').length"></span>
+                        </span>
+                        <span class="text-zinc-400 font-mono" x-text="openGroups.includes('pending') ? '▼' : '▶'"></span>
+                    </button>
+                    <div x-show="openGroups.includes('pending')" x-collapse class="p-3 pt-0 space-y-2.5">
+                        <template x-for="req in leaveRequests.filter(r => r.status === 'pending')" :key="req.id">
+                            <div class="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="req.name"></p>
+                                    <span class="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/40 rounded text-[8px] font-black uppercase tracking-widest shrink-0"
+                                          x-text="statusOptions.find(s => s.id === req.type)?.label || 'Leave'">
+                                    </span>
+                                </div>
+                                
+                                <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider" x-text="formatDate(req.startDate) + (req.startDate !== req.endDate ? ' to ' + formatDate(req.endDate) : '')"></p>
+                                
+                                <div class="grid grid-cols-2 gap-2 pt-1">
+                                    <button @click="approveLeave(req.id)" class="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-sm active:scale-95 transition-all">Approve</button>
+                                    <button @click="rejectLeave(req.id)" class="py-2.5 bg-zinc-200 dark:bg-zinc-800 hover:bg-rose-500 hover:text-white text-zinc-700 dark:text-zinc-300 rounded-xl font-black text-[9px] uppercase tracking-widest shadow-sm active:scale-95 transition-all">Reject</button>
+                                </div>
+                            </div>
+                        </template>
+                        <template x-if="leaveRequests.filter(r => r.status === 'pending').length === 0">
+                            <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No pending leave requests.</p>
+                        </template>
+                    </div>
+                </div>
+                
+            </div>
         </div>
     </div>
-</div>
+
     <!-- Deletion Confirmation Modal -->
     <div x-show="showDeleteModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
         <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="showDeleteModal = false"></div>
-        <div class="bg-white rounded-[2rem] p-10 max-w-sm w-full relative z-10 text-center space-y-6 shadow-2xl border border-zinc-200/50">
-            <div class="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-2">
+        <div class="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 md:p-10 max-w-sm w-full relative z-10 text-center space-y-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] border border-zinc-200/80 dark:border-zinc-800 overflow-hidden">
+            <div class="absolute inset-0 bg-[radial-gradient(#f43f5e_1px,transparent_1px)] opacity-[0.03] [background-size:16px_16px] pointer-events-none"></div>
+            
+            <div class="w-20 h-20 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-2 border border-rose-100 dark:border-rose-800/50 shadow-inner">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </div>
             
-            <h4 class="text-3xl font-black tracking-tighter uppercase leading-none" x-text="'Confirm Deletion?'"></h4>
-            <p class="text-zinc-500 font-bold text-xs">This action cannot be undone. All associated history may be orphaned.</p>
+            <h4 class="text-3xl font-black tracking-tighter uppercase leading-none text-zinc-950 dark:text-white" x-text="'Confirm Deletion?'"></h4>
+            <p class="text-zinc-500 dark:text-zinc-400 font-bold text-xs uppercase tracking-wider leading-relaxed">This action cannot be undone. All associated history may be orphaned.</p>
 
-            <div class="grid grid-cols-2 gap-4 mt-4">
-                <button @click="showDeleteModal = false" class="py-4 bg-zinc-100 text-zinc-600 rounded-xl font-black text-xs uppercase tracking-widest transition-colors hover:bg-zinc-200">Cancel</button>
-                <button @click="executeWipe()" class="py-4 bg-rose-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-transform active:scale-95 hover:bg-rose-700">Delete</button>
+            <div class="grid grid-cols-2 gap-4 mt-6">
+                <button @click="showDeleteModal = false" class="py-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-black text-xs uppercase tracking-widest transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-700">Cancel</button>
+                <button @click="executeWipe()" class="py-4 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(244,63,94,0.4)] transition-transform active:scale-95 hover:bg-rose-700">Delete</button>
             </div>
         </div>
     </div> 
