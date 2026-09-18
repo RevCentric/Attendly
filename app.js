@@ -87,11 +87,153 @@ const isMobileDevice = () => {
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
-	originalAdminSession: null, // ADD THIS NEW VARIABLE
-	roleAccess: {}, // ADD THIS: Stores granular permissions per role
+	originalAdminSession: null, 
+	roleAccess: {}, 
 	splitShiftEmps: [],
 	receivedWishes: [],
         systemBroadcastChannel: null,
+
+        // NEW PROPERTIES FOR CALENDAR & CHARTS
+        calMonth: new Date().getMonth(),
+        calYear: new Date().getFullYear(),
+        selectedCalDate: getISTString(), // Holds the selected date for the new bottom panel
+        pinErrorShake: false,
+        
+        get monthName() {
+            return new Date(this.calYear, this.calMonth).toLocaleString('default', { month: 'long' });
+        },
+        
+        get calendarDays() {
+            const year = this.calYear;
+            const month = this.calMonth;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            let days = [];
+            for (let i = 0; i < firstDay; i++) days.push(null);
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const uid = this.userSession?.id;
+                days.push({ 
+                    day: i, 
+                    dateStr: dStr, 
+                    log: uid ? this.punchLogs[dStr]?.[uid] : null, 
+                    status: uid ? this.attendanceData[dStr]?.[uid] : null 
+                });
+            }
+            return days;
+        },
+
+        async syncCalendar() {
+            // Ensure the scope includes the currently selected calendar month
+            const targetMonthStart = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-01`;
+            if (targetMonthStart < this.scopeStartStr) {
+                this.scopeStartStr = targetMonthStart;
+            }
+            await this.syncUserData();
+            this.showNote(`Data Synced for ${this.monthName} ${this.calYear}`, "success");
+        },
+
+        getBreakIcon(type) {
+            const icons = { 'Lunch': '🍱', 'Dinner': '🍽️', 'Tea': '☕', 'Bio': '🚻', 'Meeting': '🤝', 'Split Shift': '⏸️', 'Other': '🕒' };
+            return icons[type] || '🕒';
+        },
+
+        renderUserCharts() {
+            if(!this.userSession) return;
+            const uid = this.userSession.id;
+            
+            let p=0, a=0, prm=0, lop=0, lv=0;
+            let totalAct=0, totalBrk=0, days=0;
+            
+            for(let i=1; i<=31; i++) {
+                const dStr = `${this.calYear}-${String(this.calMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const st = this.attendanceData[dStr]?.[uid];
+                if(st) {
+                    if(['p','wfh','co'].includes(st)) p++;
+                    if(st === 'a') a++;
+                    
+                    // Summation instead of Count
+                    if(st === '1p') prm += 1;
+                    if(st === '2p') prm += 2;
+                    
+                    if(st === 'h') lv += 0.5;
+                    if(st === 'fh') lv += 1;
+                    
+                    if(st === 'lop') lop += 1;
+                    if(st === 'loph') lop += 0.5;
+                    if(st === 'lop1') lop += 0.125; 
+                    if(st === 'lop2') lop += 0.25;  
+                }
+
+                const log = this.punchLogs[dStr]?.[uid];
+                if(log && log.in && log.out) {
+                    totalAct += this.getActiveMinsForLog(log, dStr);
+                    totalBrk += this.calculateTotalBreakMins(log.breaks);
+                    days++;
+                }
+            }
+            
+            if(window.userPolarChart) window.userPolarChart.destroy();
+            if(window.userBarChart) window.userBarChart.destroy();
+            if(window.userRadialChart) window.userRadialChart.destroy();
+
+            const isDark = this.theme === 'dark';
+            const fontColor = isDark ? '#d4d4d8' : '#3f3f46';
+            const gridColor = isDark ? '#3f3f46' : '#e4e4e7';
+
+            // 1. Polar Area (Variable Radius Pie Chart)
+            const ctxPolar = document.getElementById('polarChart');
+            if(ctxPolar) {
+                window.userPolarChart = new Chart(ctxPolar, {
+                    type: 'polarArea',
+                    data: {
+                        labels: ['Present', 'Absent', 'Permission', 'LOP', 'Leave/Off'],
+                        datasets: [{
+                            data: [p, a, prm, lop, lv],
+                            backgroundColor: ['#10b98188', '#f59e0b88', '#3b82f688', '#e11d4888', '#8b5cf688'],
+                            borderColor: isDark ? '#27272a' : '#ffffff'
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } }, scales: { r: { grid: { color: gridColor }, ticks: { backdropColor: 'transparent', color: fontColor } } } }
+                });
+            }
+
+            // 2. Horizontal Bar (Linear Gauge Chart representation)
+            const ctxBar = document.getElementById('barChart');
+            if(ctxBar) {
+                let avgAct = days ? Math.floor(totalAct/days) : 0;
+                window.userBarChart = new Chart(ctxBar, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Daily Avg Active (Mins)'],
+                        datasets: [
+                            { label: 'Achieved', data: [avgAct], backgroundColor: '#0f4c81', borderRadius: 8 },
+                            { label: 'Target', data: [470], backgroundColor: isDark ? '#3f3f46' : '#e4e4e7', borderRadius: 8 }
+                        ]
+                    },
+                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } }, scales: { x: { beginAtZero: true, max: 540, grid: { color: gridColor }, ticks: { color: fontColor } }, y: { grid: { display: false }, ticks: { color: fontColor } } } }
+                });
+            }
+
+            // 3. Doughnut (Radial Gauge Chart Customised)
+            const ctxRadial = document.getElementById('radialChart');
+            if(ctxRadial) {
+                let avgBrk = days ? Math.floor(totalBrk/days) : 0;
+                window.userRadialChart = new Chart(ctxRadial, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Break Taken (Avg)', 'Remaining Target'],
+                        datasets: [{
+                            data: [avgBrk, Math.max(0, 60 - avgBrk)],
+                            backgroundColor: ['#f26522', isDark ? '#3f3f46' : '#e4e4e7'],
+                            borderWidth: 0,
+                            borderRadius: 10
+                        }]
+                    },
+                    options: { rotation: -90, circumference: 180, cutout: '75%', responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } } }
+                });
+            }
+        },
 
         get availableBreakTypes() {
             let base = ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'];
@@ -146,7 +288,7 @@ const isMobileDevice = () => {
 
         captchaTimer: null,
         captchaTimeoutTimer: null,
-	captchaCountdownInterval: null, // NEW: Tracks the second-by-second countdown
+	captchaCountdownInterval: null, 
         captchaSecondsRemaining: 120,
 	get formattedCaptchaTime() {
             const mins = Math.floor(this.captchaSecondsRemaining / 60).toString().padStart(2, '0');
@@ -288,6 +430,11 @@ menuItems: [
         async init() {
             await syncTrueTime();
 
+            if (window.Chart) {
+                Chart.defaults.color = '#9ca3af';
+                Chart.defaults.font.family = 'Outfit';
+            }
+
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().catch(e => console.warn("Auto-prompt blocked:", e));
             }   
@@ -324,6 +471,9 @@ menuItems: [
                     this.fetchHistoricalDate(newDate);
                 }
             });
+
+            this.$watch('calMonth', () => { setTimeout(() => this.renderUserCharts(), 50) });
+            this.$watch('view', (v) => { if(v === 'portal') setTimeout(() => this.renderUserCharts(), 200) });
 
             setInterval(() => {
                 const now = getNow(); 
@@ -907,6 +1057,7 @@ sendWish(targetId) {
                 }
 
                 this.checkExpiredCaptchas();
+                setTimeout(() => this.renderUserCharts(), 300);
                 
                 this.syncError = false;
                 if (!silent) this.showNote("Database Synced", "success");
@@ -1831,10 +1982,13 @@ get individualStats() {
             const user = this.members.find(m => m.id === this.userSession.id) || this.userSession;
             
             const curRef = getISTDateObject();
-            // Force JS to read the strict UTC values
-            const curY = curRef.getUTCFullYear();
             const curM = curRef.getUTCMonth() + 1;
             const curD = curRef.getUTCDate();
+
+            // Dynamically bind MTD & YTD limits to the selected Calendar Month
+            const calY = this.calYear;
+            const calM = this.calMonth + 1;
+            
             const id = user.id;
 
             const stats = { periodTotals: {}, history: [] };
@@ -1855,68 +2009,100 @@ get individualStats() {
             }
 
             let mtd = { 
-                p:0, lv:0, prm:0, lop:0, activeMins:0, breakMins:0, 
+                p:0, lv:0, prmHrs:0, lop:0, activeMins:0, breakMins:0, 
                 completedDays:0, targetActiveMins:0, targetBreakMins:0
             };
             let ytd = { 
                 lv:0, prm:0, co:0, activeMins:0, breakMins:0, 
-                completedDays:0 
+                completedDays:0, lop:0
             };
 
-            Object.keys(this.attendanceData).forEach(dk => {
-                const s = this.attendanceData[dk][id];
+            const processedDates = new Set();
+
+            // HELPER: Executes Exact Mathematical Sums 
+            const processStatus = (s, dk) => {
                 if (!s) return;
                 const [dy, dm] = dk.split('-').map(Number);
                 
-                if (dy === curY) {
-                    if (s === 'co') ytd.co += 1;
-                    if (s === 'a') ytd.lv += 1; if (s === 'h') ytd.lv += 0.5;
-                    if (s === '1p') ytd.prm += 1; if (s === '2p') ytd.prm += 2;
+                // Track dynamic YTD strictly up to the selected Calendar Month
+                if (dy === calY && dm <= calM) {
                     
-                    if (['p', 'wfh', '1p', '2p', 'co', 'h', 'lop1', 'lop2', 'loph'].includes(s)) {
-    const log = this.punchLogs[dk]?.[id];
-    const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
-    
-    if (!isActiveShift) {
-        let dailyActiveTarget = baseTargetMins;
-        // UPDATE TO INCLUDE LOP VARIANTS:
-        if (s === '1p' || s === 'lop1') dailyActiveTarget = (baseTargetMins - 60); 
-        else if (s === '2p' || s === 'lop2') dailyActiveTarget = (baseTargetMins - 120); 
-        else if (s === 'h' || s === 'loph') dailyActiveTarget = (baseTargetMins / 2); 
+                    // Exact YTD Summation
+                    if (s === 'co') ytd.co += 1;
+                    if (s === 'a') ytd.lv += 1; 
+                    if (s === 'h') ytd.lv += 0.5;
+                    if (s === '1p') ytd.prm += 1; 
+                    if (s === '2p') ytd.prm += 2;
+                    
+                    if (s === 'lop') ytd.lop += 1;
+                    if (s === 'loph') ytd.lop += 0.5;
+                    if (s === 'lop1') ytd.lop += 0.125; 
+                    if (s === 'lop2') ytd.lop += 0.25;
 
-        let dailyBreakTarget = ['h', 'loph'].includes(s) ? (allowedBreakMins / 2) : allowedBreakMins; 
+                    // Exact MTD Summation
+                    if (dm === calM) {
+                        if (['p','wfh','1p','2p','co', 'lop1', 'lop2'].includes(s)) mtd.p += 1;
+                        if (s === 'h' || s === 'loph') mtd.p += 0.5;
+                        
+                        if (s === 'h') mtd.lv += 0.5;
+                        if (s === 'a') mtd.lv += 1;
+                        
+                        if (s === '1p') mtd.prmHrs += 1;
+                        if (s === '2p') mtd.prmHrs += 2;
+                        
+                        if (s === 'lop') mtd.lop += 1;
+                        if (s === 'loph') mtd.lop += 0.5;
+                        if (s === 'lop1') mtd.lop += 0.125; 
+                        if (s === 'lop2') mtd.lop += 0.25;  
+                    }
+
+                    // Target Calculations
+                    if (['p', 'wfh', '1p', '2p', 'co', 'h', 'lop1', 'lop2', 'loph'].includes(s)) {
+                        const log = this.punchLogs[dk]?.[id];
+                        const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
+                        
+                        if (!isActiveShift) {
+                            let dailyActiveTarget = baseTargetMins;
+                            if (s === '1p' || s === 'lop1') dailyActiveTarget = (baseTargetMins - 60); 
+                            else if (s === '2p' || s === 'lop2') dailyActiveTarget = (baseTargetMins - 120); 
+                            else if (s === 'h' || s === 'loph') dailyActiveTarget = (baseTargetMins / 2); 
+
+                            let dailyBreakTarget = ['h', 'loph'].includes(s) ? (allowedBreakMins / 2) : allowedBreakMins; 
 
                             ytd.completedDays++;
 
-                            if (dm === curM) {
+                            if (dm === calM) {
                                 mtd.targetActiveMins += dailyActiveTarget;
                                 mtd.targetBreakMins += dailyBreakTarget;
                                 mtd.completedDays++;
                             }
                         }
                     }
-
-                   if (dm === curM) {
-    if (['p','wfh','1p','2p','co', 'lop1', 'lop2'].includes(s)) mtd.p += 1; // 1HR/2HR still count as a Present day overall
-    if (s === 'h' || s === 'loph') { mtd.p += 0.5; }
-    
-    if (s === 'h') mtd.lv += 0.5;
-    if (s === 'a') mtd.lv += 1;
-    
-    // UPDATE LOP CALCULATIONS:
-    if (s === 'lop') mtd.lop += 1;
-    if (s === 'loph') mtd.lop += 0.5;
-    if (s === 'lop1') mtd.lop += 0.125; 
-    if (s === 'lop2') mtd.lop += 0.25;  
-}
                 }
+            };
+
+            // 1. Process Live Attendance Data
+            Object.keys(this.attendanceData).forEach(dk => {
+                processedDates.add(dk);
+                processStatus(this.attendanceData[dk][id], dk);
             });
 
+            // 2. Process Missing Historical Data seamlessly via the Exception Log
+            if (this.userExceptionHistory) {
+                this.userExceptionHistory.forEach(exc => {
+                    // Only process dates that aren't already in attendanceData memory
+                    if (!processedDates.has(exc.date) && exc.status) {
+                        processStatus(exc.status.id, exc.date);
+                    }
+                });
+            }
+
+            // 3. Process Active and Break Minutes
             Object.keys(this.punchLogs).forEach(dk => {
                 const log = this.punchLogs[dk]?.[id];
                 if (log && log.in && log.out) {
                     const [dy, dm] = dk.split('-').map(Number);
-                    if (dy === curY) {
+                    if (dy === calY && dm <= calM) {
                         const isActiveShift = (dk === activeDateKey && !log.out);
                         if (!isActiveShift) {
                             const activeMins = this.getActiveMinsForLog(log, dk);
@@ -1925,7 +2111,7 @@ get individualStats() {
                             ytd.activeMins += activeMins;
                             ytd.breakMins += breakMins;
 
-                            if (dm === curM) {
+                            if (dm === calM) {
                                 mtd.activeMins += activeMins;
                                 mtd.breakMins += breakMins;
                             }
@@ -1934,17 +2120,15 @@ get individualStats() {
                 }
             });
 
-            const dbYTD = this.ytdStats[id] || { leaves: 0, compOffs: 0, permHours: 0 };
-
-            let monthsActiveThisYear = curM;
+            let monthsActiveThisYear = calM;
             if (user.doj) {
                 const dojParts = user.doj.split('-');
                 if (dojParts.length === 3) {
                     const dojY = parseInt(dojParts[0], 10);
                     const dojM = parseInt(dojParts[1], 10);
-                    if (dojY === curY) {
-                        monthsActiveThisYear = Math.max(1, curM - dojM + 1);
-                    } else if (dojY > curY) {
+                    if (dojY === calY) {
+                        monthsActiveThisYear = Math.max(1, calM - dojM + 1);
+                    } else if (dojY > calY) {
                         monthsActiveThisYear = 0;
                     }
                 }
@@ -1953,49 +2137,53 @@ get individualStats() {
             const totalYearlyLeaves = (user.allowedPL || 0) + (user.allowedSL || 0);
             const limitPerMonth = totalYearlyLeaves / 12;
             const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
-            const remainingYTD = proratedLimitYTD + dbYTD.compOffs - dbYTD.leaves;
-// Calculate Leave Forecasting
-const netUsedLeaves = Math.max(0, dbYTD.leaves - dbYTD.compOffs);
-let leaveMonthUtilizedNum = limitPerMonth > 0 ? Math.ceil(netUsedLeaves / limitPerMonth) : 0;
-if (leaveMonthUtilizedNum > 12) leaveMonthUtilizedNum = 12; // Cap visual display to December
-const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const leaveMonthStr = leaveMonthUtilizedNum > 0 ? monthNames[leaveMonthUtilizedNum - 1] : "N/A";
-// CHANGED: Compare against prorated limit, not the total yearly limit
-const potentialLeaveLOP = Math.max(0, netUsedLeaves - proratedLimitYTD);
+            const remainingYTD = proratedLimitYTD + ytd.co - ytd.lv;
 
-// Calculate Permission Forecasting
-const permLimitPerMonth = user.allowedPerm || 0;
-// CHANGED: Calculate prorated YTD perm limit based on active months
-const proratedPermLimitYTD = permLimitPerMonth * monthsActiveThisYear;
-let permMonthUtilizedNum = permLimitPerMonth > 0 ? Math.ceil(dbYTD.permHours / permLimitPerMonth) : 0;
-if (permMonthUtilizedNum > 12) permMonthUtilizedNum = 12;
-const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum - 1] : "N/A";
-// CHANGED: Compare against prorated YTD limit, not total yearly limit
-const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
+            const netUsedLeaves = Math.max(0, ytd.lv - ytd.co);
+            let leaveMonthUtilizedNum = limitPerMonth > 0 ? Math.ceil(netUsedLeaves / limitPerMonth) : 0;
+            if (leaveMonthUtilizedNum > 12) leaveMonthUtilizedNum = 12; 
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const leaveMonthStr = leaveMonthUtilizedNum > 0 ? monthNames[leaveMonthUtilizedNum - 1] : "N/A";
+            const potentialLeaveLOP = Math.max(0, netUsedLeaves - proratedLimitYTD);
+
+            const permLimitPerMonth = user.allowedPerm || 0;
+            const proratedPermLimitYTD = permLimitPerMonth * monthsActiveThisYear;
+            let permMonthUtilizedNum = permLimitPerMonth > 0 ? Math.ceil(ytd.prm / permLimitPerMonth) : 0;
+            if (permMonthUtilizedNum > 12) permMonthUtilizedNum = 12;
+            const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum - 1] : "N/A";
+            const potentialPermLOP = Math.max(0, ytd.prm - proratedPermLimitYTD);
+
             return {
                 ...stats,
-                // Updated strict date parsing for UI banners
                 isAnniversary: user.doj ? (user.doj.split('-').map(Number)[1] === curM && user.doj.split('-').map(Number)[2] === curD) : false,
                 isBirthday: user.dob ? (user.dob.split('-').map(Number)[1] === curM && user.dob.split('-').map(Number)[2] === curD) : false,
                 holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
                 metrics: {
                     presentMTD: mtd.p, 
                     lvMTD: mtd.lv, 
+                    prmUsedMTD: mtd.prmHrs,
+                    lopMTD: mtd.lop,
+                    
                     plAllowed: user.allowedPL || 0, 
                     slAllowed: user.allowedSL || 0, 
-                    coEarned: dbYTD.compOffs,
+                    coEarned: ytd.co,
                     monthlyLeaveLimit: Number(limitPerMonth.toFixed(2)),
                     proratedLeaveLimitYTD: Number(proratedLimitYTD.toFixed(2)),
+                    leaveQuotaYTD: Number(proratedLimitYTD.toFixed(2)),
+                    permQuotaYTD: proratedPermLimitYTD,
+                    
                     usedLeavesMTD: mtd.lv,
-                    usedLeavesYTD: dbYTD.leaves,
+                    usedLeavesYTD: ytd.lv,
                     remainingLeavesYTD: Number(remainingYTD.toFixed(2)),
-                    prmAvailYTD: ((user.allowedPerm||0) * curM) - dbYTD.permHours, 
-                    prmUsedYTD: dbYTD.permHours, 
-                    lopMTD: mtd.lop,
-		    leaveMonthUtilized: leaveMonthStr,
-            leaveLOPWarning: Number(potentialLeaveLOP.toFixed(2)),
-            permMonthUtilized: permMonthStr,
-            permLOPWarning: potentialPermLOP,	
+                    
+                    prmAvailYTD: proratedPermLimitYTD - ytd.prm, 
+                    prmUsedYTD: ytd.prm, 
+                    lopYTD: ytd.lop,
+                    
+                    leaveMonthUtilized: leaveMonthStr,
+                    leaveLOPWarning: Number(potentialLeaveLOP.toFixed(2)),
+                    permMonthUtilized: permMonthStr,
+                    permLOPWarning: potentialPermLOP,    
                     
                     targetActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.targetActiveMins / mtd.completedDays) : baseTargetMins,
                     targetBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.targetBreakMins / mtd.completedDays) : allowedBreakMins,
@@ -2008,7 +2196,6 @@ const potentialPermLOP = Math.max(0, dbYTD.permHours - proratedPermLimitYTD);
                 }
             };
         },
-
         getAdherenceTier() {
             if (!this.individualStats?.metrics) return 'Silver Tier';
             
@@ -2413,6 +2600,9 @@ async confirmLogoutPortal() {
             }
 
             if (authError) {
+                this.pinErrorShake = true;
+                setTimeout(() => this.pinErrorShake = false, 500);
+
                 this.userFailedAttempts[uid] = (this.userFailedAttempts[uid] || 0) + 1; 
                 this.loginPinInput = '';
                 if (this.userFailedAttempts[uid] >= 3) { 
@@ -2694,7 +2884,7 @@ async confirmLogoutPortal() {
             else { 
                 this.adminFailedAttempts++; this.adminPinInput = '';
                 if (this.adminFailedAttempts >= 3) { this.adminLockoutUntil = Date.now() + 30000; this.adminFailedAttempts = 0; this.showNote("Vault Lockdown Triggered", "error"); } 
-                else this.showNote(`Access Denied`, "error"); 
+                else { this.pinErrorShake = true; setTimeout(()=> this.pinErrorShake = false, 500); this.showNote(`Access Denied`, "error"); } 
             } 
         },
 
@@ -2734,7 +2924,7 @@ async confirmLogoutPortal() {
         removeRole(role) { this.roles = this.roles.filter(r => r !== role); this.upsertConfigCloud('roles', this.roles); },
         removeShift(s) { this.shifts = this.shifts.filter(x => x.name !== s); this.upsertConfigCloud('shifts', this.shifts); },
         
-        showNote(msg, type = 'success') { this.notification = { msg, type }; setTimeout(() => this.notification = null, 3000); },
+        showNote(msg, type = 'success') { this.notification = { msg, type }; setTimeout(() => this.notification = null, 4000); },
         
         async executeWipe() { 
             if (this.memberToDelete) { 
