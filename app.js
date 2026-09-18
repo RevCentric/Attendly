@@ -208,7 +208,7 @@ const isMobileDevice = () => {
                         labels: ['Daily Avg Active (Mins)'],
                         datasets: [
                             { label: 'Achieved', data: [avgAct], backgroundColor: '#0f4c81', borderRadius: 8 },
-                            { label: 'Target', data: [470], backgroundColor: isDark ? '#3f3f46' : '#e4e4e7', borderRadius: 8 }
+                            { label: 'Target', data: [480], backgroundColor: isDark ? '#3f3f46' : '#e4e4e7', borderRadius: 8 }
                         ]
                     },
                     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } }, scales: { x: { beginAtZero: true, max: 540, grid: { color: gridColor }, ticks: { color: fontColor } }, y: { grid: { display: false }, ticks: { color: fontColor } } } }
@@ -1556,7 +1556,7 @@ get notificationGlowClass() {
         get offenderAlerts() {
             const alerts = [];
             const todayStr = this.getActiveShiftDate();
-            const THRESHOLD = 470; 
+            const THRESHOLD = 480; 
             const VIOLATION_LIMIT = 3; 
             
             const [y, m, d] = todayStr.split('-').map(Number);
@@ -1592,7 +1592,7 @@ get notificationGlowClass() {
                             member: m,
                             violations: violations,
                             title: 'Flight Risk Detected',
-                            message: `${violations} shifts under 7h 50m in last 30 days`,
+                            message: `${violations} shifts under 8h in last 30 days`,
                             icon: '🤖',
                             color: 'text-rose-600',
                             bg: 'bg-rose-100'
@@ -2200,7 +2200,7 @@ get individualStats() {
             if (!this.individualStats?.metrics) return 'Silver Tier';
             
             const m = this.individualStats.metrics;
-            const targetMins = m.targetActiveMTD || 470;
+            const targetMins = m.targetActiveMTD || 480;
             const activePercent = ((m.avgActiveMTD || 0) / Math.max(1, targetMins)) * 100;
             const leavesOver = (m.remainingLeavesYTD < 0);
             const permsOver = (m.prmAvailYTD < 0);
@@ -2452,12 +2452,12 @@ get individualStats() {
     );
 
     // Calculate dynamic threshold based on the approved request type
-    let requiredMins = 470;
+    let requiredMins = 480;
     if (activeLeave) {
         if (['a', 'co', 'fh'].includes(activeLeave.type)) requiredMins = 0; // Full day off
-        else if (activeLeave.type === 'h') requiredMins = 235; // Half Day (470 / 2)
-        else if (activeLeave.type === '1p') requiredMins = 410; // 1 HR Perm (470 - 60)
-        else if (activeLeave.type === '2p') requiredMins = 350; // 2 HR Perm (470 - 120)
+        else if (activeLeave.type === 'h') requiredMins = 240; // Half Day (480 / 2)
+        else if (activeLeave.type === '1p') requiredMins = 420; // 1 HR Perm (480 - 60)
+        else if (activeLeave.type === '2p') requiredMins = 360; // 2 HR Perm (480 - 120)
     }
 
     // 3. Set LOP Warning Message based on thresholds IF requirement isn't met
@@ -2469,8 +2469,8 @@ get individualStats() {
             this.logoutPenaltyWarning = "Half Day LOP (Between 4 - 5h 59m active)";
         } else if (activeMins < 420) {
             this.logoutPenaltyWarning = "2 HR LOP (Between 6 - 6h 59m active)";
-        } else if (activeMins < 470) {
-            this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 50m active)";
+        } else if (activeMins < 480) {
+            this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 59m active)";
         }
     }
 
@@ -2512,13 +2512,13 @@ async confirmLogoutPortal() {
         l.empId === uId && l.status === 'approved' && l.startDate <= activeDate && l.endDate >= activeDate
     );
 
-    // Compute final requirement
-    let requiredMins = 470;
+// Compute final requirement
+    let requiredMins = 480;
     if (activeLeave) {
         if (['a', 'co', 'fh'].includes(activeLeave.type)) requiredMins = 0;
-        else if (activeLeave.type === 'h') requiredMins = 235;
-        else if (activeLeave.type === '1p') requiredMins = 410;
-        else if (activeLeave.type === '2p') requiredMins = 350;
+        else if (activeLeave.type === 'h') requiredMins = 240;
+        else if (activeLeave.type === '1p') requiredMins = 420;
+        else if (activeLeave.type === '2p') requiredMins = 360;
     }
 
     // Apply LOP if the required time was not met
@@ -2528,7 +2528,7 @@ async confirmLogoutPortal() {
         if (finalActiveMins < 240) penaltyStatus = 'lop';       // < 4 hours
         else if (finalActiveMins < 360) penaltyStatus = 'loph'; // 4 to 5.59 hours
         else if (finalActiveMins < 420) penaltyStatus = 'lop2'; // 6 to 6.59 hours
-        else if (finalActiveMins < 470) penaltyStatus = 'lop1'; // 7 to 7.50 hours
+        else if (finalActiveMins < 480) penaltyStatus = 'lop1'; // 7 to 7.59 hours
 
         if (penaltyStatus) {
             if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
