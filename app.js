@@ -1482,57 +1482,72 @@ get pendingLeaveRequests() {
 get pendingLeaveCount() { return this.pendingLeaveRequests.length; },
 
 get todayEvents() {
-    const curObj = getISTDateObject();
-    const curM = curObj.getUTCMonth() + 1;
-    const curD = curObj.getUTCDate();
-    const curY = curObj.getUTCFullYear();
-    const events = [];
-    
-    const targetMembers = (this.isManagerOrLead && !this.isSuperUser) 
-        ? this.members.filter(m => m.dept === this.userSession?.dept) 
-        : this.members;
-        
-    targetMembers.forEach(m => {
-        if (m.dob) {
-            const [bY, bM, bD] = m.dob.split('-').map(Number);
-            if (bM === curM && bD === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
-        }
-        if (m.doj) {
-            const [jY, jM, jD] = m.doj.split('-').map(Number);
-            if (jM === curM && jD === curD) {
-                const yrs = curY - jY;
-                events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
-            }
-        }
-    });
-    return events;
-},
+            const curObj = getISTDateObject();
+            const curM = curObj.getUTCMonth() + 1;
+            const curD = curObj.getUTCDate();
+            const curY = curObj.getUTCFullYear();
+            const events = [];
+            
+            // Scope to department unless the user is a Superuser or Master Admin
+            const targetMembers = (this.isAdminAuthenticated || this.isSuperUser) 
+                ? this.members 
+                : this.members.filter(m => m.dept === this.userSession?.dept);
+                
+            targetMembers.forEach(m => {
+                if (m.dob) {
+                    const [bY, bM, bD] = m.dob.split('-').map(Number);
+                    if (bM === curM && bD === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
+                }
+                if (m.doj) {
+                    const [jY, jM, jD] = m.doj.split('-').map(Number);
+                    if (jM === curM && jD === curD) {
+                        const yrs = curY - jY;
+                        events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+                    }
+                }
+            });
+            return events;
+        },
 
-get monthEvents() {
-    const curObj = getISTDateObject();
-    const curM = curObj.getUTCMonth() + 1;
-    const curY = curObj.getUTCFullYear();
-    const events = [];
-    
-    const targetMembers = (this.isManagerOrLead && !this.isSuperUser) 
-        ? this.members.filter(m => m.dept === this.userSession?.dept) 
-        : this.members;
-        
-    targetMembers.forEach(m => {
-        if (m.dob) {
-            const [bY, bM, bD] = m.dob.split('-').map(Number);
-            if (bM === curM) events.push({ id: 'mbday_' + m.id, type: 'birthday', member: m, title: 'Birthday', day: bD, icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
-        }
-        if (m.doj) {
-            const [jY, jM, jD] = m.doj.split('-').map(Number);
-            if (jM === curM) {
-                const yrs = curY - jY;
-                events.push({ id: 'mannv_' + m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joining Month', day: jD, icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
-            }
-        }
-    });
-    return events.sort((a, b) => a.day - b.day);
-},
+        get monthEvents() {
+            const curObj = getISTDateObject();
+            const curM = curObj.getUTCMonth() + 1;
+            const curY = curObj.getUTCFullYear();
+            const events = [];
+            
+            // Scope to department unless the user is a Superuser or Master Admin
+            const targetMembers = (this.isAdminAuthenticated || this.isSuperUser) 
+                ? this.members 
+                : this.members.filter(m => m.dept === this.userSession?.dept);
+                
+            targetMembers.forEach(m => {
+                if (m.dob) {
+                    const [bY, bM, bD] = m.dob.split('-').map(Number);
+                    if (bM === curM) {
+                        events.push({ 
+                            id: 'mbday_' + m.id, type: 'birthday', member: m, 
+                            title: 'Birthday', day: bD, icon: '🎂', 
+                            color: 'text-pink-600', bg: 'bg-pink-100' 
+                        });
+                    }
+                }
+                if (m.doj) {
+                    const [jY, jM, jD] = m.doj.split('-').map(Number);
+                    if (jM === curM) {
+                        const yrs = curY - jY;
+                        events.push({ 
+                            id: 'mannv_' + m.id, type: 'anniversary', member: m, 
+                            title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joining Month', 
+                            day: jD, icon: yrs > 0 ? '🎊' : '🎉', 
+                            color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', 
+                            bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' 
+                        });
+                    }
+                }
+            });
+            
+            return events.sort((a, b) => a.day - b.day);
+        },
 
 get notificationGlowClass() {
             // 1. Pink glow for Birthdays
