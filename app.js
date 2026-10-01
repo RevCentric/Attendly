@@ -1450,11 +1450,12 @@ sendWish(targetId) {
         },
 
 get isSuperUser() {
-    if (this.isAdminAuthenticated) return true;
-    if (!this.userSession) return false;
-    const r = this.userSession.role;
-    return (this.roleAccess[r] || []).includes('superuser');
-},
+            if (this.isAdminAuthenticated) return true;
+            if (!this.userSession || !this.userSession.role) return false;
+            const accessList = this.roleAccess[this.userSession.role];
+            // Strictly enforce array check to prevent false-positives
+            return Array.isArray(accessList) ? accessList.includes('superuser') : false;
+        },
 
         get formattedIdleTime() {
             const mins = Math.floor(this.idleSecondsRemaining / 60).toString().padStart(2, '0');
@@ -1488,11 +1489,16 @@ get todayEvents() {
             const curY = curObj.getUTCFullYear();
             const events = [];
             
-            // Scope to department unless the user is a Superuser or Master Admin
-            const targetMembers = (this.isAdminAuthenticated || this.isSuperUser) 
-                ? this.members 
-                : this.members.filter(m => m.dept === this.userSession?.dept);
-                
+            // 1. Strict Case-Insensitive Department Isolation
+            let targetMembers = [];
+            if (this.isAdminAuthenticated || this.isSuperUser) {
+                targetMembers = this.members;
+            } else if (this.userSession && this.userSession.dept) {
+                const myDept = String(this.userSession.dept).trim().toLowerCase();
+                targetMembers = this.members.filter(m => String(m.dept || '').trim().toLowerCase() === myDept);
+            }
+            
+            // 2. Build Event List
             targetMembers.forEach(m => {
                 if (m.dob) {
                     const [bY, bM, bD] = m.dob.split('-').map(Number);
@@ -1515,11 +1521,16 @@ get todayEvents() {
             const curY = curObj.getUTCFullYear();
             const events = [];
             
-            // Scope to department unless the user is a Superuser or Master Admin
-            const targetMembers = (this.isAdminAuthenticated || this.isSuperUser) 
-                ? this.members 
-                : this.members.filter(m => m.dept === this.userSession?.dept);
-                
+            // 1. Strict Case-Insensitive Department Isolation
+            let targetMembers = [];
+            if (this.isAdminAuthenticated || this.isSuperUser) {
+                targetMembers = this.members;
+            } else if (this.userSession && this.userSession.dept) {
+                const myDept = String(this.userSession.dept).trim().toLowerCase();
+                targetMembers = this.members.filter(m => String(m.dept || '').trim().toLowerCase() === myDept);
+            }
+            
+            // 2. Build Event List
             targetMembers.forEach(m => {
                 if (m.dob) {
                     const [bY, bM, bD] = m.dob.split('-').map(Number);
