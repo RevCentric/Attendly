@@ -349,7 +349,7 @@ const isMobileDevice = () => {
         logoutTimePreview: '',
 	logoutPenaltyWarning: null,
         editingLogId: null,
-        tempPunches: { in: '', out: '' },
+        tempPunches: { in: '', out: '', breaks: [] },
         memberToDelete: null,
         notification: null,
 
@@ -378,48 +378,48 @@ menuItems: [
                 label: 'Portal', 
                 admin: false,
                 color: 'text-sky-500 hover:text-sky-600',
-                // Fluent UI: Home 24 Filled
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10.26 2.38a2.25 2.25 0 0 1 2.48 0l8.5 6.13c.61.44.96 1.12.96 1.83V20.5A1.5 1.5 0 0 1 20.7 22H16.5a1.5 1.5 0 0 1-1.5-1.5v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5A1.5 1.5 0 0 1 7.5 22H3.3A1.5 1.5 0 0 1 1.8 20.5V10.34c0-.72.35-1.4.96-1.83l8.5-6.13Z"/></svg>'
+                // Lucide: Home (outline, matches app icon language)
+                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>'
             },
             { 
                 id: 'dashboard', 
                 label: 'Stats', 
                 admin: true,
                 color: 'text-indigo-500 hover:text-indigo-600',
-                // Fluent UI: Data Bar Vertical 24 Filled
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5a1.5 1.5 0 0 1 1.5 1.5v13a1.5 1.5 0 0 1-3 0V6A1.5 1.5 0 0 1 12 4.5Zm-6 6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-3 0v-7A1.5 1.5 0 0 1 6 10.5Zm12-3a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-3 0v-10A1.5 1.5 0 0 1 18 7.5Z"/></svg>'
+                // Lucide: Bar Chart (outline, matches app icon language)
+                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
             },
             { 
                 id: 'record', 
                 label: 'Log', 
                 admin: true,
                 color: 'text-emerald-500 hover:text-emerald-600',
-                // Fluent UI: Document Text 24 Filled
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v6a2 2 0 0 0 2 2h6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h6Zm1.5.5V6a.5.5 0 0 0 .5.5h3.5l-4-4ZM8 12a1 1 0 0 0 0 2h8a1 1 0 1 0 0-2H8Zm0 4a1 1 0 1 0 0 2h5a1 1 0 1 0 0-2H8Z"/></svg>'
+                // Lucide: Clipboard Check (outline, matches app icon language)
+                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>'
             },
             { 
                 id: 'members', 
                 label: 'Roster', 
                 admin: true,
                 color: 'text-violet-500 hover:text-violet-600',
-                // Fluent UI: People 24 Filled
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.25 10.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Zm-4.5 0a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM5.5 13a2.5 2.5 0 0 0-2.5 2.5v2c0 1.1.9 2 2 2h9a2 2 0 0 0 2-2v-2a2.5 2.5 0 0 0-2.5-2.5h-8Zm11.08.5a3.5 3.5 0 0 1 2.42 3.33v1.67a.75.75 0 0 0 1.5 0v-1.67a5 5 0 0 0-3.92-4.88.75.75 0 1 0-.32 1.47l.32-.02Z"/></svg>'
+                // Lucide: Users (outline, matches app icon language)
+                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
             },
             { 
                 id: 'summary', 
                 label: 'Reports', 
                 admin: true,
                 color: 'text-amber-500 hover:text-amber-600',
-                // Fluent UI: Chart Pie 24 Filled
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2.05v8.95c0 .55.45 1 1 1h8.95A10 10 0 0 0 13 2.05ZM11 2.05a10 10 0 1 0 10.95 10.95H12a1 1 0 0 1-1-1V2.05Z"/></svg>'
+                // Lucide: Pie Chart (outline, matches app icon language)
+                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>'
             },
             { 
                 id: 'master', 
                 label: 'Master Config', 
                 admin: true,
                 color: 'text-rose-500 hover:text-rose-600',
-                // Fluent UI: Settings 24 Filled
-                icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.88 2c.98 0 1.83.67 2.04 1.63l.11.64c.26.11.52.24.77.39l.6-.22a2.09 2.09 0 0 1 2.48.87l.08.13 1 1.73a2.09 2.09 0 0 1-.36 2.56l-.09.08-.47.43c.04.29.04.59 0 .88l.47.43c.75.68.96 1.78.53 2.69l-.08.15-1 1.73a2.09 2.09 0 0 1-2.43.95l-.13-.05-.6-.22c-.25.15-.51.28-.77.39l-.11.64a2.09 2.09 0 0 1-1.92 1.73l-.12.01h-2a2.09 2.09 0 0 1-2.04-1.63l-.11-.64a8.1 8.1 0 0 1-.77-.39l-.6.22a2.09 2.09 0 0 1-2.56-.74l-.08-.13-1-1.73a2.09 2.09 0 0 1 .36-2.56l.09-.08.47-.43a8.3 8.3 0 0 1 0-.88l-.47-.43a2.09 2.09 0 0 1-.53-2.69l.08-.15 1-1.73a2.09 2.09 0 0 1 2.43-.95l.13.05.6.22c.25-.15.51-.28.77-.39l.11-.64A2.09 2.09 0 0 1 9.88 2h2ZM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/></svg>'
+                // Lucide: Settings Gear (outline, matches app icon language)
+                icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
             }
         ],
         toggleTheme() {
@@ -1449,84 +1449,90 @@ sendWish(targetId) {
             return rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr');
         },
 
+get isSuperUser() {
+    if (this.isAdminAuthenticated) return true;
+    if (!this.userSession) return false;
+    const r = this.userSession.role;
+    return (this.roleAccess[r] || []).includes('superuser');
+},
+
         get formattedIdleTime() {
             const mins = Math.floor(this.idleSecondsRemaining / 60).toString().padStart(2, '0');
             const secs = (this.idleSecondsRemaining % 60).toString().padStart(2, '0');
             return `${mins}:${secs}`;
         },
 
-        get activeTeamOnBreak() {
-            if (!this.isManagerOrLead) return [];
-            const activeDate = this.getActiveShiftDate();
-            return this.members.filter(m => this.isMemberOnBreak(m.id, activeDate));
-        },
-        get pendingLeaveCount() { return this.leaveRequests.filter(r => r.status === 'pending').length; },
-        get upcomingHolidays() {
-            const istRef = getISTDateObject();
-            istRef.setDate(istRef.getDate() + 1); 
-            const tomorrowStr = getISTString(istRef);
-            return this.holidayList.filter(h => h.date === tomorrowStr && (h.dept === 'All' || h.dept === this.userSession?.dept));
-        },
-        
-        get todayEvents() {
-            const curObj = getISTDateObject();
-            // Force JS to read the strict UTC values
-            const curM = curObj.getUTCMonth() + 1;
-            const curD = curObj.getUTCDate();
-            const curY = curObj.getUTCFullYear();
-            const events = [];
-            
-            this.members.forEach(m => {
-                if (m.dob) {
-                    const [bY, bM, bD] = m.dob.split('-').map(Number);
-                    if (bM === curM && bD === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
-                }
-                if (m.doj) {
-                    const [jY, jM, jD] = m.doj.split('-').map(Number);
-                    if (jM === curM && jD === curD) {
-                        const yrs = curY - jY;
-                        events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
-                    }
-                }
-            });
-            return events;
-        },
+get activeTeamOnBreak() {
+    if (!this.isManagerOrLead) return [];
+    const activeDate = this.getActiveShiftDate();
+    // Inherits department isolation from filteredMembers
+    return this.filteredMembers.filter(m => this.isMemberOnBreak(m.id, activeDate));
+},
 
-        get monthEvents() {
-            const curObj = getISTDateObject();
-            // Force JS to read the strict UTC values
-            const curM = curObj.getUTCMonth() + 1;
-            const curY = curObj.getUTCFullYear();
-            const events = [];
-            
-            this.members.forEach(m => {
-                if (m.dob) {
-                    const [bY, bM, bD] = m.dob.split('-').map(Number);
-                    if (bM === curM) {
-                        events.push({ 
-                            id: 'mbday_' + m.id, type: 'birthday', member: m, 
-                            title: 'Birthday', day: bD, icon: '🎂', 
-                            color: 'text-pink-600', bg: 'bg-pink-100' 
-                        });
-                    }
-                }
-                if (m.doj) {
-                    const [jY, jM, jD] = m.doj.split('-').map(Number);
-                    if (jM === curM) {
-                        const yrs = curY - jY;
-                        events.push({ 
-                            id: 'mannv_' + m.id, type: 'anniversary', member: m, 
-                            title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joining Month', 
-                            day: jD, icon: yrs > 0 ? '🎊' : '🎉', 
-                            color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', 
-                            bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' 
-                        });
-                    }
-                }
-            });
-            
-            return events.sort((a, b) => a.day - b.day);
-        },
+get pendingLeaveRequests() {
+    return this.leaveRequests.filter(r => {
+        if (r.status !== 'pending') return false;
+        if (this.isManagerOrLead && !this.isSuperUser) {
+            const reqMember = this.members.find(m => m.id === r.empId);
+            if (reqMember && reqMember.dept !== this.userSession?.dept) return false;
+        }
+        return true;
+    });
+},
+get pendingLeaveCount() { return this.pendingLeaveRequests.length; },
+
+get todayEvents() {
+    const curObj = getISTDateObject();
+    const curM = curObj.getUTCMonth() + 1;
+    const curD = curObj.getUTCDate();
+    const curY = curObj.getUTCFullYear();
+    const events = [];
+    
+    const targetMembers = (this.isManagerOrLead && !this.isSuperUser) 
+        ? this.members.filter(m => m.dept === this.userSession?.dept) 
+        : this.members;
+        
+    targetMembers.forEach(m => {
+        if (m.dob) {
+            const [bY, bM, bD] = m.dob.split('-').map(Number);
+            if (bM === curM && bD === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
+        }
+        if (m.doj) {
+            const [jY, jM, jD] = m.doj.split('-').map(Number);
+            if (jM === curM && jD === curD) {
+                const yrs = curY - jY;
+                events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+            }
+        }
+    });
+    return events;
+},
+
+get monthEvents() {
+    const curObj = getISTDateObject();
+    const curM = curObj.getUTCMonth() + 1;
+    const curY = curObj.getUTCFullYear();
+    const events = [];
+    
+    const targetMembers = (this.isManagerOrLead && !this.isSuperUser) 
+        ? this.members.filter(m => m.dept === this.userSession?.dept) 
+        : this.members;
+        
+    targetMembers.forEach(m => {
+        if (m.dob) {
+            const [bY, bM, bD] = m.dob.split('-').map(Number);
+            if (bM === curM) events.push({ id: 'mbday_' + m.id, type: 'birthday', member: m, title: 'Birthday', day: bD, icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
+        }
+        if (m.doj) {
+            const [jY, jM, jD] = m.doj.split('-').map(Number);
+            if (jM === curM) {
+                const yrs = curY - jY;
+                events.push({ id: 'mannv_' + m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joining Month', day: jD, icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+            }
+        }
+    });
+    return events.sort((a, b) => a.day - b.day);
+},
 
 get notificationGlowClass() {
             // 1. Pink glow for Birthdays
@@ -1553,56 +1559,40 @@ get notificationGlowClass() {
             return 'text-zinc-400 hover:text-indigo-500';
         },
 
-        get offenderAlerts() {
-            const alerts = [];
-            const todayStr = this.getActiveShiftDate();
-            const THRESHOLD = 480; 
-            const VIOLATION_LIMIT = 3; 
-            
-            const [y, m, d] = todayStr.split('-').map(Number);
-            const cutoffObj = new Date(y, m - 1, d - 30);
-            const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
-            
-            this.members.forEach(m => {
-                if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== m.id)) return;
+get offenderAlerts() {
+    const alerts = [];
+    const todayStr = this.getActiveShiftDate();
+    const THRESHOLD = 480; 
+    const VIOLATION_LIMIT = 3; 
+    
+    const [y, m, d] = todayStr.split('-').map(Number);
+    const cutoffObj = new Date(y, m - 1, d - 30);
+    const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
+    
+    this.members.forEach(member => {
+        if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== member.id)) return;
+        if (this.isManagerOrLead && !this.isSuperUser && member.dept !== this.userSession?.dept) return;
 
-                const isPresentToday = this.attendanceData[todayStr]?.[m.id] === 'p' || 
-                                      (this.punchLogs[todayStr]?.[m.id]?.in && !this.punchLogs[todayStr]?.[m.id]?.out);
-                
-                if (isPresentToday) {
-                    let violations = 0;
-                    
-                    Object.keys(this.punchLogs).forEach(date => {
-                        if (date >= todayStr || date < cutoffDateStr) return; 
-                        
-                        const log = this.punchLogs[date]?.[m.id];
-                        const status = this.attendanceData[date]?.[m.id];
-                        
-                        if (status === 'p' && log && log.in && log.out) {
-                            const activeMins = this.getActiveMinsForLog(log, date);
-                            if (activeMins > 0 && activeMins < THRESHOLD) {
-                                violations++;
-                            }
-                        }
-                    });
-                    
-                    if (violations >= VIOLATION_LIMIT) {
-                        alerts.push({
-                            id: 'ai_' + m.id,
-                            member: m,
-                            violations: violations,
-                            title: 'Flight Risk Detected',
-                            message: `${violations} shifts under 8h in last 30 days`,
-                            icon: '🤖',
-                            color: 'text-rose-600',
-                            bg: 'bg-rose-100'
-                        });
-                    }
+        const isPresentToday = this.attendanceData[todayStr]?.[member.id] === 'p' || 
+                              (this.punchLogs[todayStr]?.[member.id]?.in && !this.punchLogs[todayStr]?.[member.id]?.out);
+        
+        if (isPresentToday) {
+            let violations = 0;
+            Object.keys(this.punchLogs).forEach(date => {
+                if (date >= todayStr || date < cutoffDateStr) return; 
+                const log = this.punchLogs[date]?.[member.id];
+                if (this.attendanceData[date]?.[member.id] === 'p' && log && log.in && log.out) {
+                    const activeMins = this.getActiveMinsForLog(log, date);
+                    if (activeMins > 0 && activeMins < THRESHOLD) violations++;
                 }
             });
-            
-            return alerts.sort((a, b) => b.violations - a.violations);
-        },
+            if (violations >= VIOLATION_LIMIT) {
+                alerts.push({ id: 'ai_' + member.id, member: member, violations: violations, title: 'Flight Risk Detected', message: `${violations} shifts under 8h in last 30 days`, icon: '🤖', color: 'text-rose-600', bg: 'bg-rose-100' });
+            }
+        }
+    });
+    return alerts.sort((a, b) => b.violations - a.violations);
+},
 
         get userOnBreak() {
             if (!this.userSession) return false;
@@ -2303,28 +2293,41 @@ get individualStats() {
             });
         },
 
-        get availablePersonnelOptions() { 
-            const today = getISTString();
-            const activeOnly = this.members.filter(m => !m.doe || m.doe >= today);
-            return this.filterDept ? activeOnly.filter(m => m.dept === this.filterDept) : activeOnly; 
-        },
+get availablePersonnelOptions() { 
+    const today = getISTString();
+    const activeOnly = this.members.filter(m => !m.doe || m.doe >= today);
+    let scoped = activeOnly;
+    
+    // Isolate if standard manager
+    if (this.isManagerOrLead && !this.isSuperUser) {
+        scoped = activeOnly.filter(m => m.dept === this.userSession?.dept);
+    }
+    
+    return (this.filterDept && this.isSuperUser) ? scoped.filter(m => m.dept === this.filterDept) : scoped; 
+},
 
-        get filteredMembers() { 
-            return this.members.filter(m => {
-                if (this.filterName && m.id !== this.filterName) return false;
-                if (this.filterDept && m.dept !== this.filterDept) return false;
-                
-                if (this.view === 'record' || this.view === 'dashboard') {
-                    if (m.doe && m.doe < this.currentDate) return false;
-                }
-                
-                if (this.view === 'summary') {
-                    if (m.doe && m.doe < this.summaryStartDate) return false;
-                }
-                
-                return true;
-            }); 
-        },
+get filteredMembers() { 
+    return this.members.filter(m => {
+        if (this.filterName && m.id !== this.filterName) return false;
+        
+        // Enforce department lockdown for standard managers
+        if (this.isManagerOrLead && !this.isSuperUser) {
+            if (m.dept !== this.userSession?.dept) return false;
+        } else {
+            if (this.filterDept && m.dept !== this.filterDept) return false;
+        }
+        
+        if (this.view === 'record' || this.view === 'dashboard') {
+            if (m.doe && m.doe < this.currentDate) return false;
+        }
+        
+        if (this.view === 'summary') {
+            if (m.doe && m.doe < this.summaryStartDate) return false;
+        }
+        
+        return true;
+    }); 
+},
 
         handleNameFilterChange() { if (this.filterName) this.filterDept = this.members.find(m => m.id === this.filterName)?.dept; },
 
@@ -2347,25 +2350,59 @@ get individualStats() {
             return `${h.toString().padStart(2, '0')}:${m[2]}`;
         },
 
-        commitEditLog() {
-            if (!this.editingLogId) return;
-            const id = this.editingLogId;
-            if (!this.punchLogs[this.currentDate]) this.currentDate = getISTString();
-            if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-            
-            const formatT = (t) => {
-                if(!t) return ''; const [h, m] = t.split(':');
-                return `${(parseInt(h,10)%12||12).toString().padStart(2,'0')}:${m} ${parseInt(h,10)>=12?'PM':'AM'}`;
-            };
-            this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
-            this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
-            
-            this.punchLogs = { ...this.punchLogs };
-            this.upsertPunchCloud(this.currentDate, id); 
-            this.showNote("Punch Timings Saved", "success");
-            this.editingLogId = null;
-        },
+async commitEditLog() {
+    if (!this.editingLogId) return;
+    const id = this.editingLogId;
+    if (!this.punchLogs[this.currentDate]) this.currentDate = getISTString();
+    if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+    
+    const formatT = (t) => {
+        if(!t) return ''; const [h, m] = t.split(':');
+        return `${(parseInt(h,10)%12||12).toString().padStart(2,'0')}:${m} ${parseInt(h,10)>=12?'PM':'AM'}`;
+    };
+    
+    // Save main punches
+    this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
+    this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
+    
+    // Format the edited break timeline
+    const newBreaks = this.tempPunches.breaks.map(b => ({
+        start: formatT(b.start),
+        end: formatT(b.end),
+        type: b.type || 'Admin Override'
+    }));
+    
+    this.punchLogs[this.currentDate][id].breaks = newBreaks;
+    this.punchLogs = { ...this.punchLogs };
+    
+    // 1. Save to the main punch logs table
+    this.upsertPunchCloud(this.currentDate, id); 
 
+    // 2. NEW: Overwrite the dedicated break_logs table to prevent the rebounce
+    try {
+        // Wipe the old break records for this specific user on this specific day
+        await this.supabase.from('break_logs')
+            .delete()
+            .match({ member_id: id, log_date: this.currentDate });
+
+        // Insert the newly edited break records
+        if (newBreaks.length > 0) {
+            const breakInserts = newBreaks.map(b => ({
+                member_id: id,
+                log_date: this.currentDate,
+                start_time: b.start,
+                end_time: b.end || null,
+                type: b.type
+            }));
+            await this.supabase.from('break_logs').insert(breakInserts);
+        }
+    } catch (e) {
+        console.error("Failed to update break_logs", e);
+    }
+
+    this.showNote("Punch and Break Timings Saved", "success");
+    this.editingLogId = null;
+},
         async adminToggleBreak(mId) {
             if (!this.isAdminAuthenticated && !this.isManagerOrLead) return; 
         if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
@@ -2543,10 +2580,24 @@ async confirmLogoutPortal() {
     await this.logoutUser(); 
 },
 
-        toggleEditLog(id) {
-            if (this.editingLogId === id) this.commitEditLog();
-            else { if (this.editingLogId) this.commitEditLog(); this.editingLogId = id; this.tempPunches = { in: this.getTimeInputVal(this.punchLogs[this.currentDate]?.[id]?.in), out: this.getTimeInputVal(this.punchLogs[this.currentDate]?.[id]?.out) }; }
-        },
+toggleEditLog(id) {
+    if (this.editingLogId === id) this.commitEditLog();
+    else { 
+        if (this.editingLogId) this.commitEditLog(); 
+        this.editingLogId = id; 
+        const log = this.punchLogs[this.currentDate]?.[id];
+        
+        this.tempPunches = { 
+            in: this.getTimeInputVal(log?.in), 
+            out: this.getTimeInputVal(log?.out),
+            breaks: log?.breaks ? log.breaks.map(b => ({
+                start: this.getTimeInputVal(b.start),
+                end: this.getTimeInputVal(b.end),
+                type: b.type
+            })) : []
+        }; 
+    }
+},
 
         startEdit(m) { this.isEditing = true; this.newMember = JSON.parse(JSON.stringify(m)); this.isAddingMember = true; },
         resetMemberForm() { this.isAddingMember = false; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
