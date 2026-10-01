@@ -201,14 +201,14 @@
                             </select>
                             <svg class="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         </div>
-                        <div class="relative w-full sm:w-[240px] group">
-                            <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-[#0f4c81] dark:group-focus-within:text-blue-400 pointer-events-none transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                            <select x-model="filterDept" @change="filterName = ''" class="w-full pl-11 pr-10 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/10 rounded-2xl text-sm font-black text-zinc-800 dark:text-zinc-100 outline-none appearance-none cursor-pointer transition-all">
-                                <option value="">All Departments</option>
-                                <template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template>
-                            </select>
-                            <svg class="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </div>
+                        <div class="relative w-full sm:w-[240px] group" x-show="isSuperUser">
+    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-[#0f4c81] dark:group-focus-within:text-blue-400 pointer-events-none transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    <select x-model="filterDept" @change="filterName = ''" class="w-full pl-11 pr-10 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-700 focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/10 rounded-2xl text-sm font-black text-zinc-800 dark:text-zinc-100 outline-none appearance-none cursor-pointer transition-all">
+        <option value="">All Departments</option>
+        <template x-for="d in departments" :key="d"><option :value="d" x-text="d"></option></template>
+    </select>
+    <svg class="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+</div>
                     </div>
                 </div>
             </header>
@@ -333,55 +333,84 @@
                             </div>
                         </template>
 
-                        <template x-if="individualStats?.isAnniversary">
-                            <div class="p-6 bg-emerald-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
-                                <div class="absolute inset-0 bg-emerald-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
-                                <div class="flex items-center gap-6 relative z-10">
-            <div class="relative w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl">
-                <span class="animate-bounce inline-block" style="animation-duration: 1.2s;">🎊</span>
-            </div>
-            <div>
-    <h3 class="text-3xl md:text-4xl font-black tracking-tight uppercase leading-none" 
-        x-text="`Happy ${new Date(Date.now() + 19800000).getUTCFullYear() - parseInt(userSession?.doj?.split('-')[0])}-Year Anniversary!`">
-        Happy Anniversary!
-    </h3>
-    <p class="text-emerald-50 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-2 opacity-90">
-        Thank you for your continued dedication to the organization!
-    </p>
-    
+                        <!-- Global Celebrations Loop (Birthdays & Anniversaries) -->
+                        <div class="space-y-4 mb-6">
+                            <template x-for="ev in todayEvents" :key="ev.id">
+                                <div class="w-full">
+                                    
+                                    <!-- Anniversary Banner -->
+                                    <div x-show="ev.type === 'anniversary'" class="p-6 bg-emerald-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
+                                        <div class="absolute inset-0 bg-emerald-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
+                                        <div class="flex items-center gap-6 relative z-10">
+                                            <div class="relative w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl">
+                                                <span class="animate-bounce inline-block" style="animation-duration: 1.2s;">🎊</span>
+                                            </div>
+                                            <div>
+                                                <!-- Dynamic Header -->
+                                                <h3 class="text-3xl md:text-4xl font-black tracking-tight uppercase leading-none" 
+                                                    x-text="ev.member.id === userSession?.id ? `Happy ${new Date(Date.now() + 19800000).getUTCFullYear() - parseInt(ev.member.doj.split('-')[0])}-Year Anniversary!` : `Happy ${new Date(Date.now() + 19800000).getUTCFullYear() - parseInt(ev.member.doj.split('-')[0])}-Year Anniversary to ${ev.member.firstName}!`">
+                                                </h3>
+                                                
+                                                <!-- Dynamic Subtext -->
+                                                <p class="text-emerald-50 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-2 opacity-90"
+                                                   x-text="ev.member.id === userSession?.id ? 'Thank you for your continued dedication to the organization!' : 'Send them a quick wish to celebrate their milestone!'">
+                                                </p>
+                                                
+                                                <!-- OTHERS: Send Wish Button -->
+                                                <div x-show="ev.member.id !== userSession?.id" class="mt-3">
+                                                    <button @click="sendWish(ev.member.id)" 
+                                                            class="px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95 transition-all">
+                                                        Send a Wish ✨
+                                                    </button>
+                                                </div>
 
-                <!-- NEW: Live Wishes Display -->
-                <div x-show="receivedWishes.length > 0" x-transition class="mt-3 flex items-center gap-2 flex-wrap">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-emerald-100/70 bg-black/20 px-2 py-1 rounded-md">Wishes From:</span>
-                    <span class="text-xs font-bold text-white" x-text="receivedWishes.join(', ')"></span>
-                </div>
-            </div>
-        </div>
-        <div class="px-6 py-3 bg-white text-emerald-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0 relative z-10">Work Anniversary</div>
-    </div>
-</template>
+                                                <!-- SELF: Live Wishes Display -->
+                                                <div x-show="ev.member.id === userSession?.id && receivedWishes.length > 0" x-transition class="mt-3 flex items-center gap-2 flex-wrap">
+                                                    <span class="text-[9px] font-black uppercase tracking-widest text-emerald-100/70 bg-black/20 px-2 py-1 rounded-md">Wishes From:</span>
+                                                    <span class="text-xs font-bold text-white" x-text="receivedWishes.join(', ')"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="px-6 py-3 bg-white text-emerald-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0 relative z-10 hidden md:block">Work Anniversary</div>
+                                    </div>
 
-                        <template x-if="individualStats?.isBirthday">
-                            <div class="p-6 bg-pink-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
-                                <div class="absolute inset-0 bg-pink-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
-                                <div class="flex items-center gap-6 relative z-10">
-            <div class="relative w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl">
-                <span class="animate-bounce inline-block" style="animation-duration: 1.1s;">🎂</span>
-            </div>
-            <div>
-                <h3 class="text-3xl font-black tracking-tighter uppercase leading-none">Happy Birthday!</h3>
-                <p class="text-pink-50 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-1 opacity-80">Wishing you a fantastic day from the entire team!</p>
-                
-                <!-- NEW: Live Wishes Display -->
-                <div x-show="receivedWishes.length > 0" x-transition class="mt-3 flex items-center gap-2 flex-wrap">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-pink-100/70 bg-black/20 px-2 py-1 rounded-md">Wishes From:</span>
-                    <span class="text-xs font-bold text-white" x-text="receivedWishes.join(', ')"></span>
-                </div>
-            </div>
-        </div>
-        <div class="px-6 py-3 bg-white text-pink-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0 relative z-10">Birthday Celebration</div>
-    </div>
-</template>
+                                    <!-- Birthday Banner -->
+                                    <div x-show="ev.type === 'birthday'" class="p-6 bg-pink-600 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden anniversary-glow">
+                                        <div class="absolute inset-0 bg-pink-500/50 animate-pulse mix-blend-overlay pointer-events-none"></div>
+                                        <div class="flex items-center gap-6 relative z-10">
+                                            <div class="relative w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl">
+                                                <span class="animate-bounce inline-block" style="animation-duration: 1.1s;">🎂</span>
+                                            </div>
+                                            <div>
+                                                <!-- Dynamic Header -->
+                                                <h3 class="text-3xl font-black tracking-tighter uppercase leading-none"
+                                                    x-text="ev.member.id === userSession?.id ? 'Happy Birthday!' : `It's ${ev.member.firstName}'s Birthday!`"></h3>
+                                                
+                                                <!-- Dynamic Subtext -->
+                                                <p class="text-pink-50 font-bold uppercase tracking-widest text-[10px] md:text-xs mt-1 opacity-80"
+                                                   x-text="ev.member.id === userSession?.id ? 'Wishing you a fantastic day from the entire team!' : 'Wish them a fantastic day!'"></p>
+                                                
+                                                <!-- OTHERS: Send Wish Button -->
+                                                <div x-show="ev.member.id !== userSession?.id" class="mt-3">
+                                                    <button @click="sendWish(ev.member.id)" 
+                                                            class="px-4 py-2 bg-pink-50 text-pink-700 hover:bg-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95 transition-all">
+                                                        Send a Wish 🎂
+                                                    </button>
+                                                </div>
+
+                                                <!-- SELF: Live Wishes Display -->
+                                                <div x-show="ev.member.id === userSession?.id && receivedWishes.length > 0" x-transition class="mt-3 flex items-center gap-2 flex-wrap">
+                                                    <span class="text-[9px] font-black uppercase tracking-widest text-pink-100/70 bg-black/20 px-2 py-1 rounded-md">Wishes From:</span>
+                                                    <span class="text-xs font-bold text-white" x-text="receivedWishes.join(', ')"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="px-6 py-3 bg-white text-pink-600 rounded-full font-black uppercase text-[10px] md:text-xs shadow-lg shrink-0 relative z-10 hidden md:block">Birthday Celebration</div>
+                                    </div>
+
+                                </div>
+                            </template>
+                        </div>
 
                         <div class="flex flex-col gap-4 w-full">
                             <div class="relative rounded-[1.75rem] bg-white/80 dark:bg-zinc-950/70 backdrop-blur-2xl border border-zinc-200/60 dark:border-zinc-800/40 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.03)] flex flex-col justify-between w-full relative z-50">
@@ -640,49 +669,64 @@
         </button>
     </div>
     
-    <!-- Content Panels Container -->
+<!-- Content Panels Container -->
     <div class="relative z-10 min-h-[90px]">
         
         <!-- TAB 1: Floor Activity Content -->
         <div x-show="floorTab === 'activity'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
             <template x-if="activeTeamOnBreak.length > 0">
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 -mx-2 px-2">
+                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 pt-2 -mx-2 px-2">
                     <template x-for="member in activeTeamOnBreak" :key="member.id">
                         <div x-data="{ breakMins: calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) || 0 }" 
-                             :class="breakMins > 60 ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60 shadow-sm' : 'bg-white/80 dark:bg-zinc-800/80 border-zinc-200/60 dark:border-zinc-700/50 shadow-sm'"
-                             class="p-3.5 rounded-[1.5rem] border flex items-center gap-4 shrink-0 min-w-[240px] transition-all duration-300 hover:-translate-y-1 hover:shadow-md group cursor-default relative overflow-hidden backdrop-blur-md">
+                             class="group relative p-3.5 rounded-[1.5rem] flex items-center gap-3.5 shrink-0 min-w-[250px] h-[74px] transition-all duration-500 hover:-translate-y-1 overflow-hidden cursor-default"
+                             :class="breakMins > 60 ? 'bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-800/50 shadow-[0_8px_20px_rgba(244,63,94,0.12)]' : 'bg-white/60 dark:bg-zinc-900/60 border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm hover:shadow-md'">
                             
-                            <div class="relative shrink-0 z-10">
-                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=0f4c81,f26522,10b981&textColor=ffffff`" 
-                                     class="w-12 h-12 rounded-xl shadow-sm border border-white/80 dark:border-zinc-600 object-cover group-hover:scale-105 transition-transform duration-300" />
-                                <!-- Sleek localized glow dot -->
-                                <span :class="breakMins > 60 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.9)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)]'" 
-                                      class="absolute -top-1 -right-1 w-3 h-3 border-2 border-white dark:border-zinc-900 rounded-full animate-pulse"></span>
+                            <div class="absolute inset-0 backdrop-blur-xl -z-10"></div>
+                            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10"
+                                 :class="breakMins > 60 ? 'bg-gradient-to-br from-rose-100/50 to-transparent dark:from-rose-900/20' : 'bg-gradient-to-br from-indigo-50/50 to-transparent dark:from-indigo-900/20'"></div>
+
+                            <div class="relative shrink-0">
+                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=${breakMins > 60 ? 'f43f5e' : '6366f1'}&textColor=ffffff`" 
+                                     class="w-11 h-11 rounded-full shadow-sm border-2 transition-transform duration-500 group-hover:scale-105 object-cover" 
+                                     :class="breakMins > 60 ? 'border-rose-200 dark:border-rose-800' : 'border-indigo-100 dark:border-indigo-900/50'" />
+                                <span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-zinc-900 animate-pulse"
+                                      :class="breakMins > 60 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]'"></span>
                             </div>
                             
-                            <div class="min-w-0 flex-1 relative z-10">
-                                <h5 class="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white truncate" x-text="member.name"></h5>
-                                <p class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 truncate mt-0.5" x-text="member.dept || 'General'"></p>
+                            <div class="min-w-0 flex-1">
+                                <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white truncate transition-colors leading-none" x-text="member.name"></h5>
+                                <span class="inline-flex mt-1.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest border"
+                                      :class="breakMins > 60 ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 border-rose-200 dark:border-rose-800' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700'"
+                                      x-text="member.dept || 'General'"></span>
                             </div>
 
-                            <div class="shrink-0 flex flex-col items-end pl-3 border-l border-zinc-200 dark:border-zinc-700/50 relative z-10">
-                                <span class="text-[9px] font-black uppercase tracking-widest" :class="breakMins > 60 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-500'">Accum.</span>
-                                <span class="text-lg font-black leading-none tabular-nums mt-1" 
-                                      :class="breakMins > 60 ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-zinc-800 dark:text-zinc-200'" 
-                                      x-text="breakMins + 'm'"></span>
+                            <div class="shrink-0 flex flex-col items-center justify-center min-w-[68px] h-[46px] rounded-xl transition-colors border"
+                                 :class="breakMins > 60 ? 'bg-rose-100/50 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-rose-200/50 dark:border-rose-800/50' : 'bg-zinc-100/50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 border-zinc-200/50 dark:border-zinc-700/50'">
+                                <template x-if="breakMins <= 60">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <span class="text-base font-black tabular-nums leading-none" x-text="breakMins"></span>
+                                        <span class="text-[7px] font-black uppercase tracking-[0.2em] mt-1 opacity-70 leading-none">Mins</span>
+                                    </div>
+                                </template>
+                                <template x-if="breakMins > 60">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <span class="text-[7px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-1 leading-none">Exceeded</span>
+                                        <span class="text-sm font-black tabular-nums leading-none" x-text="breakMins + 'm'"></span>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </template>
                 </div>
             </template>
             <template x-if="activeTeamOnBreak.length === 0">
-                <div class="py-4 px-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/40 rounded-[1.5rem] flex items-center gap-4 transition-all duration-300 shadow-sm">
-                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <div class="py-5 px-6 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 rounded-[1.5rem] flex items-center gap-4 shadow-sm backdrop-blur-xl">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-500 flex items-center justify-center shrink-0">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     </div>
-                    <div class="flex flex-col">
-                        <span class="font-black uppercase tracking-tight text-sm text-emerald-950 dark:text-emerald-300">Floor is Fully Active</span>
-                        <span class="font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500 mt-1">All personnel are currently on duty</span>
+                    <div>
+                        <span class="block font-black uppercase tracking-tight text-xs text-emerald-900 dark:text-emerald-400">Floor is Fully Active</span>
+                        <span class="block font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500/70 mt-0.5">All personnel are currently on duty</span>
                     </div>
                 </div>
             </template>
@@ -691,33 +735,37 @@
         <!-- TAB 2: Absent / LOP Content -->
         <div x-show="floorTab === 'absent'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
             <template x-if="filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === 'a' || attendanceData[getActiveShiftDate()]?.[m.id] === 'lop').length > 0">
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 -mx-2 px-2">
+                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 pt-2 -mx-2 px-2">
                     <template x-for="member in filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === 'a' || attendanceData[getActiveShiftDate()]?.[m.id] === 'lop')" :key="member.id">
-                        <div class="p-3.5 rounded-[1.5rem] bg-white/80 dark:bg-zinc-800/80 border border-rose-200/80 dark:border-rose-900/50 flex items-center gap-4 shrink-0 min-w-[240px] transition-all duration-300 hover:-translate-y-1 hover:shadow-md group cursor-default relative overflow-hidden backdrop-blur-md">
+                        <div class="group relative p-3.5 rounded-[1.5rem] flex items-center gap-3.5 shrink-0 min-w-[250px] h-[74px] transition-all duration-500 hover:-translate-y-1 overflow-hidden bg-white/60 dark:bg-zinc-900/60 border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm hover:shadow-[0_8px_20px_rgba(244,63,94,0.08)] cursor-default">
+                            <div class="absolute inset-0 backdrop-blur-xl -z-10"></div>
+                            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-rose-50/50 to-transparent dark:from-rose-900/20 -z-10"></div>
+
+                            <div class="relative shrink-0">
+                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=f43f5e&textColor=ffffff`" 
+                                     class="w-11 h-11 rounded-full shadow-sm border-2 border-rose-100 dark:border-rose-900/50 transition-transform duration-500 group-hover:scale-105 object-cover" />
+                            </div>
                             
-                            <div class="relative shrink-0 z-10">
-                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=f43f5e,be123c,9f1239&textColor=ffffff`" class="w-12 h-12 rounded-xl shadow-sm border border-white/80 dark:border-zinc-700 object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <div class="min-w-0 flex-1">
+                                <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white truncate leading-none" x-text="member.name"></h5>
+                                <span class="inline-flex mt-1.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700" x-text="member.dept || 'General'"></span>
                             </div>
-                            <div class="min-w-0 flex-1 z-10">
-                                <h5 class="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white truncate" x-text="member.name"></h5>
-                                <p class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 truncate mt-0.5" x-text="member.dept || 'General'"></p>
-                            </div>
-                            <div class="shrink-0 flex flex-col items-end pl-3 border-l border-rose-200/50 dark:border-rose-800/50 z-10">
-                                <span class="text-[9px] font-black uppercase tracking-widest text-rose-500">Status</span>
-                                <span class="text-sm font-black leading-none text-rose-600 dark:text-rose-400 mt-1" x-text="attendanceData[getActiveShiftDate()][member.id] === 'a' ? 'ABSENT' : 'LOP'"></span>
+
+                            <div class="shrink-0 flex flex-col items-center justify-center min-w-[68px] h-[46px] rounded-xl border"
+                                 :class="attendanceData[getActiveShiftDate()][member.id] === 'a' ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700' : 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50'">
+                                <span class="text-[10px] font-black uppercase tracking-widest leading-none"
+                                      x-text="attendanceData[getActiveShiftDate()][member.id] === 'a' ? 'Absent' : 'LOP'"></span>
                             </div>
                         </div>
                     </template>
                 </div>
             </template>
             <template x-if="filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === 'a' || attendanceData[getActiveShiftDate()]?.[m.id] === 'lop').length === 0">
-                <div class="py-4 px-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/40 rounded-[1.5rem] flex items-center gap-4 transition-all duration-300 shadow-sm">
-                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-black uppercase tracking-tight text-sm text-emerald-950 dark:text-emerald-300">Perfect Attendance</span>
-                        <span class="font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500 mt-1">No unauthorized absences reported</span>
+                <div class="py-5 px-6 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 rounded-[1.5rem] flex items-center gap-4 shadow-sm backdrop-blur-xl">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-500 flex items-center justify-center shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div>
+                        <span class="block font-black uppercase tracking-tight text-xs text-emerald-900 dark:text-emerald-400">Perfect Attendance</span>
+                        <span class="block font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500/70 mt-0.5">No unauthorized absences reported</span>
                     </div>
                 </div>
             </template>
@@ -726,33 +774,36 @@
         <!-- TAB 3: Permissions Content -->
         <div x-show="floorTab === 'perm'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
             <template x-if="filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === '1p' || attendanceData[getActiveShiftDate()]?.[m.id] === '2p').length > 0">
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 -mx-2 px-2">
+                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 pt-2 -mx-2 px-2">
                     <template x-for="member in filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === '1p' || attendanceData[getActiveShiftDate()]?.[m.id] === '2p')" :key="member.id">
-                        <div class="p-3.5 rounded-[1.5rem] bg-white/80 dark:bg-zinc-800/80 border border-amber-200/80 dark:border-amber-900/50 flex items-center gap-4 shrink-0 min-w-[240px] transition-all duration-300 hover:-translate-y-1 hover:shadow-md group cursor-default relative overflow-hidden backdrop-blur-md">
+                        <div class="group relative p-3.5 rounded-[1.5rem] flex items-center gap-3.5 shrink-0 min-w-[250px] h-[74px] transition-all duration-500 hover:-translate-y-1 overflow-hidden bg-white/60 dark:bg-zinc-900/60 border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm hover:shadow-[0_8px_20px_rgba(245,158,11,0.08)] cursor-default">
+                            <div class="absolute inset-0 backdrop-blur-xl -z-10"></div>
+                            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-amber-50/50 to-transparent dark:from-amber-900/20 -z-10"></div>
+
+                            <div class="relative shrink-0">
+                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=f59e0b&textColor=ffffff`" 
+                                     class="w-11 h-11 rounded-full shadow-sm border-2 border-amber-100 dark:border-amber-900/50 transition-transform duration-500 group-hover:scale-105 object-cover" />
+                            </div>
                             
-                            <div class="relative shrink-0 z-10">
-                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=f59e0b,d97706,b45309&textColor=ffffff`" class="w-12 h-12 rounded-xl shadow-sm border border-white/80 dark:border-zinc-700 object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <div class="min-w-0 flex-1">
+                                <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white truncate leading-none" x-text="member.name"></h5>
+                                <span class="inline-flex mt-1.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700" x-text="member.dept || 'General'"></span>
                             </div>
-                            <div class="min-w-0 flex-1 z-10">
-                                <h5 class="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white truncate" x-text="member.name"></h5>
-                                <p class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 dark:text-zinc-400 truncate mt-0.5" x-text="member.dept || 'General'"></p>
-                            </div>
-                            <div class="shrink-0 flex flex-col items-end pl-3 border-l border-amber-200/50 dark:border-amber-800/50 z-10">
-                                <span class="text-[9px] font-black uppercase tracking-widest text-amber-500">Approved</span>
-                                <span class="text-sm font-black leading-none text-amber-600 dark:text-amber-400 mt-1" x-text="attendanceData[getActiveShiftDate()][member.id] === '1p' ? '1 HOUR' : '2 HOURS'"></span>
+
+                            <div class="shrink-0 flex flex-col items-center justify-center min-w-[68px] h-[46px] rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/50">
+                                <span class="text-[7px] font-black uppercase tracking-widest opacity-80 mb-1 leading-none">Apprv.</span>
+                                <span class="text-sm font-black tabular-nums leading-none" x-text="attendanceData[getActiveShiftDate()][member.id] === '1p' ? '1HR' : '2HR'"></span>
                             </div>
                         </div>
                     </template>
                 </div>
             </template>
             <template x-if="filteredMembers.filter(m => attendanceData[getActiveShiftDate()]?.[m.id] === '1p' || attendanceData[getActiveShiftDate()]?.[m.id] === '2p').length === 0">
-                <div class="py-4 px-5 bg-zinc-50/80 dark:bg-zinc-950/40 border border-zinc-200/60 dark:border-zinc-800/60 rounded-[1.5rem] flex items-center gap-4 transition-all duration-300 shadow-sm">
-                    <div class="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-black uppercase tracking-tight text-sm text-zinc-950 dark:text-zinc-300">No Permissions</span>
-                        <span class="font-bold uppercase tracking-widest text-[9px] text-zinc-500 mt-1">No partial shifts active today</span>
+                <div class="py-5 px-6 bg-zinc-50/80 dark:bg-zinc-950/40 border border-zinc-200/60 dark:border-zinc-800/60 rounded-[1.5rem] flex items-center gap-4 shadow-sm backdrop-blur-xl">
+                    <div class="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800/80 text-zinc-500 flex items-center justify-center shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+                    <div>
+                        <span class="block font-black uppercase tracking-tight text-xs text-zinc-900 dark:text-zinc-300">No Permissions</span>
+                        <span class="block font-bold uppercase tracking-widest text-[9px] text-zinc-500 mt-0.5">No partial shifts active today</span>
                     </div>
                 </div>
             </template>
@@ -761,63 +812,71 @@
         <!-- TAB 4: Missing Punch-In Content -->
         <div x-show="floorTab === 'missing'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
             <template x-if="filteredMembers.filter(m => !punchLogs[getActiveShiftDate()]?.[m.id]?.in && !['a', 'h', 'fh', 'co', 'lop', 'w'].includes(attendanceData[getActiveShiftDate()]?.[m.id]) && (!m.doe || m.doe >= getActiveShiftDate()) && (!m.doj || m.doj <= getActiveShiftDate())).length > 0">
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 -mx-2 px-2">
+                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 pt-2 -mx-2 px-2">
                     <template x-for="member in filteredMembers.filter(m => !punchLogs[getActiveShiftDate()]?.[m.id]?.in && !['a', 'h', 'fh', 'co', 'lop', 'w'].includes(attendanceData[getActiveShiftDate()]?.[m.id]) && (!m.doe || m.doe >= getActiveShiftDate()) && (!m.doj || m.doj <= getActiveShiftDate()))" :key="member.id">
-                        <div class="p-3.5 rounded-[1.5rem] bg-white/80 dark:bg-zinc-800/80 border border-zinc-300/80 dark:border-zinc-700 flex items-center gap-4 shrink-0 min-w-[240px] transition-all duration-300 hover:-translate-y-1 hover:shadow-md group cursor-default relative overflow-hidden backdrop-blur-md">
+                        <div class="group relative p-3.5 rounded-[1.5rem] flex items-center gap-3.5 shrink-0 min-w-[250px] h-[74px] transition-all duration-500 hover:-translate-y-1 overflow-hidden bg-white/60 dark:bg-zinc-900/60 border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm hover:shadow-[0_8px_20px_rgba(0,0,0,0.06)] cursor-default">
+                            <div class="absolute inset-0 backdrop-blur-xl -z-10"></div>
+                            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-zinc-100/50 to-transparent dark:from-zinc-800/20 -z-10"></div>
+
+                            <div class="relative shrink-0">
+                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=71717a&textColor=ffffff`" 
+                                     class="w-11 h-11 rounded-full shadow-sm border-2 border-zinc-200 dark:border-zinc-700 transition-transform duration-500 group-hover:scale-105 object-cover" />
+                                <span class="absolute -bottom-0 -right-0 w-3 h-3 bg-zinc-400 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_8px_rgba(161,161,170,0.8)] animate-pulse"></span>
+                            </div>
                             
-                            <div class="relative shrink-0 z-10">
-                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=71717a,52525b,3f3f46&textColor=ffffff`" class="w-12 h-12 rounded-xl shadow-sm border border-white/80 dark:border-zinc-700 object-cover group-hover:scale-105 transition-transform duration-300" />
-                                <!-- Sleek localized glow dot -->
-                                <span class="absolute -top-1 -right-1 w-3 h-3 bg-zinc-400 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_8px_rgba(161,161,170,0.9)] animate-pulse"></span>
+                            <div class="min-w-0 flex-1">
+                                <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white truncate leading-none" x-text="member.name"></h5>
+                                <span class="inline-flex mt-1.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700" x-text="member.dept || 'General'"></span>
                             </div>
-                            <div class="min-w-0 flex-1 z-10">
-                                <h5 class="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white truncate" x-text="member.name"></h5>
-                                <p class="text-[9px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate mt-0.5" x-text="member.dept || 'General'"></p>
-                            </div>
-                            <div class="shrink-0 flex flex-col items-end pl-3 border-l border-zinc-200 dark:border-zinc-700/50 z-10">
-                                <span class="text-[9px] font-black uppercase tracking-widest text-zinc-400">Punch</span>
-                                <span class="text-sm font-black leading-none text-zinc-600 dark:text-zinc-300 mt-1">MISSING</span>
+
+                            <div class="shrink-0 flex flex-col items-center justify-center min-w-[68px] h-[46px] rounded-xl border border-zinc-200/80 dark:border-zinc-700/80 bg-zinc-50 dark:bg-zinc-800/50 text-center">
+                                <span class="text-[7px] font-black uppercase tracking-widest text-zinc-400 mb-1 leading-none">In Punch</span>
+                                <span class="text-[10px] font-black text-zinc-600 dark:text-zinc-300 leading-none">MISSING</span>
                             </div>
                         </div>
                     </template>
                 </div>
             </template>
             <template x-if="filteredMembers.filter(m => !punchLogs[getActiveShiftDate()]?.[m.id]?.in && !['a', 'h', 'fh', 'co', 'lop', 'w'].includes(attendanceData[getActiveShiftDate()]?.[m.id]) && (!m.doe || m.doe >= getActiveShiftDate()) && (!m.doj || m.doj <= getActiveShiftDate())).length === 0">
-                <div class="py-4 px-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/40 rounded-[1.5rem] flex items-center gap-4 transition-all duration-300 shadow-sm">
-                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-black uppercase tracking-tight text-sm text-emerald-950 dark:text-emerald-300">All Present Accounted For</span>
-                        <span class="font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500 mt-1">No missing punches detected</span>
+                <div class="py-5 px-6 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 rounded-[1.5rem] flex items-center gap-4 shadow-sm backdrop-blur-xl">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-500 flex items-center justify-center shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div>
+                        <span class="block font-black uppercase tracking-tight text-xs text-emerald-900 dark:text-emerald-400">All Present Accounted For</span>
+                        <span class="block font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500/70 mt-0.5">No missing punches detected</span>
                     </div>
                 </div>
             </template>
         </div>
-<!-- TAB: Missing Punch-Out (Prior Day) Content -->
+
+        <!-- TAB 5: Missing Punch-Out Content -->
         <div x-show="floorTab === 'missingOut'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
             <template x-if="filteredMembers.filter(m => {
                 const yesterday = new Date(new Date(getActiveShiftDate()).getTime() - 86400000).toISOString().split('T')[0];
                 return punchLogs[yesterday]?.[m.id]?.in && !punchLogs[yesterday]?.[m.id]?.out;
             }).length > 0">
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 -mx-2 px-2">
+                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 pt-2 -mx-2 px-2">
                     <template x-for="member in filteredMembers.filter(m => {
                         const yesterday = new Date(new Date(getActiveShiftDate()).getTime() - 86400000).toISOString().split('T')[0];
                         return punchLogs[yesterday]?.[m.id]?.in && !punchLogs[yesterday]?.[m.id]?.out;
                     })" :key="member.id">
-                        <div class="p-3.5 rounded-[1.5rem] bg-white/80 dark:bg-zinc-800/80 border border-orange-300/80 dark:border-orange-700 flex items-center gap-4 shrink-0 min-w-[240px] transition-all duration-300 hover:-translate-y-1 hover:shadow-md group cursor-default relative overflow-hidden backdrop-blur-md">
+                        <div class="group relative p-3.5 rounded-[1.5rem] flex items-center gap-3.5 shrink-0 min-w-[250px] h-[74px] transition-all duration-500 hover:-translate-y-1 overflow-hidden bg-white/60 dark:bg-zinc-900/60 border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm hover:shadow-[0_8px_20px_rgba(234,88,12,0.08)] cursor-default">
+                            <div class="absolute inset-0 backdrop-blur-xl -z-10"></div>
+                            <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-orange-50/50 to-transparent dark:from-orange-900/20 -z-10"></div>
+
+                            <div class="relative shrink-0">
+                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=ea580c&textColor=ffffff`" 
+                                     class="w-11 h-11 rounded-full shadow-sm border-2 border-orange-100 dark:border-orange-900/50 transition-transform duration-500 group-hover:scale-105 object-cover" />
+                                <span class="absolute -bottom-0 -right-0 w-3 h-3 bg-orange-400 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_8px_rgba(251,146,60,0.8)] animate-pulse"></span>
+                            </div>
                             
-                            <div class="relative shrink-0 z-10">
-                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=ea580c,c2410c,9a3412&textColor=ffffff`" class="w-12 h-12 rounded-xl shadow-sm border border-white/80 dark:border-zinc-700 object-cover group-hover:scale-105 transition-transform duration-300" />
-                                <span class="absolute -top-1 -right-1 w-3 h-3 bg-orange-400 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_8px_rgba(251,146,60,0.9)] animate-pulse"></span>
+                            <div class="min-w-0 flex-1">
+                                <h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white truncate leading-none" x-text="member.name"></h5>
+                                <span class="inline-flex mt-1.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700" x-text="member.dept || 'General'"></span>
                             </div>
-                            <div class="min-w-0 flex-1 z-10">
-                                <h5 class="text-sm font-black uppercase tracking-tight text-zinc-950 dark:text-white truncate" x-text="member.name"></h5>
-                                <p class="text-[9px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 truncate mt-0.5" x-text="member.dept || 'General'"></p>
-                            </div>
-                            <div class="shrink-0 flex flex-col items-end pl-3 border-l border-zinc-200 dark:border-zinc-700/50 z-10">
-                                <span class="text-[9px] font-black uppercase tracking-widest text-orange-500">Punch Out</span>
-                                <span class="text-sm font-black leading-none text-orange-600 dark:text-orange-400 mt-1">MISSING</span>
+
+                            <div class="shrink-0 flex flex-col items-center justify-center min-w-[68px] h-[46px] rounded-xl border border-orange-200/50 dark:border-orange-800/50 bg-orange-50 dark:bg-orange-900/20 text-center">
+                                <span class="text-[7px] font-black uppercase tracking-widest text-orange-500 mb-1 leading-none">Out Punch</span>
+                                <span class="text-[10px] font-black text-orange-600 dark:text-orange-400 leading-none">MISSING</span>
                             </div>
                         </div>
                     </template>
@@ -827,52 +886,49 @@
                 const yesterday = new Date(new Date(getActiveShiftDate()).getTime() - 86400000).toISOString().split('T')[0];
                 return punchLogs[yesterday]?.[m.id]?.in && !punchLogs[yesterday]?.[m.id]?.out;
             }).length === 0">
-                <div class="py-4 px-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/40 rounded-[1.5rem] flex items-center gap-4 transition-all duration-300 shadow-sm">
-                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-black uppercase tracking-tight text-sm text-emerald-950 dark:text-emerald-300">Clear Records</span>
-                        <span class="font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500 mt-1">No missing punch-outs from yesterday</span>
+                <div class="py-5 px-6 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 rounded-[1.5rem] flex items-center gap-4 shadow-sm backdrop-blur-xl">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-500 flex items-center justify-center shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div>
+                        <span class="block font-black uppercase tracking-tight text-xs text-emerald-900 dark:text-emerald-400">Clear Records</span>
+                        <span class="block font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500/70 mt-0.5">No missing punch-outs from yesterday</span>
                     </div>
                 </div>
             </template>
         </div>
 
-        <!-- TAB 5: Break Exceeded Content -->
+        <!-- TAB 6: Break Exceeded Content -->
         <div x-show="floorTab === 'break'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
             <template x-if="filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60).length > 0">
-                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-3 pt-1 -mx-2 px-2">
+                <div class="flex gap-4 overflow-x-auto custom-scrollbar pb-4 pt-2 -mx-2 px-2">
                     <template x-for="member in filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60)" :key="member.id">
-                        <div class="p-3.5 rounded-[1.5rem] border flex items-center gap-4 shrink-0 min-w-[240px] transition-all duration-300 group cursor-default relative overflow-hidden bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-rose-950/40 dark:to-rose-900/20 border-rose-200 dark:border-rose-900/60 hover:-translate-y-1 hover:shadow-md">
+                        <div class="group relative p-3.5 rounded-[1.5rem] flex items-center gap-3.5 shrink-0 min-w-[250px] h-[74px] transition-all duration-500 hover:-translate-y-1 overflow-hidden bg-gradient-to-br from-rose-50 to-rose-100/30 dark:from-rose-950/30 dark:to-rose-900/10 border border-rose-200/80 dark:border-rose-800/60 shadow-sm hover:shadow-[0_8px_20px_rgba(244,63,94,0.15)] cursor-default">
+                            <div class="absolute inset-0 backdrop-blur-xl -z-10"></div>
                             
-                            <div class="relative shrink-0 z-10">
-                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=be123c&textColor=ffffff`" class="w-12 h-12 rounded-xl shadow-sm object-cover group-hover:scale-105 transition-transform duration-300" />
-                                <!-- Sleek localized glow dot -->
-                                <span class="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.9)] animate-pulse"></span>
+                            <div class="relative shrink-0">
+                                <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${member.name}&backgroundColor=be123c&textColor=ffffff`" 
+                                     class="w-11 h-11 rounded-full shadow-sm border-2 border-rose-200 dark:border-rose-800 transition-transform duration-500 group-hover:scale-105 object-cover" />
+                                <span class="absolute -bottom-0 -right-0 w-3 h-3 bg-rose-500 border-2 border-white dark:border-zinc-900 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.8)] animate-pulse"></span>
                             </div>
                             
-                            <div class="min-w-0 flex-1 relative z-10">
-                                <h5 class="text-sm font-black uppercase tracking-tight text-rose-950 dark:text-rose-100 truncate leading-none" x-text="member.name"></h5>
-                                <p class="text-[9px] font-bold uppercase tracking-widest text-rose-600 dark:text-rose-400 truncate mt-1.5" x-text="member.dept || 'General'"></p>
+                            <div class="min-w-0 flex-1">
+                                <h5 class="text-xs font-black uppercase tracking-tight text-rose-950 dark:text-rose-100 truncate leading-none" x-text="member.name"></h5>
+                                <span class="inline-flex mt-1.5 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60" x-text="member.dept || 'General'"></span>
                             </div>
                             
-                            <div class="shrink-0 flex flex-col items-end pl-3 border-l border-rose-200 dark:border-rose-800/60 relative z-10">
-                                <span class="text-[9px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">Exceeded</span>
-                                <span class="text-lg font-black leading-none text-rose-700 dark:text-rose-300 mt-1 tabular-nums" x-text="calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) + 'm'"></span>
+                            <div class="shrink-0 flex flex-col items-center justify-center min-w-[68px] h-[46px] rounded-xl border border-rose-300 dark:border-rose-700/80 bg-rose-100/80 dark:bg-rose-900/40 text-center">
+                                <span class="text-[7px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-1 leading-none">Exceeded</span>
+                                <span class="text-sm font-black text-rose-700 dark:text-rose-300 tabular-nums leading-none" x-text="calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[member.id]?.breaks) + 'm'"></span>
                             </div>
                         </div>
                     </template>
                 </div>
             </template>
             <template x-if="filteredMembers.filter(m => calculateTotalBreakMins(punchLogs[getActiveShiftDate()]?.[m.id]?.breaks) > 60).length === 0">
-                <div class="py-4 px-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/10 border border-emerald-200/50 dark:border-emerald-800/40 rounded-[1.5rem] flex items-center gap-4 transition-all duration-300 shadow-sm">
-                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 shadow-inner">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-black uppercase tracking-tight text-sm text-emerald-950 dark:text-emerald-300">Clean Adherence</span>
-                        <span class="font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500 mt-1">No personnel over daily break limit</span>
+                <div class="py-5 px-6 bg-gradient-to-r from-emerald-50/80 to-transparent dark:from-emerald-950/20 border border-emerald-100/50 dark:border-emerald-900/30 rounded-[1.5rem] flex items-center gap-4 shadow-sm backdrop-blur-xl">
+                    <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-500 flex items-center justify-center shrink-0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+                    <div>
+                        <span class="block font-black uppercase tracking-tight text-xs text-emerald-900 dark:text-emerald-400">Clean Adherence</span>
+                        <span class="block font-bold uppercase tracking-widest text-[9px] text-emerald-600/80 dark:text-emerald-500/70 mt-0.5">No personnel over daily break limit</span>
                     </div>
                 </div>
             </template>
@@ -935,7 +991,7 @@
         
         <div class="grid grid-cols-2 gap-2 mb-3 flex-1 content-start relative z-10">
             <div class="bg-zinc-50 dark:bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800/80 flex flex-col justify-center">
-                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-500">Total Logged</span>
+                <span class="text-[8px] font-black uppercase tracking-widest text-zinc-500">Total Present</span>
                 <span class="text-xl font-black text-zinc-950 dark:text-white tabular-nums leading-tight mt-0.5" x-text="individualStats?.metrics?.presentMTD ?? 0"></span>
             </div>
             <div class="bg-rose-50/50 dark:bg-rose-950/20 p-2.5 rounded-xl border border-rose-100/50 dark:border-rose-900/30 flex flex-col justify-center">
@@ -998,9 +1054,8 @@ class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/
             <span class="w-7 h-7 rounded-lg bg-[#0f4c81]/10 text-[#0f4c81] dark:text-blue-400 border border-[#0f4c81]/15 flex items-center justify-center">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.36-6.36L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.36 6.36L3 16"/><path d="M3 21v-5h5"/></svg>
             </span>
-            <div><span class="block text-[7px] font-black uppercase tracking-[0.2em] text-zinc-400">Year to Date</span><h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white">Cycle Summary</h5></div>
+            <div><span class="block text-[7px] font-black uppercase tracking-[0.2em] text-zinc-400"></span><h5 class="text-xs font-black uppercase tracking-tight text-zinc-900 dark:text-white">YTD Cycle Summary</h5></div>
         </div>
-        <span class="px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[7px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 border border-zinc-200/70 dark:border-zinc-700/70">YTD</span>
     </div>
 
     <div class="grid grid-cols-2 gap-2.5 relative z-10">
@@ -1681,6 +1736,20 @@ class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/
                                 <svg x-show="editingLogId !== m.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 <svg x-show="editingLogId === m.id" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                             </button>
+<!-- Dynamic Break Editing UI -->
+<div x-show="editingLogId === m.id" class="col-span-full space-y-2 mt-2 border-t border-zinc-200 dark:border-zinc-700 pt-2">
+    <template x-for="(brk, index) in tempPunches.breaks" :key="index">
+        <div class="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/20 p-2 rounded-xl border border-amber-200 dark:border-amber-900/40">
+            <span class="text-[8px] font-black uppercase text-amber-600 w-12" x-text="'Break ' + (index + 1)"></span>
+            <input type="time" x-model="brk.start" class="bg-transparent font-black text-xs text-amber-700 dark:text-amber-400 outline-none cursor-pointer">
+            <span class="text-zinc-400">to</span>
+            <input type="time" x-model="brk.end" class="bg-transparent font-black text-xs text-amber-700 dark:text-amber-400 outline-none cursor-pointer">
+            <button @click="tempPunches.breaks.splice(index, 1)" class="ml-auto text-rose-500 hover:text-rose-700 font-bold text-xs px-2">✕</button>
+        </div>
+    </template>
+    <button @click="tempPunches.breaks.push({start: '', end: '', type: 'Admin Override'})" class="text-[9px] font-black uppercase text-[#0f4c81] hover:underline">+ Add Break</button>
+</div>
+
                             
                             <!-- Force Captcha Check -->
                             <button x-show="(isManagerOrLead || isAdminAuthenticated) && currentDate === initialToday" @click="forceCaptcha(m.id)" class="w-10 h-10 flex items-center justify-center rounded-2xl transition-all shadow-sm border bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/80 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 shrink-0" title="Force Verification Check">
@@ -2349,8 +2418,16 @@ class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/
                                     <span class="text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-200 transition-colors" x-text="menu.label"></span>
                                 </label>
                             </template>
-                        </div>
 
+<label class="flex items-center gap-1.5 cursor-pointer bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/80 px-2.5 py-1.5 rounded-lg hover:border-blue-500/50 transition-colors shadow-sm w-full mt-1">
+        <input type="checkbox" 
+               :checked="(roleAccess[role] || []).includes('superuser')" 
+               @change="toggleRoleAccess(role, 'superuser')" 
+               class="w-3.5 h-3.5 rounded text-blue-600 border-zinc-300 focus:ring-blue-600 cursor-pointer">
+        <span class="text-[9px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-300 transition-colors">Cross-Department Access (Superuser)</span>
+    </label>
+</div>
+                        </div>
                     </div>
                 </template>
                 <div x-show="roles.length === 0" class="w-full py-8 text-center text-zinc-400 text-[10px] font-bold uppercase tracking-widest">No roles configured.</div>
@@ -2950,12 +3027,11 @@ class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/
                         <span class="flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
                             Pending Approvals
-                            <span class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-[8px]" x-text="leaveRequests.filter(r => r.status === 'pending').length"></span>
-                        </span>
+                            <span class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 text-[8px]" x-text="pendingLeaveCount"></span>
                         <span class="text-zinc-400 font-mono" x-text="openGroups.includes('pending') ? '▼' : '▶'"></span>
                     </button>
                     <div x-show="openGroups.includes('pending')" x-collapse class="p-3 pt-0 space-y-2.5">
-                        <template x-for="req in leaveRequests.filter(r => r.status === 'pending')" :key="req.id">
+			<template x-for="req in pendingLeaveRequests" :key="req.id">
                             <div class="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-3">
                                 <div class="flex items-center justify-between gap-2">
                                     <p class="font-black uppercase text-xs text-zinc-950 dark:text-white truncate" x-text="req.name"></p>
@@ -2972,9 +3048,9 @@ class="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-2xl border border-zinc-200/
                                 </div>
                             </div>
                         </template>
-                        <template x-if="leaveRequests.filter(r => r.status === 'pending').length === 0">
-                            <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No pending leave requests.</p>
-                        </template>
+<template x-if="pendingLeaveCount === 0">
+    <p class="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 py-4">No pending leave requests.</p>
+</template>
                     </div>
                 </div>
                 
