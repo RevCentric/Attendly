@@ -109,15 +109,30 @@ const isMobileDevice = () => {
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             let days = [];
+            
+            // Fetch relevant events for the current view
+            const mEvents = this.monthEvents || [];
+            let userHolidays = [];
+            if (this.individualStats && this.individualStats.holidays) {
+                userHolidays = this.individualStats.holidays;
+            }
+
             for (let i = 0; i < firstDay; i++) days.push(null);
             for (let i = 1; i <= daysInMonth; i++) {
                 const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                 const uid = this.userSession?.id;
+                
+                // Identify events falling on this specific day
+                const dayEvents = mEvents.filter(e => e.day === i);
+                
                 days.push({ 
                     day: i, 
                     dateStr: dStr, 
                     log: uid ? this.punchLogs[dStr]?.[uid] : null, 
-                    status: uid ? this.attendanceData[dStr]?.[uid] : null 
+                    status: uid ? this.attendanceData[dStr]?.[uid] : null,
+                    hasBirthday: dayEvents.some(e => e.type === 'birthday'),
+                    hasAnniversary: dayEvents.some(e => e.type === 'anniversary'),
+                    hasHoliday: userHolidays.some(h => h.date === dStr)
                 });
             }
             return days;
@@ -131,6 +146,41 @@ const isMobileDevice = () => {
             }
             await this.syncUserData();
             this.showNote(`Data Synced for ${this.monthName} ${this.calYear}`, "success");
+        },
+
+getEventsForDate(dateStr) {
+            if (!dateStr) return [];
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const events = [];
+            
+            // 1. Check for Holidays
+            if (this.individualStats?.holidays) {
+                this.individualStats.holidays.forEach(h => {
+                    if (h.date === dateStr) {
+                        events.push({ 
+                            icon: '🏖️', 
+                            title: 'Holiday: ' + h.name, 
+                            color: 'text-violet-700 dark:text-violet-400', 
+                            bg: 'bg-violet-100/50 dark:bg-violet-900/40',
+                            border: 'border-violet-200 dark:border-violet-800'
+                        });
+                    }
+                });
+            }
+            
+            // 2. Check for Month Celebrations (Birthdays/Anniversaries)
+            const dayEvents = (this.monthEvents || []).filter(e => e.day === d);
+            dayEvents.forEach(e => {
+                events.push({ 
+                    icon: e.icon, 
+                    title: e.title + ': ' + e.member.name, 
+                    color: e.color, 
+                    bg: e.bg,
+                    border: e.type === 'birthday' ? 'border-pink-200 dark:border-pink-900' : 'border-emerald-200 dark:border-emerald-900'
+                });
+            });
+            
+            return events;
         },
 
         getBreakIcon(type) {
@@ -1516,47 +1566,59 @@ get todayEvents() {
         },
 
         get monthEvents() {
-            const curObj = getISTDateObject();
-            const curM = curObj.getUTCMonth() + 1;
-            const curY = curObj.getUTCFullYear();
+            if (!this.members) return [];
+            
+            const currentMonth = this.calMonth; // 0-indexed (0 = Jan, 11 = Dec)
+            const currentYear = this.calYear;
             const events = [];
-            
-            // 1. Strict Case-Insensitive Department Isolation
-            let targetMembers = [];
-            if (this.isAdminAuthenticated || this.isSuperUser) {
-                targetMembers = this.members;
-            } else if (this.userSession && this.userSession.dept) {
-                const myDept = String(this.userSession.dept).trim().toLowerCase();
-                targetMembers = this.members.filter(m => String(m.dept || '').trim().toLowerCase() === myDept);
-            }
-            
-            // 2. Build Event List
-            targetMembers.forEach(m => {
-                if (m.dob) {
-                    const [bY, bM, bD] = m.dob.split('-').map(Number);
-                    if (bM === curM) {
-                        events.push({ 
-                            id: 'mbday_' + m.id, type: 'birthday', member: m, 
-                            title: 'Birthday', day: bD, icon: '🎂', 
-                            color: 'text-pink-600', bg: 'bg-pink-100' 
+            let eventIdCounter = 1;
+
+            this.members.forEach(member => {
+                // 1. Check Birthdays
+                if (member.dob) {
+                    const dobParts = member.dob.split('-');
+                    const dobMonth = parseInt(dobParts[1], 10) - 1; // Convert to 0-indexed
+                    const dobDay = parseInt(dobParts[2], 10);
+                    
+                    if (dobMonth === currentMonth) {
+                        events.push({
+                            id: eventIdCounter++,
+                            type: 'birthday',
+                            day: dobDay,
+                            member: member,
+                            title: 'Birthday',
+                            icon: '🎂',
+                            bg: 'bg-pink-100 dark:bg-pink-900/40',
+                            color: 'text-pink-600 dark:text-pink-400'
                         });
                     }
                 }
-                if (m.doj) {
-                    const [jY, jM, jD] = m.doj.split('-').map(Number);
-                    if (jM === curM) {
-                        const yrs = curY - jY;
-                        events.push({ 
-                            id: 'mannv_' + m.id, type: 'anniversary', member: m, 
-                            title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joining Month', 
-                            day: jD, icon: yrs > 0 ? '🎊' : '🎉', 
-                            color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', 
-                            bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' 
+
+                // 2. Check Work Anniversaries
+                if (member.doj) {
+                    const dojParts = member.doj.split('-');
+                    const dojYear = parseInt(dojParts[0], 10);
+                    const dojMonth = parseInt(dojParts[1], 10) - 1; // Convert to 0-indexed
+                    const dojDay = parseInt(dojParts[2], 10);
+                    
+                    // Only show anniversary if the month matches AND they have been here at least 1 year
+                    if (dojMonth === currentMonth && currentYear > dojYear) {
+                        const years = currentYear - dojYear;
+                        events.push({
+                            id: eventIdCounter++,
+                            type: 'anniversary',
+                            day: dojDay,
+                            member: member,
+                            title: `${years}Yr Work Anniversary`,
+                            icon: '🎉',
+                            bg: 'bg-emerald-100 dark:bg-emerald-900/40',
+                            color: 'text-emerald-600 dark:text-emerald-400'
                         });
                     }
                 }
             });
-            
+
+            // Return events sorted chronologically by day
             return events.sort((a, b) => a.day - b.day);
         },
 
