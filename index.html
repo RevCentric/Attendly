@@ -478,9 +478,18 @@
         </div>
     </div>
 
-    <div class="bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200/80 dark:border-zinc-800 rounded-[1.25rem] px-4 py-2.5 flex items-center gap-3 w-fit shadow-sm">
-        <div class="flex flex-col items-end">
-            <span class="text-lg font-black text-[#0f4c81] dark:text-[#5289c0] tracking-tight tabular-nums leading-none mt-1" x-text="currentISTTimeWidget"></span>
+<div class="bg-zinc-50 dark:bg-zinc-900/80 border border-zinc-200/80 dark:border-zinc-800 rounded-[1.25rem] px-4 py-2 flex items-center gap-4 w-fit shadow-sm divide-x divide-zinc-200 dark:divide-zinc-700">
+        <div class="flex flex-col items-end pr-1">
+            <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400">IST</span>
+            <span class="text-lg font-black text-[#0f4c81] dark:text-[#5289c0] tracking-tight tabular-nums leading-none" x-text="currentISTTimeWidget"></span>
+        </div>
+        <div class="flex flex-col items-end pl-4 pr-1">
+            <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400">EST</span>
+            <span class="text-lg font-black text-[#0f4c81] dark:text-[#5289c0] tracking-tight tabular-nums leading-none" x-text="currentESTTimeWidget"></span>
+        </div>
+        <div class="flex flex-col items-end pl-4">
+            <span class="text-[8px] font-black uppercase tracking-widest text-zinc-400">CST</span>
+            <span class="text-lg font-black text-[#0f4c81] dark:text-[#5289c0] tracking-tight tabular-nums leading-none" x-text="currentCSTTimeWidget"></span>
         </div>
     </div>
 </div>
