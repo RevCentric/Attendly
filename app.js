@@ -318,6 +318,8 @@ getEventsForDate(dateStr) {
         currentDate: initialToday,
         
         currentISTTimeWidget: '',
+	currentESTTimeWidget: '', 
+        currentCSTTimeWidget: '',
         currentISTDateWidget: '',
         liveShiftMins: 0,     
         liveActiveMins: 0, 
@@ -529,6 +531,13 @@ menuItems: [
                 const now = getNow(); 
                 this.currentISTTimeWidget = new Intl.DateTimeFormat('en-US', {
                     timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+                }).format(now);
+                this.currentESTTimeWidget = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+                }).format(now);
+
+                this.currentCSTTimeWidget = new Intl.DateTimeFormat('en-US', {
+                    timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
                 }).format(now);
                 this.currentISTDateWidget = new Intl.DateTimeFormat('en-US', {
                     timeZone: 'Asia/Kolkata', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
