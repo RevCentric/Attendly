@@ -234,100 +234,166 @@
                 
                 <div x-show="view === 'portal'" class="w-full py-2 space-y-6">
 
-                    <div x-show="!userSession" class="max-w-md mx-auto relative group animate-in slide-in-from-bottom mt-10 px-4">
-                        <div class="absolute -inset-1.5 bg-gradient-to-r from-[#0f4c81] via-zinc-800 to-[#f26522] rounded-[2.5rem] blur-xl opacity-20 group-hover:opacity-35 transition duration-700 animate-pulse" style="animation-duration: 4s;"></div>
-                        
-                        <div class="relative bg-white/80 dark:bg-zinc-950/80 backdrop-blur-2xl p-8 md:p-10 rounded-[2.5rem] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] border border-zinc-200/60 dark:border-zinc-800/40 flex flex-col items-center space-y-8 overflow-hidden">
-                            
-                            <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none select-none bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+<div x-show="!userSession" class="login-experience w-full max-w-6xl mx-auto my-4 md:my-8 px-3 sm:px-5 animate-in slide-in-from-bottom duration-500">
+    <div class="login-shell relative grid lg:grid-cols-[1.02fr_.98fr] overflow-hidden rounded-[2rem] border border-slate-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-[0_30px_90px_-35px_rgba(15,76,129,.38)]">
+        <!-- Brand / welcome panel -->
+        <section class="login-visual relative isolate min-h-[230px] lg:min-h-[650px] overflow-hidden p-7 sm:p-10 lg:p-12 text-white">
+            <div class="absolute inset-0 -z-20 bg-gradient-to-br from-[#082f50] via-[#0f4c81] to-[#123b63]"></div>
+            <div class="absolute inset-0 -z-10 opacity-25" style="background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.55) 1px,transparent 0);background-size:22px 22px"></div>
+            <div class="login-orb login-orb-one"></div>
+            <div class="login-orb login-orb-two"></div>
+            <div class="relative z-10 flex h-full flex-col">
+                <div class="flex items-center justify-between gap-4">
+                                       </div>
 
-                            <div class="relative z-10">
-                                <div class="absolute -inset-4 border border-zinc-200/60 dark:border-zinc-800/40 rounded-full animate-[spin_12s_linear_infinite]">
-                                    <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#f26522]"></div>
-                                </div>
-                                <div class="w-20 h-20 bg-gradient-to-br from-[#0f4c81] via-[#0b3861] to-zinc-950 text-white rounded-2xl flex items-center justify-center shadow-[0_10px_30px_-10px_rgba(15,76,129,0.5)] transition duration-300">
-                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                        <path d="M12 8v4"/>
-                                        <path d="M12 16h.01"/>
-                                    </svg>
-                                </div>
-                            </div>
+                <div class="my-8 lg:my-auto max-w-xl">
+                    <p class="mb-3 text-[10px] sm:text-xs font-extrabold uppercase tracking-[.28em] text-orange-300">People • Time • Performance</p>
+                    <h2 class="max-w-lg text-3xl sm:text-4xl lg:text-[3.25rem] font-black leading-[1.05] tracking-tight">
+                        Your workday,<br><span class="text-orange-300">in sync.</span>
+                    </h2>
+                    <p class="mt-4 max-w-md text-sm sm:text-base leading-7 text-blue-100/85">
+                        A smarter place to manage attendance, stay connected with your team, and keep every shift on track.
+                    </p>
 
-                            <!-- STEP 1: ID ENTRY -->
-                            <div x-show="loginStep === 'id'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
-                                <div class="text-center space-y-2">
-                                    <h3 class="text-2xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">Identity Portal</h3>
-                                    <p class="text-zinc-500 dark:text-zinc-400 text-xs font-semibold max-w-xs mx-auto leading-relaxed">Please authenticate with your Employee ID.</p>
-                                </div>
-                                <div class="space-y-4">
-                                    <div class="relative group/input">
-                                        <div class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within/input:text-[#0f4c81] transition-colors">
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 9h4M14 13h4"/></svg>
-                                        </div>
-                                        <input type="text" id="login-id-input" x-model="loginIdInput" @keyup.enter="handleIdEntry()" placeholder="EMPLOYEE ID" class="w-full pl-12 pr-6 py-4 bg-zinc-50/50 dark:bg-zinc-900/40 border-2 border-zinc-200 dark:border-zinc-800 focus:border-[#0f4c81]/50 focus:bg-white dark:focus:bg-zinc-950 rounded-2xl text-center font-black text-lg uppercase outline-none shadow-sm transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-600 tracking-wider">
-                                    </div>
-                                    
-                                    <button @click="handleIdEntry()" class="group/btn w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98] flex justify-center items-center gap-2">
-                                        Verify Identity 
-                                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" class="group-hover/btn:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                                    </button>
-                                </div>
+                    <div class="mt-7 grid max-w-md grid-cols-3 gap-2 sm:gap-3">
+                        <div class="rounded-2xl border border-white/15 bg-white/[.09] p-3 sm:p-4 backdrop-blur-sm">
+                            <div class="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-400/15 text-emerald-200">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7 10 17l-5-5"/><path d="M21 12a9 9 0 1 1-5.3-8.2"/></svg>
                             </div>
-
-                            <!-- STEP 2: SECURITY CHECK PIN -->
-                            <div x-show="loginStep === 'pin'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
-                                <div class="text-center space-y-3">
-                                    <h3 class="text-2xl font-black tracking-tight text-zinc-900 dark:text-white uppercase">Security Check</h3>
-                                    <div class="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/40 rounded-full shadow-sm">
-                                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        <p class="text-emerald-700 dark:text-emerald-400 font-black uppercase text-[10px] tracking-wider" x-text="'Verified: ' + tempUser?.name"></p>
-                                    </div>
-                                </div>
-                                
-                                <div class="space-y-4">
-                                    <div class="relative">
-                                        <input type="password" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" placeholder="••••••" 
-                                        :class="pinErrorShake ? 'animate-shake border-rose-500 text-rose-500 bg-rose-50 dark:bg-rose-900/20' : 'border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white bg-zinc-50/50 dark:bg-zinc-900/40 focus:border-[#f26522]/50 focus:bg-white dark:focus:bg-zinc-950'"
-                                        class="w-full px-6 py-4 border-2 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-sm transition-all placeholder:text-zinc-300 dark:placeholder:text-zinc-700">
-                                    </div>
-                                    
-                                    <button @click="handlePinVerification()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98]">
-                                        Confirm & Punch In
-                                    </button>
-                                    
-                                    <button @click="cancelLogin()" class="flex items-center justify-center gap-1 text-[10px] font-black text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 uppercase tracking-widest mx-auto transition-colors pt-2">
-                                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                                        Change Employee ID
-                                    </button>
-                                </div>
+                            <p class="text-[10px] sm:text-xs font-bold text-white">Attendance</p>
+                            <p class="mt-1 text-[9px] sm:text-[10px] text-blue-100/65">Simple check-in</p>
+                        </div>
+                        <div class="rounded-2xl border border-white/15 bg-white/[.09] p-3 sm:p-4 backdrop-blur-sm">
+                            <div class="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-orange-400/15 text-orange-200">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
                             </div>
-
-                            <!-- STEP 3: PIN SETUP -->
-                            <div x-show="loginStep === 'setup'" class="w-full space-y-6 relative z-10 animate-in fade-in zoom-in-95 duration-300">
-                                <div class="text-center space-y-2">
-                                    <h3 class="text-2xl font-black tracking-tight text-[#f26522] uppercase">Set Access PIN</h3>
-                                    <p class="text-zinc-500 dark:text-zinc-400 text-xs font-semibold max-w-xs mx-auto leading-relaxed" x-text="'Hello ' + tempUser?.firstName + ', please establish a secure 6-digit PIN.'"></p>
-                                </div>
-                                
-                                <div class="space-y-4">
-                                    <div class="relative">
-                                        <input type="password" id="setup-pin-input" x-model="loginPinInput" @keyup.enter="handlePinSetup()" @input="if(loginPinInput.length === 6) handlePinSetup()" maxlength="6" placeholder="000000" class="w-full px-6 py-4 bg-orange-50/20 dark:bg-orange-950/10 border-2 border-orange-200/60 dark:border-orange-900/30 focus:border-orange-400 rounded-2xl text-center font-black text-3xl tracking-[0.5em] outline-none shadow-sm focus:bg-white dark:focus:bg-zinc-950 transition-all placeholder:text-orange-200/30 dark:placeholder:text-orange-900/30">
-                                    </div>
-                                    
-                                    <button @click="handlePinSetup()" class="w-full py-4 bg-[#f26522] hover:bg-[#d9561c] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(242,101,34,0.4)] transition-all active:scale-[0.98]">
-                                        Confirm Registration
-                                    </button>
-                                    
-                                    <button @click="cancelLogin()" class="flex items-center justify-center gap-1 text-[10px] font-black text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 uppercase tracking-widest mx-auto transition-colors pt-2">
-                                        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                                        Cancel Setup
-                                    </button>
-                                </div>
+                            <p class="text-[10px] sm:text-xs font-bold text-white">Shift tracking</p>
+                            <p class="mt-1 text-[9px] sm:text-[10px] text-blue-100/65">Stay on schedule</p>
+                        </div>
+                        <div class="rounded-2xl border border-white/15 bg-white/[.09] p-3 sm:p-4 backdrop-blur-sm">
+                            <div class="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-sky-400/15 text-sky-200">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                             </div>
-                            
+                            <p class="text-[10px] sm:text-xs font-bold text-white">Team focus</p>
+                            <p class="mt-1 text-[9px] sm:text-[10px] text-blue-100/65">One connected team</p>
                         </div>
                     </div>
+                </div>
+
+                <div class="hidden lg:flex items-center justify-between border-t border-white/15 pt-5 text-[10px] font-semibold tracking-wide text-blue-100/60">
+                    <span>SECURE EMPLOYEE ACCESS</span>
+                    <span>REVCENTRIC SOLUTIONS </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Login form panel -->
+        <section class="relative flex items-center justify-center bg-white px-5 py-8 dark:bg-zinc-950 sm:px-9 sm:py-10 lg:px-12">
+            <div class="pointer-events-none absolute right-0 top-0 h-48 w-48 rounded-full bg-orange-100/60 blur-3xl dark:bg-orange-500/5"></div>
+            <div class="relative z-10 w-full max-w-md">
+                <div class="mb-7 flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#0f4c81] dark:text-blue-400">Employee access</p>
+                        <p class="mt-1 text-xs text-zinc-400">Welcome to your workforce workspace</p>
+                    </div>
+                    <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-[#0f4c81] ring-1 ring-slate-200 dark:bg-zinc-900 dark:text-blue-300 dark:ring-zinc-800">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v3"/></svg>
+                    </div>
+                </div>
+
+                <div class="mb-7">
+                    <div class="mb-3 flex items-center justify-between">
+                        <span class="text-[10px] font-extrabold uppercase tracking-[.16em] text-zinc-500" x-text="loginStep === 'id' ? 'Sign in' : (loginStep === 'setup' ? 'Account setup' : 'Identity verified')"></span>
+                        <span class="text-[10px] font-bold tabular-nums text-zinc-400" x-text="loginStep === 'id' ? '01 / 02' : '02 / 02'"></span>
+                    </div>
+                    <div class="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800">
+                        <div class="h-full rounded-full bg-gradient-to-r from-[#0f4c81] to-[#f26522] transition-all duration-500" :class="loginStep === 'id' ? 'w-1/2' : 'w-full'"></div>
+                    </div>
+                </div>
+
+                <!-- STEP 1: ID ENTRY -->
+                <div x-show="loginStep === 'id'" class="w-full space-y-6 animate-in fade-in duration-300">
+                    <div class="space-y-2">
+                        <h3 class="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Welcome back<span class="text-[#f26522]"> !</span></h3>
+                        <p class="text-sm leading-6 text-zinc-500 dark:text-zinc-400">Enter your Employee ID to securely access your account.</p>
+                    </div>
+                    <div class="space-y-4">
+                        <label class="block space-y-2">
+                            <span class="text-xs font-bold text-zinc-700 dark:text-zinc-300">Employee ID</span>
+                            <span class="relative block group/input">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within/input:text-[#0f4c81] transition-colors">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M14 9h4M14 13h4"/></svg>
+                                </span>
+                                <input type="text" id="login-id-input" x-model="loginIdInput" @keyup.enter="handleIdEntry()" placeholder="EMP ID" autocomplete="username" autocapitalize="characters" spellcheck="false" enterkeyhint="go" class="w-full h-14 pl-12 pr-4 bg-slate-50 dark:bg-zinc-900/70 border border-slate-200 dark:border-zinc-800 focus:border-[#0f4c81] focus:bg-white dark:focus:bg-zinc-950 focus:ring-4 focus:ring-[#0f4c81]/10 rounded-2xl text-base font-bold uppercase tracking-wide outline-none transition placeholder:normal-case placeholder:font-medium placeholder:tracking-normal placeholder:text-zinc-400">
+                            </span>
+                        </label>
+                        <button @click="handleIdEntry()" class="group/btn w-full h-14 rounded-2xl bg-gradient-to-r from-[#f26522] to-[#e65319] hover:from-[#e85d1d] hover:to-[#d94b12] text-white text-sm font-extrabold shadow-[0_12px_25px_-12px_rgba(242,101,34,.8)] transition active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f26522]/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-950 flex items-center justify-center gap-3">
+                            Continue securely
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" class="group-hover/btn:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STEP 2: SECURITY CHECK PIN -->
+                <div x-show="loginStep === 'pin'" class="w-full space-y-6 animate-in fade-in duration-300">
+                    <div class="space-y-3">
+                        <h3 class="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Enter your PIN<span class="text-[#f26522]">.</span></h3>
+                        <p class="text-sm text-zinc-500 dark:text-zinc-400">Your employee ID has been verified. Enter your 6-digit security PIN.</p>
+                        <div class="inline-flex items-center gap-2 rounded-full border border-emerald-100 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <p class="text-xs font-bold text-emerald-700 dark:text-emerald-400" x-text="'Verified: ' + tempUser?.name"></p>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="relative" x-data="{ show: false }">
+                            <input :type="show ? 'text' : 'password'" id="login-pin-input" x-model="loginPinInput" @keyup.enter="handlePinVerification()" @input="if(loginPinInput.length === 6) handlePinVerification()" maxlength="6" inputmode="numeric" autocomplete="current-password" aria-label="6-digit PIN" placeholder="••••••"
+                            :class="pinErrorShake ? 'animate-shake border-rose-500 text-rose-500 bg-rose-50 dark:bg-rose-900/20' : 'border-slate-200 dark:border-zinc-800 text-zinc-900 dark:text-white bg-slate-50 dark:bg-zinc-900/70 focus:border-[#0f4c81] focus:bg-white dark:focus:bg-zinc-950 focus:ring-4 focus:ring-[#0f4c81]/10'"
+                            class="w-full h-16 px-12 border rounded-2xl text-center font-black text-2xl tracking-[.55em] outline-none transition placeholder:text-zinc-300 dark:placeholder:text-zinc-700">
+                            <button type="button" @click="show = !show" :aria-label="show ? 'Hide PIN' : 'Show PIN'" class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21" x-show="!show"/></svg></button>
+                        </div>
+                        <div class="flex justify-center gap-2" aria-hidden="true"><template x-for="i in 6"><span class="h-2 w-2 rounded-full transition-colors" :class="i <= loginPinInput.length ? 'bg-[#0f4c81] dark:bg-blue-400' : 'bg-zinc-200 dark:bg-zinc-800'"></span></template></div>
+                        <button @click="handlePinVerification()" class="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f26522] to-[#e65319] hover:from-[#e85d1d] hover:to-[#d94b12] text-white text-sm font-extrabold shadow-[0_12px_25px_-12px_rgba(242,101,34,.8)] transition active:scale-[.98] flex items-center justify-center gap-2">Confirm &amp; Punch In</button>
+                        <button @click="cancelLogin()" class="mx-auto flex items-center gap-2 text-xs font-semibold text-zinc-500 hover:text-[#0f4c81] dark:hover:text-blue-300 transition"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Not you? Change Employee ID</button>
+                    </div>
+                </div>
+
+                <!-- STEP 3: PIN SETUP -->
+                <div x-show="loginStep === 'setup'" class="w-full space-y-6 animate-in fade-in duration-300">
+                    <div class="space-y-2">
+                        <h3 class="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Create your PIN<span class="text-[#f26522]">.</span></h3>
+                        <p class="text-sm leading-6 text-zinc-500 dark:text-zinc-400" x-text="'Hello ' + tempUser?.firstName + ', choose a 6-digit PIN you\'ll remember. Avoid birthdays and repeated digits.'"></p>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="relative" x-data="{ show: false }">
+                            <input :type="show ? 'text' : 'password'" id="setup-pin-input" x-model="loginPinInput" @keyup.enter="handlePinSetup()" @input="if(loginPinInput.length === 6) handlePinSetup()" maxlength="6" inputmode="numeric" autocomplete="new-password" aria-label="New 6-digit PIN" placeholder="••••••" class="w-full h-16 px-12 bg-orange-50/40 dark:bg-orange-950/10 border border-orange-200/70 dark:border-orange-900/30 focus:border-[#f26522] focus:bg-white dark:focus:bg-zinc-950 focus:ring-4 focus:ring-[#f26522]/10 rounded-2xl text-center font-black text-2xl tracking-[.55em] outline-none transition placeholder:text-orange-200 dark:placeholder:text-orange-900/40">
+                            <button type="button" @click="show = !show" :aria-label="show ? 'Hide PIN' : 'Show PIN'" class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21" x-show="!show"/></svg></button>
+                        </div>
+                        <div class="flex justify-center gap-2" aria-hidden="true"><template x-for="i in 6"><span class="h-2 w-2 rounded-full transition-colors" :class="i <= loginPinInput.length ? 'bg-[#0f4c81] dark:bg-blue-400' : 'bg-zinc-200 dark:bg-zinc-800'"></span></template></div>
+                        <button @click="handlePinSetup()" class="w-full h-14 rounded-2xl bg-gradient-to-r from-[#f26522] to-[#e65319] hover:from-[#e85d1d] hover:to-[#d94b12] text-white text-sm font-extrabold shadow-[0_12px_25px_-12px_rgba(242,101,34,.8)] transition active:scale-[.98] flex items-center justify-center gap-2">Confirm Registration</button>
+                        <button @click="cancelLogin()" class="mx-auto flex items-center gap-2 text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Cancel setup</button>
+                    </div>
+                </div>
+                <div class="mt-8 border-t border-slate-100 pt-5 dark:border-zinc-800">
+                    <div class="flex items-start gap-3">
+                        <svg class="mt-0.5 shrink-0 text-zinc-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                        <p class="text-xs leading-5 text-zinc-400">Forgot your PIN? Ask your manager or admin to reset it. Your access is protected by employee verification.</p>
+                    </div>
+                    <p class="mt-5 text-center text-[9px] font-bold uppercase tracking-[.2em] text-zinc-300 dark:text-zinc-700">Authorized personnel only</p>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<style id="login-experience-design">
+.login-experience { font-family: 'Outfit', sans-serif; }
+.login-orb { position:absolute; border-radius:9999px; pointer-events:none; filter:blur(1px); }
+.login-orb-one { width:340px;height:340px;right:-130px;top:18%;background:radial-gradient(circle,rgba(242,101,34,.34),rgba(242,101,34,0) 68%); }
+.login-orb-two { width:300px;height:300px;left:-150px;bottom:-100px;background:radial-gradient(circle,rgba(91,173,235,.26),rgba(91,173,235,0) 70%); }
+@media(max-width:1023px){ .login-visual { min-height:0; } .login-orb-one { width:220px;height:220px; } }
+@media(max-width:480px){ .login-experience { padding-left:.25rem;padding-right:.25rem; } .login-shell { border-radius:1.5rem; } }
+@media(prefers-reduced-motion:reduce){ .login-experience *, .login-experience *::before, .login-experience *::after { animation-duration:.01ms!important;transition-duration:.01ms!important; } }
+</style>
 
                     <!-- PERSONNEL DASHBOARD (LOGGED IN) -->
                     <div x-show="userSession" class="animate-in fade-in duration-700 space-y-3 pb-10">
@@ -1969,40 +2035,72 @@
     </div>
 </div>
 
-<div x-show="view === 'members'" x-data="{ rosterSearch: '', rosterFilter: 'all' }" class="space-y-6 animate-in fade-in duration-500 pb-16">
-    
-    <!-- 1. Sleek Command Center (KPIs + Search + Actions) -->
-    <div x-show="!isAddingMember" class="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-3 md:p-4 rounded-[2rem] border border-zinc-200/60 dark:border-zinc-800/60 shadow-lg flex flex-col gap-3">
-        
-        <div class="flex flex-wrap lg:flex-nowrap items-center gap-3">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0f4c81]/10 to-[#f26522]/10 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-[#f26522] shadow-sm">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                </div>
-                <div>
-                    <h4 class="text-xl font-black uppercase tracking-tight text-zinc-950 dark:text-white leading-none">Personnel Directory</h4>
-                    <p class="hidden xl:block text-[9px] font-black text-zinc-400 uppercase tracking-widest mt-1">Identity Profiles & Access Control</p>
-                </div>
-            </div>
+<div x-show="view === 'members'" x-data="{
+  rosterSearch:'', rosterFilter:'all', rosterView:'grid', rosterSort:'name',
+  rToday(){ return new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10) },
+  rExit(m){ return !!m.doe && m.doe <= this.rToday() },
+  rIs(m,f,sp){ return f==='active' ? !this.rExit(m) : f==='exit' ? this.rExit(m) : f==='verified' ? !!m.captchaEnabled : f==='split' ? (sp||[]).includes(m.id) : f==='nopin' ? !m.pin : true },
+  rCount(f,all,sp){ return all.filter(m => this.rIs(m,f,sp)).length },
+  rList(all,sp){
+    const q = this.rosterSearch.trim().toLowerCase(), s = this.rosterSort;
+    return all.filter(m => this.rIs(m,this.rosterFilter,sp) && (!q || [m.name,m.empId,m.dept,m.role].some(v => (v||'').toLowerCase().includes(q))))
+      .sort((a,b) => s==='joined' ? (b.doj||'').localeCompare(a.doj||'') : s==='dept' ? (a.dept||'~').localeCompare(b.dept||'~') || a.name.localeCompare(b.name) : a.name.localeCompare(b.name)) },
+  rInit(n){ return (n||'?').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase() },
+  rHue(n){ let h=0; for (const c of (n||'')) h=(h*31+c.charCodeAt(0))%3; return ['#0f4c81','#f26522','#0f766e'][h] },
+  rSince(d){ const x = d ? new Date(d+'T00:00:00') : null; return x && !isNaN(x) ? x.toLocaleDateString('en-GB',{month:'short',year:'numeric'}) : '—' }
+}" class="space-y-5 animate-in fade-in duration-500 pb-16">
 
-            <div class="relative flex-1 min-w-[180px]">
-                <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" x-model="rosterSearch" placeholder="SEARCH ROSTER..." class="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#0f4c81] transition-all text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 shadow-inner">
+    <!-- 1. Command bar: title, search, sort, view, register -->
+    <div x-show="!isAddingMember" class="space-y-3">
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="mr-auto">
+                <h4 class="text-xl font-extrabold tracking-tight text-zinc-950 dark:text-white leading-none">Personnel Directory</h4>
+                <p class="mt-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    <span class="tabular-nums" x-text="filteredMembers.length"></span> people ·
+                    <span class="tabular-nums text-emerald-600 dark:text-emerald-400" x-text="rCount('active', filteredMembers, splitShiftEmps) + ' active'"></span>
+                </p>
             </div>
-
-            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar max-w-full">
-                <button @click="rosterFilter = 'all'" :class="rosterFilter === 'all' ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'" class="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5">All <span class="opacity-60 tabular-nums" x-text="filteredMembers.length"></span></button>
-                <button @click="rosterFilter = 'active'" :class="rosterFilter === 'active' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 hover:text-emerald-700 dark:hover:text-emerald-400'" class="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5">Active <span class="opacity-70 tabular-nums" x-text="filteredMembers.filter(m => !m.doe || m.doe > new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)).length"></span></button>
-                <button @click="rosterFilter = 'exit'" :class="rosterFilter === 'exit' ? 'bg-rose-600 text-white shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 hover:text-rose-700 dark:hover:text-rose-400'" class="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5">Exit <span class="opacity-70 tabular-nums" x-text="filteredMembers.filter(m => m.doe && m.doe <= new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)).length"></span></button>
-                <button @click="rosterFilter = 'verified'" :class="rosterFilter === 'verified' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'" class="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5">Secured <span class="opacity-60 tabular-nums" x-text="filteredMembers.filter(m => m.captchaEnabled).length"></span></button>
-                <button @click="rosterFilter = 'split'" :class="rosterFilter === 'split' ? 'bg-cyan-600 text-white shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'" class="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5">Split Shift <span class="opacity-60 tabular-nums" x-text="filteredMembers.filter(m => (splitShiftEmps || []).includes(m.id)).length"></span></button>
-                <button @click="rosterFilter = 'nopin'" :class="rosterFilter === 'nopin' ? 'bg-amber-500 text-white shadow-sm' : 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'" class="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shrink-0 flex items-center gap-1.5">No PIN <span class="opacity-60 tabular-nums" x-text="filteredMembers.filter(m => !m.pin).length"></span></button>
-            </div>
-
-            <button @click="openNewMemberForm()" class="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-[#f26522] to-[#d9561c] hover:from-[#d9561c] hover:to-[#bf4b18] text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0">
+            <button @click="openNewMemberForm()" class="order-2 sm:order-none inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#f26522] to-[#d9561c] px-5 py-2.5 text-xs font-bold text-white shadow-md transition active:scale-95 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f26522]/60 focus-visible:ring-offset-2">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Register</span>
+                Register
             </button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-2.5 shadow-sm">
+            <label class="relative flex-1 min-w-[200px]">
+                <span class="sr-only">Search roster</span>
+                <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" x-model="rosterSearch" placeholder="Search name, ID, department or role" class="w-full h-10 pl-10 pr-3 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 text-sm font-medium text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 outline-none transition focus:border-[#0f4c81] focus:ring-2 focus:ring-[#0f4c81]/20">
+            </label>
+            <label class="flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                <span class="hidden md:inline">Sort</span>
+                <select x-model="rosterSort" class="h-10 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200/80 dark:border-zinc-800 px-3 text-xs font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer focus:border-[#0f4c81]">
+                    <option value="name">Name A–Z</option>
+                    <option value="dept">Department</option>
+                    <option value="joined">Newest joined</option>
+                </select>
+            </label>
+            <div class="flex h-10 items-center rounded-xl bg-zinc-100 dark:bg-zinc-800/70 p-1" role="group" aria-label="Layout">
+                <button @click="rosterView = 'grid'" :aria-pressed="rosterView === 'grid'" title="Card view" :class="rosterView === 'grid' ? 'bg-white dark:bg-zinc-950 text-[#0f4c81] dark:text-blue-400 shadow-sm' : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'" class="h-8 w-9 rounded-lg flex items-center justify-center transition">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                </button>
+                <button @click="rosterView = 'table'" :aria-pressed="rosterView === 'table'" title="Table view" :class="rosterView === 'table' ? 'bg-white dark:bg-zinc-950 text-[#0f4c81] dark:text-blue-400 shadow-sm' : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'" class="h-8 w-9 rounded-lg flex items-center justify-center transition">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter pills (with live counts) -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter roster">
+            <template x-for="f in [['all','All','bg-zinc-400'],['active','Active','bg-emerald-500'],['exit','Exited','bg-rose-500'],['verified','Captcha on','bg-indigo-500'],['split','Split shift','bg-cyan-500'],['nopin','No PIN','bg-amber-500']]" :key="f[0]">
+                <button @click="rosterFilter = f[0]" :aria-pressed="rosterFilter === f[0]"
+                        :class="rosterFilter === f[0] ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-white dark:text-zinc-900 dark:border-white shadow-sm' : 'bg-white/70 dark:bg-zinc-900/70 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'"
+                        class="shrink-0 inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-bold transition">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="f[2]"></span>
+                    <span x-text="f[1]"></span>
+                    <span class="tabular-nums opacity-60" x-text="rCount(f[0], filteredMembers, splitShiftEmps)"></span>
+                </button>
+            </template>
         </div>
     </div>
 
@@ -2082,118 +2180,97 @@
             </button>
         </div>
     </div>
-
-    <!-- 3. Redesigned High-Density Roster Grid -->
-    <div x-show="!isAddingMember" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        
-        <template x-for="m in filteredMembers.filter(m => {
-            let matchesSearch = !rosterSearch || m.name.toLowerCase().includes(rosterSearch.toLowerCase()) || m.empId.toLowerCase().includes(rosterSearch.toLowerCase()) || (m.dept && m.dept.toLowerCase().includes(rosterSearch.toLowerCase()));
-            let matchesFilter = true;
-            if (rosterFilter === 'active') matchesFilter = !m.doe || m.doe > new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-            if (rosterFilter === 'exit') matchesFilter = !!m.doe && m.doe <= new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-            if (rosterFilter === 'verified') matchesFilter = m.captchaEnabled;
-            if (rosterFilter === 'split') matchesFilter = (splitShiftEmps || []).includes(m.id);
-            if (rosterFilter === 'nopin') matchesFilter = !m.pin;
-            return matchesSearch && matchesFilter;
-        })" :key="m.empId">
-            
-            <div class="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/60 dark:border-zinc-800/60 rounded-[1.5rem] p-4 shadow-sm hover:shadow-md transition-all duration-300 group flex flex-col gap-3.5 relative overflow-hidden">
-                
-                <!-- Ambient Hover Glow -->
-                <div class="absolute -top-16 -right-16 w-32 h-32 bg-gradient-to-br from-[#0f4c81]/5 to-[#f26522]/5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500 pointer-events-none"></div>
-
-                <!-- Header: Identity -->
-                <div class="flex items-start gap-3 relative z-10">
-                    <div class="relative shrink-0">
-                        <img :src="`https://api.dicebear.com/7.x/initials/svg?seed=${m.name}&backgroundColor=0f4c81,f26522,10b981&textColor=ffffff`" 
-                             class="w-12 h-12 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 object-cover transition-transform group-hover:scale-105" />
-                        
-                        <!-- Mini Badges -->
-                        <span x-show="m.captchaEnabled" class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-sm border border-white dark:border-zinc-900" title="Verification Secured">
-                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                        </span>
-                        <span x-show="!m.pin" class="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-amber-500 text-white rounded-full flex items-center justify-center shadow-sm border border-white dark:border-zinc-900" title="No PIN Set">
-                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
-                        </span>
+    <!-- 3. Directory: card view -->
+    <div x-show="!isAddingMember && rosterView === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+        <template x-for="m in rList(filteredMembers, splitShiftEmps)" :key="m.empId">
+            <article class="group relative flex flex-col gap-4 rounded-3xl border border-zinc-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0" :class="rExit(m) && 'opacity-60'">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center text-sm font-extrabold tracking-wide text-white" :style="`background:${rHue(m.name)}`" x-text="rInit(m.name)"></div>
+                    <div class="min-w-0 flex-1">
+                        <h4 class="truncate text-[15px] font-bold capitalize text-zinc-950 dark:text-white" x-text="m.name"></h4>
+                        <p class="truncate text-xs text-zinc-500 dark:text-zinc-400"><span class="font-semibold text-[#f26522]" x-text="m.role || 'Staff'"></span> · <span class="font-mono" x-text="m.empId"></span></p>
                     </div>
-                    
-                    <div class="flex-1 min-w-0 flex flex-col justify-center h-12">
-                        <div class="flex items-center justify-between gap-2">
-                            <h4 class="font-black text-sm text-zinc-950 dark:text-white truncate uppercase leading-none" x-text="m.name"></h4>
-                            <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 rounded-md text-[8px] font-black tracking-widest uppercase border border-zinc-200/60 dark:border-zinc-700 shrink-0" x-text="m.empId"></span>
-                        </div>
-                        <p class="text-[9px] font-black text-[#f26522] uppercase tracking-widest mt-1 truncate leading-none" x-text="m.role || 'Staff'"></p>
-                    </div>
+                    <span class="shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold" :class="rExit(m) ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'">
+                        <span class="w-1.5 h-1.5 rounded-full bg-current"></span><span x-text="rExit(m) ? 'Exited' : 'Active'"></span>
+                    </span>
                 </div>
 
-                <!-- Data Pills -->
-                <div class="grid grid-cols-2 gap-2 relative z-10">
-                    <div class="bg-zinc-50 dark:bg-zinc-950 p-2 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                        <span class="text-[7px] font-black uppercase tracking-widest text-zinc-400 block mb-0.5">Department</span>
-                        <p class="text-[10px] font-black text-zinc-800 dark:text-zinc-200 truncate uppercase leading-none" x-text="m.dept || 'General'"></p>
-                    </div>
-                    <div class="bg-zinc-50 dark:bg-zinc-950 p-2 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                        <span class="text-[7px] font-black uppercase tracking-widest text-zinc-400 block mb-0.5">Schedule</span>
-                        <p class="text-[10px] font-black text-zinc-800 dark:text-zinc-200 truncate uppercase leading-none" x-text="m.shift || 'Standard'"></p>
-                    </div>
+                <dl class="grid grid-cols-3 gap-2 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 p-3 text-xs">
+                    <div class="min-w-0"><dt class="text-[10px] font-semibold text-zinc-400">Department</dt><dd class="mt-0.5 truncate font-bold text-zinc-800 dark:text-zinc-200" x-text="m.dept || 'General'"></dd></div>
+                    <div class="min-w-0"><dt class="text-[10px] font-semibold text-zinc-400">Shift</dt><dd class="mt-0.5 truncate font-bold text-zinc-800 dark:text-zinc-200" x-text="m.shift || 'Standard'"></dd></div>
+                    <div class="min-w-0"><dt class="text-[10px] font-semibold text-zinc-400" x-text="rExit(m) ? 'Left' : 'Joined'"></dt><dd class="mt-0.5 truncate font-bold text-zinc-800 dark:text-zinc-200" x-text="rSince(rExit(m) ? m.doe : m.doj)"></dd></div>
+                </dl>
+
+                <div class="flex flex-wrap gap-1.5 min-h-[22px]">
+                    <span x-show="m.captchaEnabled" class="rounded-md bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">Captcha on</span>
+                    <span x-show="(splitShiftEmps || []).includes(m.id)" class="rounded-md bg-cyan-50 dark:bg-cyan-950/50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">Split shift</span>
+                    <span x-show="!m.pin" class="rounded-md bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">No PIN set</span>
                 </div>
 
-                <!-- Unified Action Dock -->
-                <div class="pt-3 mt-auto border-t border-zinc-200/60 dark:border-zinc-800 flex items-center justify-between gap-1.5 relative z-10">
-                    
-                    <!-- PIN Reset (Prominent) -->
-                    <button @click="resetUserPin(m.id)" :disabled="!m.pin" 
-                            :class="!m.pin ? 'opacity-40 cursor-not-allowed text-zinc-400 bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800' : 'text-zinc-600 dark:text-zinc-300 hover:text-white hover:bg-[#f26522] hover:border-[#f26522] bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 shadow-sm'" 
-                            class="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border flex items-center justify-center gap-1.5">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Reset PIN
+                <div class="mt-auto flex items-center gap-1.5 border-t border-zinc-200/70 dark:border-zinc-800 pt-3">
+                    <button @click="startEdit(m)" class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0f4c81] py-2 text-xs font-bold text-white transition active:scale-95 hover:bg-[#0c3d69] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f4c81]/50 focus-visible:ring-offset-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit
                     </button>
-
-                    <!-- Icon Tool Dock -->
-                    <div class="flex items-center bg-zinc-50 dark:bg-zinc-950 rounded-lg border border-zinc-200/60 dark:border-zinc-800 p-0.5 shrink-0">
-                        <!-- Captcha -->
-                        <button @click="toggleMemberVerification(m.id)" 
-                                :class="m.captchaEnabled ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50' : 'text-zinc-400 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'" 
-                                class="w-7 h-7 rounded-md flex items-center justify-center transition-all" title="Toggle Security Verification">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                        </button>
-                        <!-- Split Shift -->
-                        <button @click="toggleSplitShiftAccess(m.id)" 
-                                :class="(splitShiftEmps || []).includes(m.id) ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/50' : 'text-zinc-400 hover:text-cyan-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'" 
-                                class="w-7 h-7 rounded-md flex items-center justify-center transition-all" title="Toggle Split Shift">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/></svg>
-                        </button>
-                        <!-- View Staff -->
-                        <button @click="viewAsStaff(m.id)" class="w-7 h-7 rounded-md flex items-center justify-center text-zinc-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 dark:hover:text-emerald-400 transition-all" title="View Staff Portal">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                        <!-- Edit -->
-                        <button @click="startEdit(m)" class="w-7 h-7 rounded-md flex items-center justify-center text-zinc-400 hover:text-[#0f4c81] hover:bg-blue-50 dark:hover:bg-blue-950/50 dark:hover:text-blue-400 transition-all" title="Edit Profile">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                    </div>
+                    <button @click="viewAsStaff(m.id)" title="View staff portal" aria-label="View staff portal" class="w-9 h-9 rounded-xl flex items-center justify-center text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                    <button @click="toggleMemberVerification(m.id)" role="switch" :aria-checked="!!m.captchaEnabled" title="Toggle captcha verification" aria-label="Toggle captcha verification" :class="m.captchaEnabled ? 'text-indigo-600 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/60' : 'text-zinc-400 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'" class="w-9 h-9 rounded-xl flex items-center justify-center transition">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </button>
+                    <button @click="toggleSplitShiftAccess(m.id)" role="switch" :aria-checked="(splitShiftEmps || []).includes(m.id)" title="Toggle split shift" aria-label="Toggle split shift" :class="(splitShiftEmps || []).includes(m.id) ? 'text-cyan-600 bg-cyan-50 dark:text-cyan-300 dark:bg-cyan-950/60' : 'text-zinc-400 hover:text-cyan-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'" class="w-9 h-9 rounded-xl flex items-center justify-center transition">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/></svg>
+                    </button>
+                    <button @click="resetUserPin(m.id)" :disabled="!m.pin" title="Reset PIN" aria-label="Reset PIN" class="w-9 h-9 rounded-xl flex items-center justify-center text-zinc-500 transition hover:text-white hover:bg-[#f26522] disabled:opacity-30 disabled:pointer-events-none">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </button>
                 </div>
-
-            </div>
+            </article>
         </template>
+    </div>
 
-        <!-- Empty Filter State -->
-        <div x-show="filteredMembers.filter(m => {
-            let matchesSearch = !rosterSearch || m.name.toLowerCase().includes(rosterSearch.toLowerCase()) || m.empId.toLowerCase().includes(rosterSearch.toLowerCase()) || (m.dept && m.dept.toLowerCase().includes(rosterSearch.toLowerCase()));
-            let matchesFilter = true;
-            if (rosterFilter === 'active') matchesFilter = !m.doe || m.doe > new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-            if (rosterFilter === 'exit') matchesFilter = !!m.doe && m.doe <= new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
-            if (rosterFilter === 'verified') matchesFilter = m.captchaEnabled;
-            if (rosterFilter === 'split') matchesFilter = (splitShiftEmps || []).includes(m.id);
-            if (rosterFilter === 'nopin') matchesFilter = !m.pin;
-            return matchesSearch && matchesFilter;
-        }).length === 0" class="col-span-full py-20 flex flex-col items-center justify-center text-zinc-400">
-            <div class="w-16 h-16 bg-white/50 dark:bg-zinc-900/50 border border-zinc-200/60 dark:border-zinc-800 shadow-sm rounded-2xl flex items-center justify-center mb-4">
-                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </div>
-            <p class="font-black uppercase text-xs tracking-widest text-zinc-500">No personnel match parameters</p>
-            <button @click="rosterSearch = ''; rosterFilter = 'all'" class="mt-3 px-4 py-2 bg-zinc-100 dark:bg-zinc-800 rounded-xl text-[9px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-300 hover:text-zinc-900">Reset Filters</button>
-        </div>
+    <!-- 4. Directory: table view -->
+    <div x-show="!isAddingMember && rosterView === 'table'" class="overflow-x-auto rounded-3xl border border-zinc-200/70 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
+        <table class="w-full min-w-[820px] text-left text-sm">
+            <thead class="border-b border-zinc-200/70 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-950/50 text-[11px] font-bold text-zinc-500">
+                <tr><th class="px-4 py-3">Person</th><th class="px-3 py-3">Department</th><th class="px-3 py-3">Shift</th><th class="px-3 py-3">Joined</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Flags</th><th class="px-4 py-3 text-right">Actions</th></tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                <template x-for="m in rList(filteredMembers, splitShiftEmps)" :key="m.empId">
+                    <tr class="transition hover:bg-zinc-50 dark:hover:bg-zinc-800/40" :class="rExit(m) && 'opacity-60'">
+                        <td class="px-4 py-2.5">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center text-xs font-extrabold text-white" :style="`background:${rHue(m.name)}`" x-text="rInit(m.name)"></div>
+                                <div class="min-w-0"><p class="truncate font-bold capitalize text-zinc-950 dark:text-white" x-text="m.name"></p><p class="truncate text-xs text-zinc-500"><span x-text="m.role || 'Staff'"></span> · <span class="font-mono" x-text="m.empId"></span></p></div>
+                            </div>
+                        </td>
+                        <td class="px-3 py-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300" x-text="m.dept || 'General'"></td>
+                        <td class="px-3 py-2.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300" x-text="m.shift || 'Standard'"></td>
+                        <td class="px-3 py-2.5 text-xs tabular-nums text-zinc-600 dark:text-zinc-400" x-text="rSince(m.doj)"></td>
+                        <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold" :class="rExit(m) ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'"><span class="w-1.5 h-1.5 rounded-full bg-current"></span><span x-text="rExit(m) ? 'Exited ' + rSince(m.doe) : 'Active'"></span></span></td>
+                        <td class="px-3 py-2.5"><div class="flex gap-1.5">
+                            <span x-show="m.captchaEnabled" class="rounded-md bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">Captcha</span>
+                            <span x-show="(splitShiftEmps || []).includes(m.id)" class="rounded-md bg-cyan-50 dark:bg-cyan-950/50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">Split</span>
+                            <span x-show="!m.pin" class="rounded-md bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">No PIN</span>
+                        </div></td>
+                        <td class="px-4 py-2.5"><div class="flex items-center justify-end gap-1">
+                            <button @click="startEdit(m)" title="Edit profile" aria-label="Edit profile" class="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-[#0f4c81] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                            <button @click="viewAsStaff(m.id)" title="View staff portal" aria-label="View staff portal" class="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                            <button @click="toggleMemberVerification(m.id)" role="switch" :aria-checked="!!m.captchaEnabled" title="Toggle captcha verification" aria-label="Toggle captcha verification" :class="m.captchaEnabled ? 'text-indigo-600 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/60' : 'text-zinc-400 hover:text-indigo-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'" class="w-8 h-8 rounded-lg flex items-center justify-center transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></button>
+                            <button @click="toggleSplitShiftAccess(m.id)" role="switch" :aria-checked="(splitShiftEmps || []).includes(m.id)" title="Toggle split shift" aria-label="Toggle split shift" :class="(splitShiftEmps || []).includes(m.id) ? 'text-cyan-600 bg-cyan-50 dark:text-cyan-300 dark:bg-cyan-950/60' : 'text-zinc-400 hover:text-cyan-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'" class="w-8 h-8 rounded-lg flex items-center justify-center transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/></svg></button>
+                            <button @click="resetUserPin(m.id)" :disabled="!m.pin" title="Reset PIN" aria-label="Reset PIN" class="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-white hover:bg-[#f26522] disabled:opacity-30 disabled:pointer-events-none transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+                        </div></td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Empty state -->
+    <div x-show="!isAddingMember && rList(filteredMembers, splitShiftEmps).length === 0" class="py-20 flex flex-col items-center text-center text-zinc-400">
+        <div class="w-16 h-16 mb-4 rounded-2xl border border-zinc-200/70 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 flex items-center justify-center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <p class="text-sm font-bold text-zinc-600 dark:text-zinc-300">No one matches those filters</p>
+        <p class="mt-1 text-xs">Try a different search or clear the filters.</p>
+        <button @click="rosterSearch = ''; rosterFilter = 'all'" class="mt-4 rounded-xl bg-zinc-100 dark:bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition">Reset filters</button>
     </div>
 </div>
 <div x-show="view === 'summary'" x-data="{ reportFilter: '', sortField: 'name', sortAsc: true }" class="space-y-4 animate-in fade-in duration-500 pb-16">
