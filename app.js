@@ -828,12 +828,16 @@ sendBroadcast() {
             this.broadcastMessage = ''; 
         },
 
-clearBroadcast() {
-            // 1. Clear it from your local screen
+async clearBroadcast() {
+            // 1. Clear it from your local screen immediately
             this.activeBroadcast = null;
             
-            // 2. Wipe it from the cloud database so new logins don't see it
-            this.upsertConfigCloud('active_broadcast', null);
+            // 2. FORCE DELETE the record from the database so it is permanently gone
+            try {
+                await this.supabase.from('system_config').delete().eq('key', 'active_broadcast');
+            } catch(e) {
+                console.error("Failed to delete broadcast:", e);
+            }
             
             // 3. Send a real-time kill signal to instantly hide it for currently online users
             if (this.systemBroadcastChannel) {
@@ -843,6 +847,7 @@ clearBroadcast() {
                     payload: {}
                 });
             }
+            
             this.showNote("Broadcast cleared globally", "success");
         },
 
