@@ -386,6 +386,9 @@ getEventsForDate(dateStr) {
         policyNoteDraft: '',
         leaveListDeptDraft: 'All',
         leaveListDraft: '',
+	broadcastDept: 'All',
+        broadcastMessage: '',
+	activeBroadcast: null,
         
         newRoleName: '',
         newDeptName: '',
@@ -752,6 +755,28 @@ if (this.systemBroadcastChannel) {
                         }
                     }
                 })
+// ADD THIS NEW EVENT BLOCK:
+                .on('broadcast', { event: 'system_notice' }, (payload) => {
+                    if (this.userSession && (payload.payload.dept === 'All' || payload.payload.dept === this.userSession.dept)) {
+                        
+                        this.showNote(`📢 NOTICE: ${payload.payload.message}`, "success");
+
+this.activeBroadcast = payload.payload;
+                        
+                        if ("Notification" in window && Notification.permission === "granted") {
+                            try {
+                                new Notification(`📢 ${payload.payload.sender} (Broadcast)`, {
+                                    body: payload.payload.message,
+                                    icon: "logo.png",
+                                    requireInteraction: true
+                                });
+                            } catch(e) {}
+                        }
+                    }
+                })
+.on('broadcast', { event: 'clear_notice' }, () => {
+                    this.activeBroadcast = null;
+                })
                 .subscribe();
         },
 
@@ -772,6 +797,54 @@ sendWish(targetId) {
             this.showNote("Wish sent successfully! ✨", "success");
         },
 
+sendBroadcast() {
+            if (!this.broadcastMessage.trim()) {
+                return this.showNote("Please enter a message to broadcast.", "error");
+            }
+            if (!this.systemBroadcastChannel) {
+                return this.showNote("Broadcast channel not connected.", "error");
+            }
+
+            // Create the payload with a Unix timestamp for the 24-hour expiration
+            const payload = {
+                dept: this.broadcastDept,
+                message: this.broadcastMessage.trim(),
+                sender: this.userSession?.name || 'Admin',
+                time: this.getCurrentTimeIST(),
+                timestamp: Date.now()
+            };
+
+            // Save to database for persistence (for users who log in later)
+            this.upsertConfigCloud('active_broadcast', payload);
+
+            // Send real-time ping to users currently online
+            this.systemBroadcastChannel.send({
+                type: 'broadcast',
+                event: 'system_notice',
+                payload: payload
+            });
+
+            this.showNote(`Broadcast sent to ${this.broadcastDept}`, "success");
+            this.broadcastMessage = ''; 
+        },
+
+clearBroadcast() {
+            // 1. Clear it from your local screen
+            this.activeBroadcast = null;
+            
+            // 2. Wipe it from the cloud database so new logins don't see it
+            this.upsertConfigCloud('active_broadcast', null);
+            
+            // 3. Send a real-time kill signal to instantly hide it for currently online users
+            if (this.systemBroadcastChannel) {
+                this.systemBroadcastChannel.send({
+                    type: 'broadcast',
+                    event: 'clear_notice',
+                    payload: {}
+                });
+            }
+            this.showNote("Broadcast cleared globally", "success");
+        },
 
         handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
@@ -999,6 +1072,14 @@ sendWish(targetId) {
                         if(row.key === 'role_access') this.roleAccess = row.value || {};
                         if(row.key === 'policies_note') { this.policiesNote = row.value || ''; this.policyNoteDraft = this.policiesNote; }
                         if(row.key === 'leave_list_by_dept') this.leaveListByDept = row.value || {};
+			if(row.key === 'active_broadcast' && row.value) {
+                            // Check if it's less than 24 hours (86,400,000 milliseconds) old
+                            if (Date.now() - row.value.timestamp < 86400000) {
+                                this.activeBroadcast = row.value;
+                            } else {
+                                this.activeBroadcast = null;
+                            }
+                        }
                     });
                 }
 
