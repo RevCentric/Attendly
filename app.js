@@ -381,6 +381,11 @@ getEventsForDate(dateStr) {
         departments: [],
         shifts: [],
         holidayList: [],
+        policiesNote: '',
+        leaveListByDept: {},
+        policyNoteDraft: '',
+        leaveListDeptDraft: 'All',
+        leaveListDraft: '',
         
         newRoleName: '',
         newDeptName: '',
@@ -395,6 +400,7 @@ getEventsForDate(dateStr) {
         syncTimer: null,
 
         showDeleteModal: false,
+        showPoliciesModal: false, // Shared root state for Profile > Policies modal
         showLeaveModal: false,
         showNotifications: false,
         showLogoutModal: false,
@@ -406,7 +412,7 @@ getEventsForDate(dateStr) {
         notification: null,
 
         newMember: { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false },
-        newLeave: { type: 'a', startDate: '', endDate: '', reason: '' },
+        newLeave: { type: 'a', startDate: '', endDate: '', startTime: '', endTime: '', reason: '' },
 
         statusOptions: [
             { id: 'p', display: 'P', label: 'Present', color: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-500', hex: '#10b981' },
@@ -962,7 +968,14 @@ sendWish(targetId) {
             try {
                 await this.supabase.from('leave_requests').upsert({
                     id: req.id, emp_id: req.empId, type: req.type, start_date: req.start_date || req.startDate, 
-                    end_date: req.end_date || req.endDate, reason: req.reason, status: req.status
+                    end_date: req.end_date || req.endDate, start_time: req.startTime || null,
+                    end_time: req.endTime || null, reason: req.reason, status: req.status,
+                    requested_at: req.requestedAt || null,
+                    approved_at: req.approvedAt || null,
+                    reviewed_at: req.reviewedAt || req.approvedAt || null,
+                    reviewed_by_name: req.reviewedByName || null,
+                    reviewed_by_role: req.reviewedByRole || null,
+                    reviewed_by_emp_id: req.reviewedByEmpId || null
                 });
             } catch(e) { console.error("Leave save error", e); }
         },
@@ -983,7 +996,9 @@ sendWish(targetId) {
                         if(row.key === 'shifts') this.shifts = row.value;
                         if(row.key === 'master_pin') this.masterPin = row.value;
                         if(row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
-                        if(row.key === 'role_access') this.roleAccess = row.value || {}; // ADD THIS
+                        if(row.key === 'role_access') this.roleAccess = row.value || {};
+                        if(row.key === 'policies_note') { this.policiesNote = row.value || ''; this.policyNoteDraft = this.policiesNote; }
+                        if(row.key === 'leave_list_by_dept') this.leaveListByDept = row.value || {};
                     });
                 }
 
@@ -1033,7 +1048,15 @@ sendWish(targetId) {
                 if (lData) {
                     this.leaveRequests = lData.map(l => ({
                         id: l.id, empId: l.emp_id, type: l.type, startDate: l.start_date, 
-                        endDate: l.end_date, reason: l.reason, status: l.status, name: this.members.find(m => m.id === l.emp_id)?.name || ''
+                        endDate: l.end_date, startTime: l.start_time || '', endTime: l.end_time || '',
+                        reason: l.reason, status: l.status,
+                        requestedAt: l.requested_at || l.created_at || null,
+                        approvedAt: l.approved_at || l.reviewed_at || null,
+                        reviewedAt: l.reviewed_at || l.approved_at || null,
+                        reviewedByName: l.reviewed_by_name || '',
+                        reviewedByRole: l.reviewed_by_role || '',
+                        reviewedByEmpId: l.reviewed_by_emp_id || '',
+                        name: this.members.find(m => m.id === l.emp_id || m.empId === l.emp_id)?.name || ''
                     }));
                 }
 
@@ -1541,6 +1564,19 @@ get pendingLeaveRequests() {
 },
 get pendingLeaveCount() { return this.pendingLeaveRequests.length; },
 
+get reviewedLeaveRequests() {
+    if (!this.isManagerOrLead) return [];
+    return this.leaveRequests
+        .filter(r => r.status !== 'pending' && (r.reviewedAt || r.approvedAt))
+        .filter(r => {
+            if (this.isSuperUser) return true;
+            const reqMember = this.members.find(m => m.id === r.empId || m.empId === r.empId);
+            return !reqMember || reqMember.dept === this.userSession?.dept;
+        })
+        .sort((a, b) => new Date(b.reviewedAt || b.approvedAt || 0) - new Date(a.reviewedAt || a.approvedAt || 0))
+        .slice(0, 8);
+},
+
 get todayEvents() {
             const curObj = getISTDateObject();
             const curM = curObj.getUTCMonth() + 1;
@@ -1702,24 +1738,68 @@ get offenderAlerts() {
         },
 
         submitLeave() {
-            if (!this.newLeave.startDate || !this.newLeave.endDate) return this.showNote("Dates missing", "error");
+            if (!this.newLeave.type || !this.newLeave.startDate || !this.newLeave.endDate) return this.showNote("Request type and dates are required", "error");
+            const timedTypes = ['1p', '2p', 'lop1', 'lop2', 'h', 'loph'];
+            const needsTime = timedTypes.includes(this.newLeave.type);
+            const startTime = this.newLeave.startTime || '';
+            const endTime = this.newLeave.endTime || '';
+            if (needsTime) {
+                if (!startTime || !endTime) return this.showNote("Start and end times are required", "error");
+                if (this.newLeave.startDate !== this.newLeave.endDate) return this.showNote("Timed requests must use the same start and end date", "error");
+                const [sh, sm] = startTime.split(':').map(Number);
+                const [eh, em] = endTime.split(':').map(Number);
+                const duration = (eh * 60 + em) - (sh * 60 + sm);
+                if (duration <= 0) return this.showNote("End time must be after start time", "error");
+                const expected = ({ '1p': 60, 'lop1': 60, '2p': 120, 'lop2': 120 })[this.newLeave.type];
+                if (expected && duration !== expected) return this.showNote(`This request must be exactly ${expected / 60} hour${expected === 60 ? '' : 's'}`, "error");
+            }
+            if (this.newLeave.endDate < this.newLeave.startDate) return this.showNote("End date cannot be before start date", "error");
             const req = {
                 id: generateSecureId(), empId: this.userSession.empId, name: this.userSession.name,
                 type: this.newLeave.type, startDate: this.newLeave.startDate, endDate: this.newLeave.endDate,
-                reason: this.newLeave.reason, status: 'pending'
+                startTime: needsTime ? startTime : '', endTime: needsTime ? endTime : '',
+                reason: this.newLeave.reason, status: 'pending',
+                requestedAt: getNow().toISOString(), approvedAt: null, reviewedAt: null,
+                reviewedByName: '', reviewedByRole: '', reviewedByEmpId: ''
             };
             this.leaveRequests.unshift(req);
             this.upsertLeaveCloud(req);
             this.showLeaveModal = false;
-            this.newLeave = { type: 'a', startDate: '', endDate: '', reason: '' };
+            this.newLeave = { type: 'a', startDate: '', endDate: '', startTime: '', endTime: '', reason: '' };
             this.showNote("Leave Request Forwarded", "success");
+        },
+
+        getLeaveReviewerInfo() {
+            const reviewer = this.userSession;
+            if (reviewer) {
+                return {
+                    name: reviewer.name || `${reviewer.firstName || ''} ${reviewer.lastName || ''}`.trim() || 'Manager',
+                    role: reviewer.role || 'Manager',
+                    empId: reviewer.empId || ''
+                };
+            }
+            if (this.isAdminAuthenticated) {
+                return { name: 'Master Admin', role: 'Administrator', empId: 'MASTER_ADMIN' };
+            }
+            return { name: 'Authorized Approver', role: 'Approver', empId: '' };
+        },
+
+        recordLeaveReview(req, status) {
+            const reviewer = this.getLeaveReviewerInfo();
+            const reviewedAt = getNow().toISOString();
+            req.status = status;
+            req.approvedAt = reviewedAt; // Retained for compatibility with existing app versions.
+            req.reviewedAt = reviewedAt;
+            req.reviewedByName = reviewer.name;
+            req.reviewedByRole = reviewer.role;
+            req.reviewedByEmpId = reviewer.empId;
+            this.upsertLeaveCloud(req);
         },
 
         approveLeave(reqId) {
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (!req) return;
-            req.status = 'approved';
-            this.upsertLeaveCloud(req); 
+            this.recordLeaveReview(req, 'approved');
 
             for (let d = new Date(req.startDate); d <= new Date(req.endDate); d.setDate(d.getDate() + 1)) {
                 const dStr = getISTString(d);
@@ -1734,8 +1814,7 @@ get offenderAlerts() {
         rejectLeave(reqId) {
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (req) {
-                req.status = 'rejected';
-                this.upsertLeaveCloud(req); 
+                this.recordLeaveReview(req, 'rejected');
                 this.showNote(`Rejected leave for ${req.name}`, "error");
             }
         },
@@ -3064,6 +3143,28 @@ toggleEditLog(id) {
             this.resetMemberForm();
         },
         
+        savePoliciesNote() {
+            this.policiesNote = String(this.policyNoteDraft || '').trim();
+            this.upsertConfigCloud('policies_note', this.policiesNote);
+            this.showNote('Policies information updated', 'success');
+        },
+        saveDepartmentLeaveList() {
+            const dept = this.leaveListDeptDraft || 'All';
+            this.leaveListByDept = { ...(this.leaveListByDept || {}), [dept]: String(this.leaveListDraft || '').trim() };
+            this.upsertConfigCloud('leave_list_by_dept', this.leaveListByDept);
+            this.showNote(`Leave list updated for ${dept}`, 'success');
+        },
+        get currentDepartmentLeaveList() {
+            const dept = this.userSession?.dept || 'General';
+            const configured = this.leaveListByDept || {};
+            return configured[dept] || configured.All || '';
+        },
+        formatAuditDateTime(value) {
+            if (!value) return '—';
+            const d = new Date(value);
+            return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString([], { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        },
+
         addRole() { if (this.newRoleName.trim() && !this.roles.includes(this.newRoleName.trim())) { this.roles = [...this.roles, this.newRoleName.trim()]; this.upsertConfigCloud('roles', this.roles); this.newRoleName = ''; this.showNote("Role added", "success"); } },
         addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments = [...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
         addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts = [...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
@@ -3324,8 +3425,14 @@ toggleEditLog(id) {
                 'Leave Type': l.type.toUpperCase(), 
                 'Start Date': l.startDate, 
                 'End Date': l.endDate, 
+                'Start Time': l.startTime || '',
+                'End Time': l.endTime || '',
                 'Reason': l.reason, 
-                'Approval Status': l.status.toUpperCase() 
+                'Approval Status': l.status.toUpperCase(),
+                'Reviewed By': l.reviewedByName || '',
+                'Reviewer Role': l.reviewedByRole || '',
+                'Reviewer Emp ID': l.reviewedByEmpId || '',
+                'Reviewed At': l.reviewedAt || l.approvedAt || ''
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leaveRows), "Time_Off_Requests");
 
