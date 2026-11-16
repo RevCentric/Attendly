@@ -474,6 +474,32 @@
                             </template>
                         </div>
 
+<!-- Live Broadcast Banner -->
+<div x-show="activeBroadcast && (activeBroadcast.dept === 'All' || activeBroadcast.dept === userSession?.dept)" x-transition.duration.500ms class="w-full mb-3">
+    <div class="p-3 md:p-4 bg-gradient-to-r from-[#f26522] to-amber-500 rounded-[2rem] text-white flex flex-col md:flex-row items-center justify-between gap-3 shadow-2xl relative overflow-hidden group">
+        <!-- Animated Background -->
+        <div class="absolute inset-0 bg-white/10 animate-pulse mix-blend-overlay pointer-events-none"></div>
+        <div class="absolute -right-10 -top-10 w-32 h-32 bg-white/20 rounded-full blur-2xl pointer-events-none transition-transform duration-700 group-hover:scale-150"></div>
+        
+        <div class="flex items-center gap-4 relative z-10 w-full">
+            <div class="w-11 h-11 bg-white/20 rounded-full flex items-center justify-center text-2xl shadow-inner shrink-0 animate-bounce" style="animation-duration: 2s;">📢</div>
+            <div class="min-w-0 flex-1">
+                <h3 class="text-sm md:text-base font-black tracking-tight uppercase leading-none">Important Announcement</h3>
+                <p class="text-white font-bold uppercase tracking-wider text-[10px] md:text-xs mt-1.5 leading-relaxed" x-text="activeBroadcast?.message"></p>
+                <div class="flex items-center gap-2 mt-1.5 text-[8px] font-black uppercase tracking-widest text-amber-100/90">
+                    <span x-text="'Sent by: ' + activeBroadcast?.sender"></span>
+                    <span class="w-1 h-1 rounded-full bg-amber-200/50"></span>
+                    <span x-text="activeBroadcast?.time"></span>
+                </div>
+            </div>
+            
+            <button @click="activeBroadcast = null" class="w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-xl shrink-0 transition-colors relative z-10 ml-auto" aria-label="Dismiss Announcement">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
                         <div class="flex flex-col gap-3 w-full">
                             <div class="relative rounded-[1.75rem] bg-white/80 dark:bg-zinc-950/70 backdrop-blur-2xl border border-zinc-200/60 dark:border-zinc-800/40 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.03)] flex flex-col justify-between w-full relative z-50">
     
@@ -2749,6 +2775,46 @@
             </div>
         </section>
 
+<!-- Broadcast Notice Module -->
+<section class="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 md:p-8 rounded-[2rem] border border-zinc-200/60 dark:border-zinc-800/60 shadow-lg space-y-4">
+    <div class="flex items-center justify-between border-b border-zinc-200/60 dark:border-zinc-800 pb-4">
+        <div>
+            <h5 class="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Broadcast Notice</h5>
+            <p class="text-[9px] font-bold uppercase tracking-widest text-zinc-400 mt-1">Push real-time alerts to personnel dashboards</p>
+        </div>
+        <span class="w-8 h-8 rounded-xl bg-[#f26522]/10 text-[#f26522] flex items-center justify-center shrink-0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+        </span>
+    </div>
+    
+    <div class="space-y-3">
+        <!-- Target Audience Selection -->
+        <select x-model="broadcastDept" class="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl font-bold text-xs outline-none focus:border-[#f26522] transition-all text-zinc-800 dark:text-zinc-100 cursor-pointer uppercase">
+            <option value="All">All Departments (Global)</option>
+            <template x-for="d in departments" :key="d">
+                <option :value="d" x-text="d"></option>
+            </template>
+        </select>
+        
+        <!-- Message Body -->
+        <textarea x-model="broadcastMessage" rows="5" placeholder="Enter urgent announcement or system update..." class="w-full p-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-xs font-semibold leading-6 text-zinc-800 dark:text-zinc-100 outline-none focus:border-[#f26522] resize-y"></textarea>
+    </div>
+
+    <div class="flex justify-end gap-3 pt-2">
+        <!-- New Clear Button (Only shows when a broadcast is active) -->
+        <button x-show="activeBroadcast" @click="clearBroadcast()" class="px-6 py-3.5 rounded-xl bg-zinc-100 dark:bg-zinc-800/80 text-zinc-600 dark:text-zinc-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600 text-[10px] font-black uppercase tracking-widest transition-all">
+            Clear Notice
+        </button>
+        
+        <!-- Existing Send Button -->
+        <button @click="sendBroadcast()" class="px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#f26522] to-[#d9561c] hover:from-[#d9561c] hover:to-[#bf4b18] text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-md transition-all active:scale-95">
+            <span>Send Notice</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+    </div>
+</section>
+
+
     </div>
 </div>
                 </template>
@@ -3083,85 +3149,87 @@
                 </div>
             </div>
 
-            <!-- Form Content -->
-            <div class="space-y-4 relative z-10">
-                
-                <!-- Category Selection -->
-                <div class="space-y-1.5">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Request Type</label>
-                    <div class="relative">
-                        <select x-model="newLeave.type" class="w-full p-3.5 pr-10 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100 appearance-none uppercase tracking-wider">
-                            <option value="" disabled selected>SELECT LEAVE CATEGORY...</option>
-                            <template x-for="cat in [
-    {id: 'a', label: '🌴 Full Day Leave'}, 
-    {id: 'h', label: '⏳ Half Day Leave'}, 
-    {id: 'wfh', label: '🏠 Work From Home (WFH)'}, 
-    {id: '1p', label: '⏱️ 1 Hour Permission'}, 
-    {id: '2p', label: '⏱️ 2 Hour Permission'}, 
-    {id: 'lop', label: '🚨 Unplanned Absence / LOP'},
-    {id: 'lop1', label: '🚨 1 Hour LOP'},
-    {id: 'lop2', label: '🚨 2 Hour LOP'},
-    {id: 'loph', label: '🚨 Half Day LOP'}
-]" :key="cat.id">
-                                <option :value="cat.id" x-text="cat.label"></option>
-                            </template>
-                        </select>
-                        <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-zinc-400">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+            <!-- FORM WRAPPER -->
+            <form @submit.prevent="submitLeave()">
+                <!-- Form Content -->
+                <div class="space-y-4 relative z-10">
+                    
+                    <!-- Category Selection -->
+                    <div class="space-y-1.5">
+                        <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Request Type</label>
+                        <div class="relative">
+                            <select x-model="newLeave.type" required class="w-full p-3.5 pr-10 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100 appearance-none uppercase tracking-wider">
+                                <option value="" disabled selected>SELECT LEAVE CATEGORY...</option>
+                                <template x-for="cat in [
+        {id: 'a', label: '🌴 Full Day Leave'}, 
+        {id: 'h', label: '⏳ Half Day Leave'}, 
+        {id: 'wfh', label: '🏠 Work From Home (WFH)'}, 
+        {id: '1p', label: '⏱️ 1 Hour Permission'}, 
+        {id: '2p', label: '⏱️ 2 Hour Permission'}, 
+        {id: 'lop', label: '🚨 Unplanned Absence / LOP'},
+        {id: 'lop1', label: '🚨 1 Hour LOP'},
+        {id: 'lop2', label: '🚨 2 Hour LOP'},
+        {id: 'loph', label: '🚨 Half Day LOP'}
+    ]" :key="cat.id">
+                                    <option :value="cat.id" x-text="cat.label"></option>
+                                </template>
+                            </select>
+                            <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-zinc-400">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Date Range -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="space-y-1.5">
-                        <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Start Date</label>
-                        <input type="date" x-model="newLeave.startDate" class="w-full p-3.5 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">End Date</label>
-                        <input type="date" x-model="newLeave.endDate" class="w-full p-3.5 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer">
-                    </div>
-                </div>
-
-                <!-- Time window: required for permissions and half-day requests -->
-                <div x-show="['1p','2p','lop1','lop2','h','loph'].includes(newLeave.type)" x-cloak class="space-y-2 rounded-2xl border border-[#0f4c81]/15 bg-[#0f4c81]/5 dark:bg-blue-950/20 p-4">
-                    <div class="flex items-center justify-between gap-2">
-                        <label class="text-[9px] font-black uppercase tracking-widest text-[#0f4c81] dark:text-blue-300">Requested Time Window</label>
-                        <span class="text-[8px] font-bold uppercase tracking-wider text-zinc-400" x-text="['1p','lop1'].includes(newLeave.type) ? '60 minutes' : (['2p','lop2'].includes(newLeave.type) ? '120 minutes' : 'Half-shift interval')"></span>
-                    </div>
+                    <!-- Date Range -->
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                            <label class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Start Time</label>
-                            <input type="time" x-model="newLeave.startTime" class="w-full p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs text-zinc-900 dark:text-white outline-none focus:border-[#0f4c81]">
+                        <div class="space-y-1.5">
+                            <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Start Date</label>
+                            <input type="date" x-model="newLeave.startDate" required class="w-full p-3.5 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer">
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 pl-1">End Time</label>
-                            <input type="time" x-model="newLeave.endTime" class="w-full p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs text-zinc-900 dark:text-white outline-none focus:border-[#0f4c81]">
+                        <div class="space-y-1.5">
+                            <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">End Date</label>
+                            <input type="date" x-model="newLeave.endDate" required class="w-full p-3.5 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-black text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all text-zinc-900 dark:text-zinc-100 cursor-pointer">
                         </div>
                     </div>
-                    <p class="text-[9px] leading-relaxed text-zinc-500">For 1-hour and 2-hour requests, the selected interval must match the requested duration. Half-day intervals are recorded for manager review.</p>
+
+                    <!-- Time window: required for permissions and half-day requests -->
+                    <div x-show="['1p','2p','lop1','lop2','h','loph'].includes(newLeave.type)" x-cloak class="space-y-2 rounded-2xl border border-[#0f4c81]/15 bg-[#0f4c81]/5 dark:bg-blue-950/20 p-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="text-[9px] font-black uppercase tracking-widest text-[#0f4c81] dark:text-blue-300">Requested Time Window</label>
+                            <span class="text-[8px] font-bold uppercase tracking-wider text-zinc-400" x-text="['1p','lop1'].includes(newLeave.type) ? '60 minutes' : (['2p','lop2'].includes(newLeave.type) ? '120 minutes' : 'Half-shift interval')"></span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Start Time</label>
+                                <input type="time" x-model="newLeave.startTime" :required="['1p','2p','lop1','lop2','h','loph'].includes(newLeave.type)" class="w-full p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs text-zinc-900 dark:text-white outline-none focus:border-[#0f4c81]">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-bold uppercase tracking-widest text-zinc-500 pl-1">End Time</label>
+                                <input type="time" x-model="newLeave.endTime" :required="['1p','2p','lop1','lop2','h','loph'].includes(newLeave.type)" class="w-full p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-xs text-zinc-900 dark:text-white outline-none focus:border-[#0f4c81]">
+                            </div>
+                        </div>
+                        <p class="text-[9px] leading-relaxed text-zinc-500">For 1-hour and 2-hour requests, the selected interval must match the requested duration. Half-day intervals are recorded for manager review.</p>
+                    </div>
+
+                    <!-- Reason / Notes -->
+                    <div class="space-y-1.5">
+                        <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Reason / Justification</label>
+                        <textarea x-model="newLeave.reason" required rows="3" placeholder="PROVIDE BRIEF DETAILS REGARDING YOUR REQUEST..." class="w-full p-4 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-bold text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all resize-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 uppercase tracking-wider"></textarea>
+                    </div>
+
                 </div>
 
-                <!-- Reason / Notes -->
-                <div class="space-y-1.5">
-                    <label class="text-[9px] font-black uppercase tracking-widest text-zinc-400 pl-1">Reason / Justification</label>
-                    <textarea x-model="newLeave.reason" rows="3" placeholder="PROVIDE BRIEF DETAILS REGARDING YOUR REQUEST..." class="w-full p-4 bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl font-bold text-xs outline-none focus:border-[#0f4c81] dark:focus:border-blue-400 focus:ring-2 focus:ring-[#0f4c81]/20 transition-all resize-none text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 uppercase tracking-wider"></textarea>
+                <!-- Footer Action Buttons -->
+                <div class="grid grid-cols-3 gap-3 relative z-10 pt-6">
+                    <button type="button" @click="showLeaveModal = false" class="col-span-1 py-4 bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95">
+                        Cancel
+                    </button>
+                    <button type="submit" class="col-span-2 py-4 bg-gradient-to-r from-[#0f4c81] to-[#0a3861] hover:from-[#0a3861] hover:to-[#072a4a] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(15,76,129,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <span>Submit Request</span>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </button>
                 </div>
-
-            </div>
-
-            <!-- Footer Action Buttons -->
-            <div class="grid grid-cols-3 gap-3 relative z-10 pt-6">
-                <button @click="showLeaveModal = false" class="col-span-1 py-4 bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95">
-                    Cancel
-                </button>
-                <button @click="submitLeave()" class="col-span-2 py-4 bg-gradient-to-r from-[#0f4c81] to-[#0a3861] hover:from-[#0a3861] hover:to-[#072a4a] text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-[0_8px_20px_-6px_rgba(15,76,129,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
-                    <span>Submit Request</span>
-                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                </button>
-            </div>
-
+            </form>
         </div>
     </div>
 
