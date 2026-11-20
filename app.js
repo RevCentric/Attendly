@@ -1,24 +1,133 @@
 window.attendanceApp = () => {
-    let timeDrift = 0; 
+    let timeDrift = 0;
+
+    // Reusable Intl formatters (avoids constructing 4+ objects every second)
+    const fmtISTTimeFull = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+    const fmtESTTimeFull = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+    const fmtCSTTimeFull = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+    const fmtISTDateFull = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+    });
+    const fmtISTTimeShort = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
+    });
+
+    // Timeout-safe fetch wrapper so slow third-party APIs never stall boot or punches
+    const fetchWithTimeout = (url, options = {}, timeoutMs = 2500) => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        return fetch(url, { ...options, signal: controller.signal })
+            .finally(() => clearTimeout(timer));
+    };
+
+    // On-demand deduplicated script loader for heavy optional libraries (Chart.js, SheetJS, html2pdf)
+    const scriptLoadCache = new Map();
+    const loadScriptOnce = (src) => {
+        if (scriptLoadCache.has(src)) return scriptLoadCache.get(src);
+        const p = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.async = true;
+            s.onload = () => resolve(true);
+            s.onerror = () => {
+                scriptLoadCache.delete(src);
+                reject(new Error(`Failed to load ${src}`));
+            };
+            document.head.appendChild(s);
+        });
+        scriptLoadCache.set(src, p);
+        return p;
+    };
+
+    const ensureChartJS = async () => {
+        if (!window.Chart) {
+            try {
+                await loadScriptOnce('https://cdn.jsdelivr.net/npm/chart.js');
+                if (window.Chart) {
+                    Chart.defaults.color = '#9ca3af';
+                    Chart.defaults.font.family = 'Outfit';
+                }
+            } catch (e) {
+                console.warn('Chart.js lazy-load failed:', e);
+                return false;
+            }
+        }
+        return !!window.Chart;
+    };
+
+    const ensureXLSX = async () => {
+        if (!window.XLSX) {
+            try {
+                await loadScriptOnce('https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js');
+            } catch (e) {
+                console.warn('SheetJS lazy-load failed:', e);
+                return false;
+            }
+        }
+        return !!window.XLSX;
+    };
+
+    // Fast integer time parser (replaces Date allocations in diffInMins)
+    const parseTimeToMins = (str) => {
+        if (!str) return -1;
+        const m = str.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
+        if (!m) return -1;
+        let h = parseInt(m[1], 10);
+        const mins = parseInt(m[2], 10);
+        if (m[3]) {
+            const ap = m[3].toUpperCase();
+            if (ap === 'PM' && h < 12) h += 12;
+            if (ap === 'AM' && h === 12) h = 0;
+        }
+        return h * 60 + mins;
+    };
+
+    // Frame-scoped memoizer to prevent repeated O(N*D) getter loops during a single render pass
+    const _memoCache = new Map();
+    let _memoClearScheduled = false;
+    const invalidateMemo = () => _memoCache.clear();
+    const memoizeFrame = (key, deps, computeFn) => {
+        const entry = _memoCache.get(key);
+        if (entry && entry.deps.length === deps.length && entry.deps.every((v, i) => v === deps[i])) {
+            return entry.value;
+        }
+        const value = computeFn();
+        _memoCache.set(key, { deps, value });
+        if (!_memoClearScheduled) {
+            _memoClearScheduled = true;
+            setTimeout(() => {
+                _memoCache.clear();
+                _memoClearScheduled = false;
+            }, 0);
+        }
+        return value;
+    };
+
+    // Short-lived cache for network/IP lookup so consecutive actions stay instant
+    let _cachedNetInfo = null;
+    let _cachedNetInfoAt = 0;
 
     // Dynamic, resilient sync with public APIs and Supabase Server Headers
     const syncTrueTime = async () => {
         try {
-            const res = await fetch('https://worldtimeapi.org/api/timezone/Asia/Kolkata');
+            const res = await fetchWithTimeout('https://worldtimeapi.org/api/timezone/Asia/Kolkata', {}, 2500);
             const data = await res.json();
             timeDrift = new Date(data.datetime).getTime() - Date.now();
-            console.log(`Time synchronized via WorldTimeAPI. Drift: ${Math.round(timeDrift/1000)}s`);
         } catch (e) {
-            console.warn("Primary sync failed, attempting Supabase fallback...");
             try {
-                const res = await fetch('https://lpthzknjzmxwukwpvhii.supabase.co', { method: 'HEAD' });
+                const res = await fetchWithTimeout('https://lpthzknjzmxwukwpvhii.supabase.co', { method: 'HEAD' }, 2500);
                 const serverDateStr = res.headers.get('date');
                 if (serverDateStr) {
                     timeDrift = new Date(serverDateStr).getTime() - Date.now();
-                    console.log(`Time synchronized via Supabase. Drift: ${Math.round(timeDrift/1000)}s`);
                 }
             } catch (err) {
-                console.warn("All time synchronization methods failed. Defaulting to local clock.");
+                console.warn("Time sync fallback failed. Defaulting to local clock.");
             }
         }
     };
@@ -36,7 +145,6 @@ window.attendanceApp = () => {
 
     const getISTDateObject = (date = getNow()) => {
         const ist = getISTDate(date);
-        // Creates a clean date at Midnight UTC corresponding exactly to Midnight IST
         return new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
     };
 
@@ -45,19 +153,15 @@ window.attendanceApp = () => {
         return `${String(ist.getUTCHours()).padStart(2, '0')}:${String(ist.getUTCMinutes()).padStart(2, '0')}`;
     };
 
-    const getCurrentTimeIST = () => {
-        const ist = getISTDate();
-        let h = ist.getUTCHours();
-        const m = String(ist.getUTCMinutes()).padStart(2, '0');
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        return `${String(h % 12 || 12).padStart(2, '0')}:${m} ${ampm}`;
-    };
+    const getCurrentTimeIST = () => fmtISTTimeShort.format(getNow());
 
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 
-    // Highly reliable fetching routine for the Captcha & Audit logs
-    const fetchSecureApiTimeIST = async () => {
-        return getCurrentTimeIST(); // Now reliably mathematically bound to IST
+    const fetchSecureApiTimeIST = async () => getCurrentTimeIST();
+
+    const getGreetingFromDate = (istDate) => {
+        const h = istDate.getUTCHours();
+        return h < 12 ? 'Good Morning' : (h < 17 ? 'Good Afternoon' : 'Good Evening');
     };
 
     const initialToday = getISTString();
@@ -67,79 +171,81 @@ window.attendanceApp = () => {
 
     // Initialize recurring sync
     setInterval(syncTrueTime, 15 * 60 * 1000);
- 
-const isMobileDevice = () => {
-    // 1. Standard User Agent Check
-    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // 2. Hardware Touch Check (Catches "Desktop Site" spoofing)
-    const hasTouchScreen = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
-    
-    // 3. Physical Screen Size Check
-    const isSmallScreen = window.screen.width <= 1024;
 
-    // 4. iPadOS 13+ Specific Catch
-    const isSpoofedMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
-
-    // Trigger mobile block if ANY of these conditions are met
-    return uaMobile || isSpoofedMac || (hasTouchScreen && isSmallScreen);
-};	
+    const isMobileDevice = () => {
+        const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const hasTouchScreen = (navigator.maxTouchPoints > 0) || ('ontouchstart' in window);
+        const isSmallScreen = window.screen.width <= 1024;
+        const isSpoofedMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+        return uaMobile || isSpoofedMac || (hasTouchScreen && isSmallScreen);
+    };
 
     return {
         theme: localStorage.getItem('appTheme') || 'light',
-	originalAdminSession: null, 
-	roleAccess: {}, 
-	splitShiftEmps: [],
-	receivedWishes: [],
+        showPortalCharts: localStorage.getItem('showPortalCharts') !== 'false',
+        originalAdminSession: null,
+        roleAccess: {},
+        splitShiftEmps: [],
+        receivedWishes: [],
         systemBroadcastChannel: null,
 
-        // NEW PROPERTIES FOR CALENDAR & CHARTS
         calMonth: new Date().getMonth(),
         calYear: new Date().getFullYear(),
-        selectedCalDate: getISTString(), // Holds the selected date for the new bottom panel
+        selectedCalDate: initialToday,
         pinErrorShake: false,
-        
+
         get monthName() {
             return new Date(this.calYear, this.calMonth).toLocaleString('default', { month: 'long' });
         },
-        
-        get calendarDays() {
-            const year = this.calYear;
-            const month = this.calMonth;
-            const firstDay = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            let days = [];
-            
-            // Fetch relevant events for the current view
-            const mEvents = this.monthEvents || [];
-            let userHolidays = [];
-            if (this.individualStats && this.individualStats.holidays) {
-                userHolidays = this.individualStats.holidays;
-            }
 
-            for (let i = 0; i < firstDay; i++) days.push(null);
-            for (let i = 1; i <= daysInMonth; i++) {
-                const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        get calendarDays() {
+            return memoizeFrame('calendarDays', [
+                this.calYear, this.calMonth, this.userSession?.id,
+                this.punchLogs, this.attendanceData, this.members, this.holidayList
+            ], () => {
+                const year = this.calYear;
+                const month = this.calMonth;
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const days = [];
+
+                const mEvents = this.monthEvents || [];
+                const eventsByDay = new Map();
+                for (let i = 0; i < mEvents.length; i++) {
+                    const ev = mEvents[i];
+                    let entry = eventsByDay.get(ev.day);
+                    if (!entry) {
+                        entry = { hasBirthday: false, hasAnniversary: false };
+                        eventsByDay.set(ev.day, entry);
+                    }
+                    if (ev.type === 'birthday') entry.hasBirthday = true;
+                    else if (ev.type === 'anniversary') entry.hasAnniversary = true;
+                }
+
+                const userHolidays = this.individualStats?.holidays || [];
+                const holidayDates = new Set(userHolidays.map(h => h.date));
                 const uid = this.userSession?.id;
-                
-                // Identify events falling on this specific day
-                const dayEvents = mEvents.filter(e => e.day === i);
-                
-                days.push({ 
-                    day: i, 
-                    dateStr: dStr, 
-                    log: uid ? this.punchLogs[dStr]?.[uid] : null, 
-                    status: uid ? this.attendanceData[dStr]?.[uid] : null,
-                    hasBirthday: dayEvents.some(e => e.type === 'birthday'),
-                    hasAnniversary: dayEvents.some(e => e.type === 'anniversary'),
-                    hasHoliday: userHolidays.some(h => h.date === dStr)
-                });
-            }
-            return days;
+                const ymPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+
+                for (let i = 0; i < firstDay; i++) days.push(null);
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const dStr = ymPrefix + String(i).padStart(2, '0');
+                    const evFlags = eventsByDay.get(i);
+                    days.push({
+                        day: i,
+                        dateStr: dStr,
+                        log: uid ? this.punchLogs[dStr]?.[uid] : null,
+                        status: uid ? this.attendanceData[dStr]?.[uid] : null,
+                        hasBirthday: evFlags ? evFlags.hasBirthday : false,
+                        hasAnniversary: evFlags ? evFlags.hasAnniversary : false,
+                        hasHoliday: holidayDates.has(dStr)
+                    });
+                }
+                return days;
+            });
         },
 
         async syncCalendar() {
-            // Ensure the scope includes the currently selected calendar month
             const targetMonthStart = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-01`;
             if (targetMonthStart < this.scopeStartStr) {
                 this.scopeStartStr = targetMonthStart;
@@ -148,38 +254,39 @@ const isMobileDevice = () => {
             this.showNote(`Data Synced for ${this.monthName} ${this.calYear}`, "success");
         },
 
-getEventsForDate(dateStr) {
+        getEventsForDate(dateStr) {
             if (!dateStr) return [];
-            const [y, m, d] = dateStr.split('-').map(Number);
+            const d = Number(dateStr.split('-')[2]);
             const events = [];
-            
-            // 1. Check for Holidays
+
             if (this.individualStats?.holidays) {
                 this.individualStats.holidays.forEach(h => {
                     if (h.date === dateStr) {
-                        events.push({ 
-                            icon: '🏖️', 
-                            title: 'Holiday: ' + h.name, 
-                            color: 'text-violet-700 dark:text-violet-400', 
+                        events.push({
+                            icon: '🏖️',
+                            title: 'Holiday: ' + h.name,
+                            color: 'text-violet-700 dark:text-violet-400',
                             bg: 'bg-violet-100/50 dark:bg-violet-900/40',
                             border: 'border-violet-200 dark:border-violet-800'
                         });
                     }
                 });
             }
-            
-            // 2. Check for Month Celebrations (Birthdays/Anniversaries)
-            const dayEvents = (this.monthEvents || []).filter(e => e.day === d);
-            dayEvents.forEach(e => {
-                events.push({ 
-                    icon: e.icon, 
-                    title: e.title + ': ' + e.member.name, 
-                    color: e.color, 
-                    bg: e.bg,
-                    border: e.type === 'birthday' ? 'border-pink-200 dark:border-pink-900' : 'border-emerald-200 dark:border-emerald-900'
-                });
-            });
-            
+
+            const mEvents = this.monthEvents || [];
+            for (let i = 0; i < mEvents.length; i++) {
+                const e = mEvents[i];
+                if (e.day === d) {
+                    events.push({
+                        icon: e.icon,
+                        title: e.title + ': ' + e.member.name,
+                        color: e.color,
+                        bg: e.bg,
+                        border: e.type === 'birthday' ? 'border-pink-200 dark:border-pink-900' : 'border-emerald-200 dark:border-emerald-900'
+                    });
+                }
+            }
+
             return events;
         },
 
@@ -188,105 +295,201 @@ getEventsForDate(dateStr) {
             return icons[type] || '🕒';
         },
 
-        renderUserCharts() {
-            if(!this.userSession) return;
+        async renderUserCharts() {
+            if (this.view !== 'portal' || !this.userSession || !this.showPortalCharts) return;
+            const ready = await ensureChartJS();
+            if (!ready || this.view !== 'portal' || !this.userSession || !this.showPortalCharts) return;
+
             const uid = this.userSession.id;
-            
-            let p=0, a=0, prm=0, lop=0, lv=0;
-            let totalAct=0, totalBrk=0, days=0;
-            
-            for(let i=1; i<=31; i++) {
-                const dStr = `${this.calYear}-${String(this.calMonth+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+            const ymPrefix = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-`;
+
+            let p = 0, a = 0, prm = 0, lop = 0, lv = 0;
+            let totalAct = 0, totalBrk = 0, days = 0;
+
+            for (let i = 1; i <= 31; i++) {
+                const dStr = ymPrefix + String(i).padStart(2, '0');
                 const st = this.attendanceData[dStr]?.[uid];
-                if(st) {
-                    if(['p','wfh','co'].includes(st)) p++;
-                    if(st === 'a') a++;
-                    
-                    // Summation instead of Count
-                    if(st === '1p') prm += 1;
-                    if(st === '2p') prm += 2;
-                    
-                    if(st === 'h') lv += 0.5;
-                    if(st === 'fh') lv += 1;
-                    
-                    if(st === 'lop') lop += 1;
-                    if(st === 'loph') lop += 0.5;
-                    if(st === 'lop1') lop += 0.125; 
-                    if(st === 'lop2') lop += 0.25;  
+                if (st) {
+                    if (st === 'p' || st === 'wfh' || st === 'co') p++;
+                    else if (st === 'a') a++;
+                    else if (st === '1p') prm += 1;
+                    else if (st === '2p') prm += 2;
+                    else if (st === 'h') lv += 0.5;
+                    else if (st === 'fh') lv += 1;
+                    else if (st === 'lop') lop += 1;
+                    else if (st === 'loph') lop += 0.5;
+                    else if (st === 'lop1') lop += 0.125;
+                    else if (st === 'lop2') lop += 0.25;
                 }
 
                 const log = this.punchLogs[dStr]?.[uid];
-                if(log && log.in && log.out) {
+                if (log && log.in && log.out) {
                     totalAct += this.getActiveMinsForLog(log, dStr);
                     totalBrk += this.calculateTotalBreakMins(log.breaks);
                     days++;
                 }
             }
-            
-            if(window.userPolarChart) window.userPolarChart.destroy();
-            if(window.userBarChart) window.userBarChart.destroy();
-            if(window.userRadialChart) window.userRadialChart.destroy();
+
+            if (window.userPolarChart) window.userPolarChart.destroy();
+            if (window.userBarChart) window.userBarChart.destroy();
+            if (window.userRadialChart) window.userRadialChart.destroy();
 
             const isDark = this.theme === 'dark';
-            const fontColor = isDark ? '#d4d4d8' : '#3f3f46';
-            const gridColor = isDark ? '#3f3f46' : '#e4e4e7';
+            const fontColor = isDark ? '#d4d4d8' : '#475569';
+            const gridColor = isDark ? 'rgba(63,63,70,0.45)' : 'rgba(203,213,225,0.6)';
 
-            // 1. Polar Area (Variable Radius Pie Chart)
             const ctxPolar = document.getElementById('polarChart');
-            if(ctxPolar) {
+            if (ctxPolar) {
                 window.userPolarChart = new Chart(ctxPolar, {
                     type: 'polarArea',
                     data: {
                         labels: ['Present', 'Absent', 'Permission', 'LOP', 'Leave/Off'],
                         datasets: [{
                             data: [p, a, prm, lop, lv],
-                            backgroundColor: ['#10b98188', '#f59e0b88', '#3b82f688', '#e11d4888', '#8b5cf688'],
-                            borderColor: isDark ? '#27272a' : '#ffffff'
+                            backgroundColor: [
+                                'rgba(16, 185, 129, 0.78)',
+                                'rgba(242, 101, 34, 0.78)',
+                                'rgba(15, 76, 129, 0.78)',
+                                'rgba(225, 29, 72, 0.78)',
+                                'rgba(139, 92, 246, 0.78)'
+                            ],
+                            borderColor: isDark ? '#18181b' : '#ffffff',
+                            borderWidth: 2
                         }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } }, scales: { r: { grid: { color: gridColor }, ticks: { backdropColor: 'transparent', color: fontColor } } } }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 11 } }
+                            }
+                        },
+                        scales: {
+                            r: {
+                                grid: { color: gridColor },
+                                ticks: { backdropColor: 'transparent', color: fontColor, font: { size: 9 } }
+                            }
+                        }
+                    }
                 });
             }
 
-            // 2. Horizontal Bar (Linear Gauge Chart representation)
             const ctxBar = document.getElementById('barChart');
-            if(ctxBar) {
-                let avgAct = days ? Math.floor(totalAct/days) : 0;
+            if (ctxBar) {
+                const avgAct = days ? Math.floor(totalAct / days) : 0;
                 window.userBarChart = new Chart(ctxBar, {
                     type: 'bar',
                     data: {
-                        labels: ['Daily Avg Active (Mins)'],
+                        labels: ['Avg Active'],
                         datasets: [
-                            { label: 'Achieved', data: [avgAct], backgroundColor: '#0f4c81', borderRadius: 8 },
-                            { label: 'Target', data: [480], backgroundColor: isDark ? '#3f3f46' : '#e4e4e7', borderRadius: 8 }
+                            { label: 'Achieved (m)', data: [avgAct], backgroundColor: '#0f4c81', borderRadius: 10, barThickness: 22 },
+                            { label: 'Target (m)', data: [480], backgroundColor: isDark ? '#27272a' : '#e2e8f0', borderRadius: 10, barThickness: 22 }
                         ]
                     },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } }, scales: { x: { beginAtZero: true, max: 540, grid: { color: gridColor }, ticks: { color: fontColor } }, y: { grid: { display: false }, ticks: { color: fontColor } } } }
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 11 } }
+                            }
+                        },
+                        scales: {
+                            x: { beginAtZero: true, max: 540, grid: { color: gridColor }, ticks: { color: fontColor, font: { size: 10 } } },
+                            y: { grid: { display: false }, ticks: { color: fontColor, font: { weight: '700', size: 11 } } }
+                        }
+                    }
                 });
             }
 
-            // 3. Doughnut (Radial Gauge Chart Customised)
             const ctxRadial = document.getElementById('radialChart');
-            if(ctxRadial) {
-                let avgBrk = days ? Math.floor(totalBrk/days) : 0;
+            if (ctxRadial) {
+                const avgBrk = days ? Math.floor(totalBrk / days) : 0;
                 window.userRadialChart = new Chart(ctxRadial, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Break Taken (Avg)', 'Remaining Target'],
+                        labels: ['Break Taken (Avg)', 'Remaining Allowance'],
                         datasets: [{
                             data: [avgBrk, Math.max(0, 60 - avgBrk)],
-                            backgroundColor: ['#f26522', isDark ? '#3f3f46' : '#e4e4e7'],
+                            backgroundColor: [avgBrk > 60 ? '#e11d48' : '#f26522', isDark ? '#27272a' : '#e2e8f0'],
                             borderWidth: 0,
                             borderRadius: 10
                         }]
                     },
-                    options: { rotation: -90, circumference: 180, cutout: '75%', responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: fontColor, font: {family: 'Outfit', weight: 'bold'}} } } }
+                    options: {
+                        rotation: -90,
+                        circumference: 180,
+                        cutout: '76%',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 11 } }
+                            }
+                        }
+                    }
                 });
             }
         },
 
+        async renderDashboardChart() {
+            if (this.view !== 'dashboard') return;
+            const ready = await ensureChartJS();
+            if (!ready || this.view !== 'dashboard') return;
+            const ctx = document.getElementById('dashboardChart');
+            if (!ctx) return;
+            if (window.adminDashboardChart) window.adminDashboardChart.destroy();
+
+            const isDark = this.theme === 'dark';
+            const fontColor = isDark ? '#d4d4d8' : '#475569';
+            const gridColor = isDark ? 'rgba(63,63,70,0.45)' : 'rgba(226,232,240,0.8)';
+
+            const statsTotals = this.dashboardStats.totals;
+            const labels = this.statusOptions.map(s => s.display);
+            const values = this.statusOptions.map(s => statsTotals[s.id] || 0);
+            const colors = this.statusOptions.map(s => s.hex);
+
+            window.adminDashboardChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Records',
+                        data: values,
+                        backgroundColor: colors,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        maxBarThickness: 32
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            titleFont: { family: 'Outfit', weight: '700' },
+                            bodyFont: { family: 'Outfit', weight: '600' },
+                            padding: 10,
+                            cornerRadius: 10
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: fontColor, font: { family: 'Outfit', weight: '700', size: 11 } } },
+                        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { precision: 0, color: fontColor, font: { family: 'Outfit', size: 10 } } }
+                    }
+                }
+            });
+        },
+
         get availableBreakTypes() {
-            let base = ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'];
+            const base = ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'];
             if (this.userSession && this.splitShiftEmps && this.splitShiftEmps.includes(this.userSession.id)) {
                 base.push('Split Shift');
             }
@@ -302,47 +505,48 @@ getEventsForDate(dateStr) {
             } else {
                 this.splitShiftEmps.push(mId);
             }
-            this.splitShiftEmps = [...this.splitShiftEmps]; 
+            this.splitShiftEmps = [...this.splitShiftEmps];
             this.upsertConfigCloud('split_shift_emps', this.splitShiftEmps);
             this.showNote(`Split Shift Access Updated`, "success");
         },
 
-        breakTypes: ['Lunch', 'Dinner','Tea', 'Bio', 'Meeting', 'Other'],
+        breakTypes: ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'],
         selectedBreakType: '',
-        view: 'portal', 
+        view: 'portal',
         dashboardPeriod: 'month',
-        portalPeriod: 'month', 
-        filterName: '', 
-        filterDept: '', 
+        portalPeriod: 'month',
+        filterName: '',
+        filterDept: '',
         initialToday: initialToday,
         currentDate: initialToday,
-        
+
         currentISTTimeWidget: '',
-	currentESTTimeWidget: '', 
+        currentESTTimeWidget: '',
         currentCSTTimeWidget: '',
         currentISTDateWidget: '',
-        liveShiftMins: 0,     
-        liveActiveMins: 0, 
-        liveTotalBreakMins: 0,   
+        istGreeting: getGreetingFromDate(getISTDate()),
+        liveShiftMins: 0,
+        liveActiveMins: 0,
+        liveTotalBreakMins: 0,
 
         isAdminAuthenticated: false,
         adminPinInput: '',
-        masterPin: '000000', 
+        masterPin: '000000',
 
         userSession: null,
-        localSessionToken: null, 
-        userSyncChannel: null, 
+        localSessionToken: null,
+        userSyncChannel: null,
         loginIdInput: '',
         loginPinInput: '',
         breakPinInput: '',
-        loginStep: 'id', 
+        loginStep: 'id',
         tempUser: null,
 
         captchaTimer: null,
         captchaTimeoutTimer: null,
-	captchaCountdownInterval: null, 
+        captchaCountdownInterval: null,
         captchaSecondsRemaining: 120,
-	get formattedCaptchaTime() {
+        get formattedCaptchaTime() {
             const mins = Math.floor(this.captchaSecondsRemaining / 60).toString().padStart(2, '0');
             const secs = (this.captchaSecondsRemaining % 60).toString().padStart(2, '0');
             return `${mins}:${secs}`;
@@ -357,7 +561,7 @@ getEventsForDate(dateStr) {
         adminLockoutUntil: 0,
         userFailedAttempts: {},
         userLockoutUntil: {},
-        idleTimeout: 5 * 60 * 1000, 
+        idleTimeout: 5 * 60 * 1000,
         idleInterval: null,
         idleSecondsRemaining: 300,
 
@@ -370,13 +574,13 @@ getEventsForDate(dateStr) {
         supabaseUrl: 'https://lpthzknjzmxwukwpvhii.supabase.co',
         supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxwdGh6a25qem14d3Vrd3B2aGlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMzczMDksImV4cCI6MjA5MDgxMzMwOX0.C3uuAVuw3kQWFYcwAFa37bTYbVGOC3DIAgqYpw2osbs',
         supabase: null,
-        
+
         members: [],
-        attendanceData: {}, 
-        punchLogs: {}, 
-        ytdStats: {}, 
-        userExceptionHistory: [], 
-        leaveRequests: [], 
+        attendanceData: {},
+        punchLogs: {},
+        ytdStats: {},
+        userExceptionHistory: [],
+        leaveRequests: [],
         roles: [],
         departments: [],
         shifts: [],
@@ -386,10 +590,10 @@ getEventsForDate(dateStr) {
         policyNoteDraft: '',
         leaveListDeptDraft: 'All',
         leaveListDraft: '',
-	broadcastDept: 'All',
+        broadcastDept: 'All',
         broadcastMessage: '',
-	activeBroadcast: null,
-        
+        activeBroadcast: null,
+
         newRoleName: '',
         newDeptName: '',
         newShift: { name: '', inTime: '', outTime: '' },
@@ -397,18 +601,18 @@ getEventsForDate(dateStr) {
         isAddingMember: false,
         isEditing: false,
         isEditingLog: false,
-        
+
         isSyncing: false,
         syncError: false,
         syncTimer: null,
 
         showDeleteModal: false,
-        showPoliciesModal: false, // Shared root state for Profile > Policies modal
+        showPoliciesModal: false,
         showLeaveModal: false,
         showNotifications: false,
         showLogoutModal: false,
         logoutTimePreview: '',
-	logoutPenaltyWarning: null,
+        logoutPenaltyWarning: null,
         editingLogId: null,
         tempPunches: { in: '', out: '', breaks: [] },
         memberToDelete: null,
@@ -426,106 +630,116 @@ getEventsForDate(dateStr) {
             { id: 'fh', display: 'FH', label: 'Holiday', color: 'text-violet-700', bg: 'bg-violet-50', ring: 'ring-violet-500', hex: '#8b5cf6' },
             { id: 'a', display: 'A', label: 'Absent', color: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-500', hex: '#ef4444', value: 1 },
             { id: 'lop', display: 'LOP', label: 'Loss of Pay', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 1 },
-	    { id: 'lop1', display: 'L1', label: 'LOP-1HR', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 1 },
-    { id: 'lop2', display: 'L2', label: 'LOP-2HR', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 2 },
-    { id: 'loph', display: 'LH', label: 'LOP-Half Day', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 0.5 },		
+            { id: 'lop1', display: 'L1', label: 'LOP-1HR', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 1 },
+            { id: 'lop2', display: 'L2', label: 'LOP-2HR', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 2 },
+            { id: 'loph', display: 'LH', label: 'LOP-Half Day', color: 'text-rose-700', bg: 'bg-rose-50', ring: 'ring-rose-500', hex: '#f43f5e', value: 0.5 },
             { id: 'w', display: 'W', label: 'Weekend', color: 'text-slate-600', bg: 'bg-slate-100', ring: 'ring-slate-400', hex: '#64748b' },
             { id: 'co', display: 'CO', label: 'Comp Off', color: 'text-teal-700', bg: 'bg-teal-50', ring: 'ring-teal-500', hex: '#0f766e', value: 1 }
         ],
 
-menuItems: [
-            { 
-                id: 'portal', 
-                label: 'Portal', 
+        menuItems: [
+            {
+                id: 'portal',
+                label: 'Portal',
                 admin: false,
                 color: 'text-sky-500 hover:text-sky-600',
-                // Lucide: Home (outline, matches app icon language)
                 icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>'
             },
-            { 
-                id: 'dashboard', 
-                label: 'Stats', 
+            {
+                id: 'dashboard',
+                label: 'Stats',
                 admin: true,
                 color: 'text-indigo-500 hover:text-indigo-600',
-                // Lucide: Bar Chart (outline, matches app icon language)
                 icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
             },
-            { 
-                id: 'record', 
-                label: 'Log', 
+            {
+                id: 'record',
+                label: 'Log',
                 admin: true,
                 color: 'text-emerald-500 hover:text-emerald-600',
-                // Lucide: Clipboard Check (outline, matches app icon language)
                 icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>'
             },
-            { 
-                id: 'members', 
-                label: 'Roster', 
+            {
+                id: 'members',
+                label: 'Roster',
                 admin: true,
                 color: 'text-violet-500 hover:text-violet-600',
-                // Lucide: Users (outline, matches app icon language)
                 icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
             },
-            { 
-                id: 'summary', 
-                label: 'Reports', 
+            {
+                id: 'summary',
+                label: 'Reports',
                 admin: true,
                 color: 'text-amber-500 hover:text-amber-600',
-                // Lucide: Pie Chart (outline, matches app icon language)
                 icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>'
             },
-            { 
-                id: 'master', 
-                label: 'Master Config', 
+            {
+                id: 'master',
+                label: 'Master Config',
                 admin: true,
                 color: 'text-rose-500 hover:text-rose-600',
-                // Lucide: Settings Gear (outline, matches app icon language)
                 icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
             }
         ],
+
         toggleTheme() {
             this.theme = this.theme === 'light' ? 'dark' : 'light';
             localStorage.setItem('appTheme', this.theme);
         },
 
-        async init() {
-            await syncTrueTime();
+        togglePortalCharts() {
+            this.showPortalCharts = !this.showPortalCharts;
+            localStorage.setItem('showPortalCharts', this.showPortalCharts);
 
-            if (window.Chart) {
-                Chart.defaults.color = '#9ca3af';
-                Chart.defaults.font.family = 'Outfit';
+            if (this.showPortalCharts) {
+                this.$nextTick(() => {
+                    setTimeout(() => this.renderUserCharts(), 50);
+                });
+            } else {
+                if (window.userPolarChart) { window.userPolarChart.destroy(); window.userPolarChart = null; }
+                if (window.userBarChart) { window.userBarChart.destroy(); window.userBarChart = null; }
+                if (window.userRadialChart) { window.userRadialChart.destroy(); window.userRadialChart = null; }
             }
+        },
+
+        async init() {
+            // Initialize scopeStartStr BEFORE restoring session so initial DB sync fetches only 31 days instead of full history
+            const todayRef = getISTDateObject();
+            const initScopeDate = new Date(todayRef.getTime() - 31 * 86400000);
+            this.scopeStartStr = getISTString(initScopeDate);
 
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().catch(e => console.warn("Auto-prompt blocked:", e));
-            }   
+            }
 
             this.userSession = null;
             this.localSessionToken = null;
             this.supabase = supabase.createClient(this.supabaseUrl, this.supabaseKey);
 
-            this.supabase.auth.onAuthStateChange((event, session) => {
+            this.supabase.auth.onAuthStateChange((event) => {
                 if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
                     this.userSession = null;
                     this.localSessionToken = null;
-                    localStorage.clear(); 
+                    localStorage.clear();
                     sessionStorage.clear();
                 }
             });
 
-            await this.syncInitialConfig();
-
-            // Load Admin Authentication State locally to make sessions permanent
             if (localStorage.getItem('rc_admin_authenticated') === 'true') {
                 this.isAdminAuthenticated = true;
                 this.adminPinInput = localStorage.getItem('rc_admin_pin') || '';
             }
 
-            await this.restoreSession();
+            // Fire non-blocking true-time sync in the background
+            syncTrueTime();
 
-            const todayRef = getISTDateObject();
-            const initScopeDate = new Date(todayRef.getFullYear(), todayRef.getMonth(), todayRef.getDate() - 31);
-            this.scopeStartStr = getISTString(initScopeDate);
+            // Fetch initial config, members, and active auth session in parallel
+            const [, sessionRes] = await Promise.all([
+                this.syncInitialConfig(),
+                this.supabase.auth.getSession()
+            ]);
+
+            await this.restoreSession(sessionRes);
 
             this.$watch('currentDate', (newDate) => {
                 if (this.scopeStartStr && newDate < this.scopeStartStr && !this.fetchedOldDates.has(newDate)) {
@@ -533,48 +747,64 @@ menuItems: [
                 }
             });
 
-            this.$watch('calMonth', () => { setTimeout(() => this.renderUserCharts(), 50) });
-            this.$watch('view', (v) => { if(v === 'portal') setTimeout(() => this.renderUserCharts(), 200) });
+            this.$watch('calMonth', () => { setTimeout(() => this.renderUserCharts(), 50); });
+            this.$watch('dashboardPeriod', () => { setTimeout(() => this.renderDashboardChart(), 50); });
+            this.$watch('filterName', () => { setTimeout(() => this.renderDashboardChart(), 50); });
+            this.$watch('filterDept', () => { setTimeout(() => this.renderDashboardChart(), 50); });
+            this.$watch('theme', () => {
+                setTimeout(() => {
+                    this.renderUserCharts();
+                    this.renderDashboardChart();
+                }, 50);
+            });
+            this.$watch('view', (v) => {
+                if (v === 'portal') setTimeout(() => this.renderUserCharts(), 150);
+                if (v === 'dashboard') setTimeout(() => this.renderDashboardChart(), 150);
+            });
 
-            setInterval(() => {
-                const now = getNow(); 
-                this.currentISTTimeWidget = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
-                }).format(now);
-                this.currentESTTimeWidget = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
-                }).format(now);
+            let lastDateCheck = '';
+            const updateTick = () => {
+                const now = getNow();
+                this.currentISTTimeWidget = fmtISTTimeFull.format(now);
+                this.currentESTTimeWidget = fmtESTTimeFull.format(now);
+                this.currentCSTTimeWidget = fmtCSTTimeFull.format(now);
 
-                this.currentCSTTimeWidget = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
-                }).format(now);
-                this.currentISTDateWidget = new Intl.DateTimeFormat('en-US', {
-                    timeZone: 'Asia/Kolkata', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
-                }).format(now);
+                const istDate = getISTDate(now);
+                const dateKeyDay = istDate.getUTCDate();
+                if (lastDateCheck !== dateKeyDay) {
+                    lastDateCheck = dateKeyDay;
+                    this.currentISTDateWidget = fmtISTDateFull.format(now);
+                }
+                const nextGreeting = getGreetingFromDate(istDate);
+                if (this.istGreeting !== nextGreeting) this.istGreeting = nextGreeting;
 
-		if (this.userSession) {
+                if (this.userSession) {
                     const dateKey = this.getActiveShiftDate();
                     const log = this.punchLogs[dateKey]?.[this.userSession.id];
                     if (log && log.in) {
-                        const outTime = log.out || this.getCurrentTimeIST();
+                        const outTime = log.out || fmtISTTimeShort.format(now);
                         const grossMins = Math.max(0, this.diffInMins(log.in, outTime));
                         const regularBreakMins = this.calculateTotalBreakMins(log.breaks);
                         const splitShiftMins = this.calculateSplitShiftMins(log.breaks);
                         const allBreaks = regularBreakMins + splitShiftMins;
-                        
-                        this.liveShiftMins = Math.max(0, grossMins - splitShiftMins); 
-                        this.liveActiveMins = Math.max(0, grossMins - allBreaks);
-                        this.liveTotalBreakMins = regularBreakMins;	
+
+                        const nextShift = Math.max(0, grossMins - splitShiftMins);
+                        const nextActive = Math.max(0, grossMins - allBreaks);
+                        if (this.liveShiftMins !== nextShift) this.liveShiftMins = nextShift;
+                        if (this.liveActiveMins !== nextActive) this.liveActiveMins = nextActive;
+                        if (this.liveTotalBreakMins !== regularBreakMins) this.liveTotalBreakMins = regularBreakMins;
                     } else {
-                        this.liveShiftMins = 0;
-                        this.liveActiveMins = 0;
-                        this.liveTotalBreakMins = 0;
+                        if (this.liveShiftMins !== 0) this.liveShiftMins = 0;
+                        if (this.liveActiveMins !== 0) this.liveActiveMins = 0;
+                        if (this.liveTotalBreakMins !== 0) this.liveTotalBreakMins = 0;
                     }
                 }
-            }, 1000);
-            
+            };
+            updateTick();
+            setInterval(updateTick, 1000);
+
             ['mousemove', 'keydown', 'mousedown', 'touchstart'].forEach(evt => {
-                window.addEventListener(evt, () => this.resetIdleTimer());
+                window.addEventListener(evt, () => this.resetIdleTimer(), { passive: true });
             });
 
             window.addEventListener('focus', () => this.checkExpiredCaptchas());
@@ -583,19 +813,18 @@ menuItems: [
                 const bc = new BroadcastChannel('revcentric_captcha');
                 bc.onmessage = (e) => {
                     if (e.data?.type === 'CAPTCHA_TRIGGERED' && this.userSession && e.data.userId === this.userSession.id) {
-                        try { window.focus(); } catch(err) {}
+                        try { window.focus(); } catch (err) {}
                         if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
                     }
                 };
-            } catch(e) {}
+            } catch (e) {}
         },
 
-        async restoreSession() {
+        async restoreSession(preloadedSessionRes = null) {
             try {
-                const { data: { session }, error } = await this.supabase.auth.getSession();
-                
+                const { data: { session }, error } = preloadedSessionRes || await this.supabase.auth.getSession();
+
                 if (error || !session) {
-                    // Do not wipe admin authentication here
                     if (!this.isAdminAuthenticated) {
                         localStorage.clear();
                         sessionStorage.clear();
@@ -603,50 +832,48 @@ menuItems: [
                     return;
                 }
 
-                if (session) {
-                    if (session.user.email === 'master@revcentric.local') {
-                        this.isAdminAuthenticated = true;
-                        localStorage.setItem('rc_admin_authenticated', 'true');
-                        this.setupUserRealtime();
-                        this.syncUserData(true);
-                    } else {
-                        let matchedMember = this.members.find(m => m.auth_id === session.user.id);
-                        if (!matchedMember) {
-                            const { data: dbMember } = await this.supabase.from('members').select('*').eq('auth_id', session.user.id).single();
-                            if (dbMember) {
-                                matchedMember = {
-                                    id: dbMember.id, empId: dbMember.emp_id, firstName: dbMember.first_name, lastName: dbMember.last_name,
-                                    name: `${dbMember.first_name} ${dbMember.last_name || ''}`.trim(),
-                                    dept: dbMember.dept, role: dbMember.role, shift: dbMember.shift, pin: dbMember.pin,
-                                    doj: dbMember.doj, doe: dbMember.doe, dob: dbMember.dob, allowedPL: dbMember.allowed_pl, allowedSL: dbMember.allowed_sl, 
-                                    allowedPerm: dbMember.allowed_perm, captchaEnabled: dbMember.captcha_enabled, auth_id: dbMember.auth_id,
-                                    current_session: dbMember.current_session
-                                };
-                            }
-                        }
-
-                        if (matchedMember) {
-                            const todayStr = getISTString();
-                            if (matchedMember.doe && matchedMember.doe < todayStr) {
-                                await this.supabase.auth.signOut();
-                                return;
-                            }
-                            this.localSessionToken = matchedMember.current_session;
-                            this.userSession = JSON.parse(JSON.stringify(matchedMember));
-                            this.setupUserRealtime();
-                            this.syncUserData(true);
-                            await this.fetchExceptionHistory();	
-                            
-                            // NEW: Restart the background timer after browser refresh
-                            this.scheduleNextCaptcha();
-                        } else {
-                            await this.supabase.auth.signOut();
+                if (session.user.email === 'master@revcentric.local') {
+                    this.isAdminAuthenticated = true;
+                    localStorage.setItem('rc_admin_authenticated', 'true');
+                    this.setupUserRealtime();
+                    this.syncUserData(true);
+                } else {
+                    let matchedMember = this.members.find(m => m.auth_id === session.user.id);
+                    if (!matchedMember) {
+                        const { data: dbMember } = await this.supabase.from('members').select('*').eq('auth_id', session.user.id).single();
+                        if (dbMember) {
+                            matchedMember = {
+                                id: dbMember.id, empId: dbMember.emp_id, firstName: dbMember.first_name, lastName: dbMember.last_name,
+                                name: `${dbMember.first_name} ${dbMember.last_name || ''}`.trim(),
+                                dept: dbMember.dept, role: dbMember.role, shift: dbMember.shift, pin: dbMember.pin,
+                                doj: dbMember.doj, doe: dbMember.doe, dob: dbMember.dob, allowedPL: dbMember.allowed_pl, allowedSL: dbMember.allowed_sl,
+                                allowedPerm: dbMember.allowed_perm, captchaEnabled: dbMember.captcha_enabled, auth_id: dbMember.auth_id,
+                                current_session: dbMember.current_session
+                            };
                         }
                     }
+
+                    if (matchedMember) {
+                        const todayStr = getISTString();
+                        if (matchedMember.doe && matchedMember.doe < todayStr) {
+                            await this.supabase.auth.signOut();
+                            return;
+                        }
+                        this.localSessionToken = matchedMember.current_session;
+                        this.userSession = JSON.parse(JSON.stringify(matchedMember));
+                        this.setupUserRealtime();
+                        await Promise.all([
+                            this.syncUserData(true),
+                            this.fetchExceptionHistory()
+                        ]);
+                        this.scheduleNextCaptcha();
+                    } else {
+                        await this.supabase.auth.signOut();
+                    }
                 }
-            } catch (e) { 
-                console.error("Session restore failed", e); 
-                if (!this.isAdminAuthenticated) localStorage.clear(); 
+            } catch (e) {
+                console.error("Session restore failed", e);
+                if (!this.isAdminAuthenticated) localStorage.clear();
             }
         },
 
@@ -656,9 +883,14 @@ menuItems: [
         },
 
         async fetchDeviceAndNetworkInfo() {
+            const nowMs = Date.now();
+            if (_cachedNetInfo && (nowMs - _cachedNetInfoAt) < 5 * 60 * 1000) {
+                return _cachedNetInfo;
+            }
+
             const ua = navigator.userAgent;
             let os = "Unknown OS";
-            
+
             if (ua.indexOf("Win") !== -1) {
                 if (/Windows NT 10.0/.test(ua)) os = "Windows 10/11";
                 else if (/Windows NT 6.2/.test(ua)) os = "Windows 8";
@@ -681,37 +913,35 @@ menuItems: [
                 os = "Linux";
             }
 
+            let result = `Unknown IP | OS: ${os}`;
             try {
-                const res = await fetch('https://ipapi.co/json/');
+                const res = await fetchWithTimeout('https://ipapi.co/json/', {}, 2500);
                 const data = await res.json();
                 let locationTag = "";
                 if (data.country_code && data.country_code !== 'US') locationTag = ` [🚨 Outside US: ${data.country_name}]`;
-                return `${data.ip}${locationTag} | OS: ${os}`;
+                result = `${data.ip}${locationTag} | OS: ${os}`;
             } catch (e) {
                 try {
-                    const fbRes = await fetch('https://api.ipify.org?format=json');
+                    const fbRes = await fetchWithTimeout('https://api.ipify.org?format=json', {}, 2500);
                     const fbData = await fbRes.json();
-                    return `${fbData.ip} | OS: ${os}`;
-                } catch (err) {
-                    return `Unknown IP | OS: ${os}`;
-                }
+                    result = `${fbData.ip} | OS: ${os}`;
+                } catch (err) {}
             }
+            _cachedNetInfo = result;
+            _cachedNetInfoAt = nowMs;
+            return result;
         },
 
         async checkSecurityFlag(netString, memberName) {
             if (!netString || !memberName) return;
             const isAndroid = netString.includes('OS: Android');
             const isOutsideUS = netString.includes('[🚨 Outside US:');
-            
+
             if (isAndroid || isOutsideUS) {
                 const issues = [];
                 if (isOutsideUS) issues.push('Foreign IP');
                 if (isAndroid) issues.push('Android Device');
-                
-                const timeStr = this.getCurrentTimeIST();
-                const message = `🚨 SECURITY ALERT: ${memberName} detected on ${issues.join(' & ')} at ${timeStr}. Details: ${netString}`;
-                
-                console.warn(message);
+                console.warn(`🚨 SECURITY ALERT: ${memberName} detected on ${issues.join(' & ')} at ${this.getCurrentTimeIST()}. Details: ${netString}`);
             }
         },
 
@@ -731,8 +961,7 @@ menuItems: [
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'captcha_logs' }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, p => this.handleRealtimePayload(p))
                     .subscribe();
-            } 
-            else {
+            } else {
                 const myId = this.userSession.id;
                 this.userSyncChannel = this.supabase.channel(`user-${myId}-tracking`)
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
@@ -742,10 +971,11 @@ menuItems: [
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .subscribe();
             }
-if (this.systemBroadcastChannel) {
+
+            if (this.systemBroadcastChannel) {
                 this.supabase.removeChannel(this.systemBroadcastChannel);
             }
-            
+
             this.systemBroadcastChannel = this.supabase.channel('public-events')
                 .on('broadcast', { event: 'send_wish' }, (payload) => {
                     if (this.userSession && payload.payload.targetId === this.userSession.id) {
@@ -755,14 +985,11 @@ if (this.systemBroadcastChannel) {
                         }
                     }
                 })
-// ADD THIS NEW EVENT BLOCK:
                 .on('broadcast', { event: 'system_notice' }, (payload) => {
                     if (this.userSession && (payload.payload.dept === 'All' || payload.payload.dept === this.userSession.dept)) {
-                        
                         this.showNote(`📢 NOTICE: ${payload.payload.message}`, "success");
+                        this.activeBroadcast = payload.payload;
 
-this.activeBroadcast = payload.payload;
-                        
                         if ("Notification" in window && Notification.permission === "granted") {
                             try {
                                 new Notification(`📢 ${payload.payload.sender} (Broadcast)`, {
@@ -770,19 +997,18 @@ this.activeBroadcast = payload.payload;
                                     icon: "logo.png",
                                     requireInteraction: true
                                 });
-                            } catch(e) {}
+                            } catch (e) {}
                         }
                     }
                 })
-.on('broadcast', { event: 'clear_notice' }, () => {
+                .on('broadcast', { event: 'clear_notice' }, () => {
                     this.activeBroadcast = null;
                 })
                 .subscribe();
         },
 
-sendWish(targetId) {
+        sendWish(targetId) {
             if (!this.userSession || !this.systemBroadcastChannel) return;
-            
             if (targetId === this.userSession.id) return;
 
             this.systemBroadcastChannel.send({
@@ -793,11 +1019,11 @@ sendWish(targetId) {
                     senderName: this.userSession.firstName || this.userSession.name
                 }
             });
-            
+
             this.showNote("Wish sent successfully! ✨", "success");
         },
 
-sendBroadcast() {
+        sendBroadcast() {
             if (!this.broadcastMessage.trim()) {
                 return this.showNote("Please enter a message to broadcast.", "error");
             }
@@ -805,7 +1031,6 @@ sendBroadcast() {
                 return this.showNote("Broadcast channel not connected.", "error");
             }
 
-            // Create the payload with a Unix timestamp for the 24-hour expiration
             const payload = {
                 dept: this.broadcastDept,
                 message: this.broadcastMessage.trim(),
@@ -814,10 +1039,8 @@ sendBroadcast() {
                 timestamp: Date.now()
             };
 
-            // Save to database for persistence (for users who log in later)
             this.upsertConfigCloud('active_broadcast', payload);
 
-            // Send real-time ping to users currently online
             this.systemBroadcastChannel.send({
                 type: 'broadcast',
                 event: 'system_notice',
@@ -825,21 +1048,16 @@ sendBroadcast() {
             });
 
             this.showNote(`Broadcast sent to ${this.broadcastDept}`, "success");
-            this.broadcastMessage = ''; 
+            this.broadcastMessage = '';
         },
 
-async clearBroadcast() {
-            // 1. Clear it from your local screen immediately
+        async clearBroadcast() {
             this.activeBroadcast = null;
-            
-            // 2. FORCE DELETE the record from the database so it is permanently gone
             try {
                 await this.supabase.from('system_config').delete().eq('key', 'active_broadcast');
-            } catch(e) {
+            } catch (e) {
                 console.error("Failed to delete broadcast:", e);
             }
-            
-            // 3. Send a real-time kill signal to instantly hide it for currently online users
             if (this.systemBroadcastChannel) {
                 this.systemBroadcastChannel.send({
                     type: 'broadcast',
@@ -847,7 +1065,6 @@ async clearBroadcast() {
                     payload: {}
                 });
             }
-            
             this.showNote("Broadcast cleared globally", "success");
         },
 
@@ -855,11 +1072,10 @@ async clearBroadcast() {
             if (this.isEditingLog || this.isAddingMember) return;
 
             const { table, eventType, new: newRecord } = payload;
-            const updatedField = newRecord;
 
             if (table === 'members' && eventType === 'UPDATE') {
-                if (this.userSession && updatedField.id === this.userSession.id) {
-                    if (updatedField.current_session !== this.localSessionToken) {
+                if (this.userSession && newRecord.id === this.userSession.id) {
+                    if (newRecord.current_session !== this.localSessionToken) {
                         this.logoutUser();
                         this.showNote("Logged out from another device/session", "error");
                         return;
@@ -867,26 +1083,24 @@ async clearBroadcast() {
                 }
             }
 
-            const activeDate = this.getActiveShiftDate();
-
             if (table === 'attendance') {
                 const record = payload.new || payload.old;
                 if (record && record.date === this.currentDate) {
                     if (eventType === 'DELETE') {
-                        delete this.attendanceData[this.currentDate][record.member_id];
+                        delete this.attendanceData[this.currentDate]?.[record.member_id];
                     } else {
                         if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {};
                         this.attendanceData[this.currentDate][record.member_id] = record.status;
                     }
                     this.attendanceData = { ...this.attendanceData };
+                    invalidateMemo();
                 }
             }
 
             if (table === 'punch_logs') {
                 const record = payload.new || payload.old;
                 const dateKey = record?.date;
-                
-                // DYNAMIC DATE KEY: Update memory for whatever date arrived in the live WebSocket payload
+
                 if (dateKey) {
                     if (!this.punchLogs[dateKey]) this.punchLogs[dateKey] = {};
                     if (eventType === 'DELETE') {
@@ -901,75 +1115,69 @@ async clearBroadcast() {
                         this.punchLogs[dateKey][record.member_id].out_ip = record.out_ip || '';
                     }
                     this.punchLogs = { ...this.punchLogs };
+                    invalidateMemo();
                 }
             }
 
             if (table === 'break_logs') {
                 const record = payload.new || payload.old;
                 const dateKey = record?.log_date;
-                
-                // DYNAMIC DATE KEY: Update memory for whatever date arrived in the live WebSocket payload
+
                 if (dateKey) {
                     if (!this.punchLogs[dateKey]) this.punchLogs[dateKey] = {};
                     if (!this.punchLogs[dateKey][record.member_id]) {
                         this.punchLogs[dateKey][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     }
-                    
+
                     const breaks = this.punchLogs[dateKey][record.member_id].breaks || [];
                     const idx = breaks.findIndex(b => b.start === record.start_time);
                     if (eventType === 'DELETE') {
                         if (idx > -1) breaks.splice(idx, 1);
                     } else {
                         const bObj = { start: record.start_time, end: record.end_time || '', type: record.type || '' };
-                        if (idx > -1) {
-                            breaks[idx] = bObj;
-                        } else {
-                            breaks.push(bObj);
-                        }
+                        if (idx > -1) breaks[idx] = bObj;
+                        else breaks.push(bObj);
                     }
                     this.punchLogs[dateKey][record.member_id].breaks = breaks;
                     this.punchLogs = { ...this.punchLogs };
+                    invalidateMemo();
                 }
             }
 
             if (table === 'captcha_logs') {
                 const record = payload.new || payload.old;
-                
-                // 1. UNCONDITIONAL TRIGGER: If an admin inserted a Pending check for this user, trigger the modal immediately!
+
                 if (eventType === 'INSERT' && record?.status === 'Pending' && this.userSession && record.member_id === this.userSession.id) {
                     this.triggerCaptcha(record.check_time);
                 }
 
-                // 2. Local State Sync: Only update local punchLogs memory if the date matches the currently viewed tab
                 if (record && record.log_date === this.currentDate) {
                     if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
                     if (!this.punchLogs[this.currentDate][record.member_id]) {
                         this.punchLogs[this.currentDate][record.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     }
-                    
+
                     const captchas = this.punchLogs[this.currentDate][record.member_id].captchas || [];
                     const idx = captchas.findIndex(c => c.time === record.check_time);
                     if (eventType === 'DELETE') {
                         if (idx > -1) captchas.splice(idx, 1);
                     } else {
                         const cObj = { time: record.check_time, status: record.status, ip: record.ip_address || '' };
-                        if (idx > -1) {
-                            captchas[idx] = cObj;
-                        } else {
-                            captchas.push(cObj);
-                        }
+                        if (idx > -1) captchas[idx] = cObj;
+                        else captchas.push(cObj);
                     }
                     this.punchLogs[this.currentDate][record.member_id].captchas = captchas;
                     this.punchLogs = { ...this.punchLogs };
+                    invalidateMemo();
                 }
             }
         },
 
         async upsertConfigCloud(key, value) {
-            try { await this.supabase.from('system_config').upsert({ key, value }); } 
-            catch(e) { console.error("Config save error", e); this.syncError = true; }
+            try { await this.supabase.from('system_config').upsert({ key, value }); }
+            catch (e) { console.error("Config save error", e); this.syncError = true; }
         },
-        
+
         async upsertMemberCloud(m) {
             try {
                 const payload = {
@@ -981,7 +1189,7 @@ async clearBroadcast() {
                 };
                 if (m.auth_id) payload.auth_id = m.auth_id;
                 await this.supabase.from('members').upsert(payload);
-            } catch(e) { console.error("Member save error", e); }
+            } catch (e) { console.error("Member save error", e); }
         },
 
         async upsertAttCloud(date, mId, status) {
@@ -993,59 +1201,64 @@ async clearBroadcast() {
                         .update({ status })
                         .match({ date, member_id: mId })
                         .select();
-                        
+
                     if (!error && (!data || data.length === 0)) {
                         await this.supabase.from('attendance').insert({ date, member_id: mId, status });
                     }
                 }
-            } catch(e) { console.error("Attendance save error", e); }
+            } catch (e) { console.error("Attendance save error", e); }
         },
 
         async bulkUpsertAttCloud(recordsArray) {
             if (!recordsArray || recordsArray.length === 0) return;
             try {
-                for (const rec of recordsArray) {
-                    const { data, error } = await this.supabase.from('attendance')
-                        .update({ status: rec.status })
-                        .match({ date: rec.date, member_id: rec.member_id })
-                        .select();
-                        
-                    if (!error && (!data || data.length === 0)) {
-                        await this.supabase.from('attendance').insert(rec);
-                    }
+                // Execute updates/inserts in parallel batches of 10 instead of 2N serial awaits
+                const BATCH_SIZE = 10;
+                for (let i = 0; i < recordsArray.length; i += BATCH_SIZE) {
+                    const chunk = recordsArray.slice(i, i + BATCH_SIZE);
+                    await Promise.all(chunk.map(async (rec) => {
+                        const { data, error } = await this.supabase.from('attendance')
+                            .update({ status: rec.status })
+                            .match({ date: rec.date, member_id: rec.member_id })
+                            .select();
+
+                        if (!error && (!data || data.length === 0)) {
+                            await this.supabase.from('attendance').insert(rec);
+                        }
+                    }));
                 }
-            } catch(e) { console.error("Bulk Attendance save error", e); }
+            } catch (e) { console.error("Bulk Attendance save error", e); }
         },
 
         async upsertPunchCloud(date, mId) {
             try {
                 const log = this.punchLogs[date]?.[mId];
                 if (!log) return;
-                
+
                 const { data, error } = await this.supabase.from('punch_logs')
-                    .update({ 
-                        in_time: log.in || null, out_time: log.out || null, 
-                        in_ip: log.in_ip || null, out_ip: log.out_ip || null, 
-                        breaks: log.breaks || [] 
+                    .update({
+                        in_time: log.in || null, out_time: log.out || null,
+                        in_ip: log.in_ip || null, out_ip: log.out_ip || null,
+                        breaks: log.breaks || []
                     })
                     .match({ date, member_id: mId })
                     .select();
-                    
+
                 if (!error && (!data || data.length === 0)) {
                     await this.supabase.from('punch_logs').insert({
-                        date, member_id: mId, 
-                        in_time: log.in || null, out_time: log.out || null, 
-                        in_ip: log.in_ip || null, out_ip: log.out_ip || null, 
+                        date, member_id: mId,
+                        in_time: log.in || null, out_time: log.out || null,
+                        in_ip: log.in_ip || null, out_ip: log.out_ip || null,
                         breaks: log.breaks || []
                     });
                 }
-            } catch(e) { console.error("Punch save error", e); }
+            } catch (e) { console.error("Punch save error", e); }
         },
 
         async upsertLeaveCloud(req) {
             try {
                 await this.supabase.from('leave_requests').upsert({
-                    id: req.id, emp_id: req.empId, type: req.type, start_date: req.start_date || req.startDate, 
+                    id: req.id, emp_id: req.empId, type: req.type, start_date: req.start_date || req.startDate,
                     end_date: req.end_date || req.endDate, start_time: req.startTime || null,
                     end_time: req.endTime || null, reason: req.reason, status: req.status,
                     requested_at: req.requestedAt || null,
@@ -1055,51 +1268,50 @@ async clearBroadcast() {
                     reviewed_by_role: req.reviewedByRole || null,
                     reviewed_by_emp_id: req.reviewedByEmpId || null
                 });
-            } catch(e) { console.error("Leave save error", e); }
+            } catch (e) { console.error("Leave save error", e); }
         },
 
         async upsertHolidayCloud(h) {
-            try { await this.supabase.from('holidays').upsert({ id: h.id, name: h.name, date: h.date, dept: h.dept }); } 
-            catch(e) { console.error("Holiday save error", e); }
+            try { await this.supabase.from('holidays').upsert({ id: h.id, name: h.name, date: h.date, dept: h.dept }); }
+            catch (e) { console.error("Holiday save error", e); }
         },
 
         async syncInitialConfig() {
             this.isSyncing = true;
             try {
-                const { data: cData } = await this.supabase.from('system_config').select('*');
+                const [{ data: cData }, { data: mData }] = await Promise.all([
+                    this.supabase.from('system_config').select('*'),
+                    this.supabase.from('members').select('*')
+                ]);
+
                 if (cData) {
                     cData.forEach(row => {
-                        if(row.key === 'roles') this.roles = row.value;
-                        if(row.key === 'departments') this.departments = row.value;
-                        if(row.key === 'shifts') this.shifts = row.value;
-                        if(row.key === 'master_pin') this.masterPin = row.value;
-                        if(row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
-                        if(row.key === 'role_access') this.roleAccess = row.value || {};
-                        if(row.key === 'policies_note') { this.policiesNote = row.value || ''; this.policyNoteDraft = this.policiesNote; }
-                        if(row.key === 'leave_list_by_dept') this.leaveListByDept = row.value || {};
-			if(row.key === 'active_broadcast' && row.value) {
-                            // Check if it's less than 24 hours (86,400,000 milliseconds) old
-                            if (Date.now() - row.value.timestamp < 86400000) {
-                                this.activeBroadcast = row.value;
-                            } else {
-                                this.activeBroadcast = null;
-                            }
+                        if (row.key === 'roles') this.roles = row.value;
+                        if (row.key === 'departments') this.departments = row.value;
+                        if (row.key === 'shifts') this.shifts = row.value;
+                        if (row.key === 'master_pin') this.masterPin = row.value;
+                        if (row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
+                        if (row.key === 'role_access') this.roleAccess = row.value || {};
+                        if (row.key === 'policies_note') { this.policiesNote = row.value || ''; this.policyNoteDraft = this.policiesNote; }
+                        if (row.key === 'leave_list_by_dept') this.leaveListByDept = row.value || {};
+                        if (row.key === 'active_broadcast' && row.value) {
+                            this.activeBroadcast = (Date.now() - row.value.timestamp < 86400000) ? row.value : null;
                         }
                     });
                 }
 
-                const { data: mData } = await this.supabase.from('members').select('*');
                 if (mData) {
                     this.members = mData.map(m => ({
                         id: m.id, empId: m.emp_id, firstName: m.first_name, lastName: m.last_name,
                         name: `${m.first_name} ${m.last_name || ''}`.trim(),
                         dept: m.dept, role: m.role, shift: m.shift, pin: m.pin,
-                        doj: m.doj, doe: m.doe, dob: m.dob, allowedPL: m.allowed_pl, allowedSL: m.allowed_sl, 
+                        doj: m.doj, doe: m.doe, dob: m.dob, allowedPL: m.allowed_pl, allowedSL: m.allowed_sl,
                         allowedPerm: m.allowed_perm, captchaEnabled: m.captcha_enabled, auth_id: m.auth_id,
                         current_session: m.current_session
                     }));
                     this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
                 }
+                invalidateMemo();
                 this.syncError = false;
             } catch (e) {
                 console.error("Initial Config Pull Error:", e);
@@ -1111,7 +1323,7 @@ async clearBroadcast() {
 
         async fetchExceptionHistory() {
             if (!this.userSession) return;
-            
+
             const { data: excData } = await this.supabase
                 .from('member_exceptions_view')
                 .select('date, status')
@@ -1119,45 +1331,26 @@ async clearBroadcast() {
                 .order('date', { ascending: false });
 
             if (excData) {
+                const statusMap = new Map(this.statusOptions.map(s => [s.id, s]));
                 this.userExceptionHistory = excData.map(log => ({
                     date: log.date,
                     label: this.formatDate(log.date),
-                    status: this.statusOptions.find(s => s.id === log.status)
+                    status: statusMap.get(log.status)
                 }));
+                invalidateMemo();
             }
         },
 
         async syncUserData(silent = false) {
             this.isSyncing = true;
             try {
-                const { data: lData } = await this.supabase.from('leave_requests').select('*');
-                if (lData) {
-                    this.leaveRequests = lData.map(l => ({
-                        id: l.id, empId: l.emp_id, type: l.type, startDate: l.start_date, 
-                        endDate: l.end_date, startTime: l.start_time || '', endTime: l.end_time || '',
-                        reason: l.reason, status: l.status,
-                        requestedAt: l.requested_at || l.created_at || null,
-                        approvedAt: l.approved_at || l.reviewed_at || null,
-                        reviewedAt: l.reviewed_at || l.approved_at || null,
-                        reviewedByName: l.reviewed_by_name || '',
-                        reviewedByRole: l.reviewed_by_role || '',
-                        reviewedByEmpId: l.reviewed_by_emp_id || '',
-                        name: this.members.find(m => m.id === l.emp_id || m.empId === l.emp_id)?.name || ''
-                    }));
-                }
-
-                const { data: hData } = await this.supabase.from('holidays').select('*');
-                if (hData) {
-                    this.holidayList = hData;
-                }
-
                 let ytdQuery = this.supabase.from('member_ytd_stats').select('*');
                 let attQuery = this.supabase.from('attendance').select('*').gte('date', this.scopeStartStr);
                 let punchQuery = this.supabase.from('punch_logs').select('*').gte('date', this.scopeStartStr);
                 let breakQuery = this.supabase.from('break_logs').select('*').gte('log_date', this.scopeStartStr);
                 let capQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.scopeStartStr);
 
-                if (!this.isAdminAuthenticated && !this.isManagerOrLead) {
+                if (!this.isAdminAuthenticated && !this.isManagerOrLead && this.userSession) {
                     const myId = this.userSession.id;
                     ytdQuery = ytdQuery.eq('member_id', myId);
                     attQuery = attQuery.eq('member_id', myId);
@@ -1166,53 +1359,100 @@ async clearBroadcast() {
                     capQuery = capQuery.eq('member_id', myId);
                 }
 
-                const [ { data: vData }, { data: aData }, { data: pData }, { data: bData }, { data: capData } ] = await Promise.all([
+                // Run all 7 queries in a single parallel batch
+                const [
+                    { data: lData },
+                    { data: hData },
+                    { data: vData },
+                    { data: aData },
+                    { data: pData },
+                    { data: bData },
+                    { data: capData }
+                ] = await Promise.all([
+                    this.supabase.from('leave_requests').select('*'),
+                    this.supabase.from('holidays').select('*'),
                     ytdQuery, attQuery, punchQuery, breakQuery, capQuery
                 ]);
 
-                let newYtdStats = {};
+                if (lData) {
+                    const memberNameMap = new Map();
+                    for (let i = 0; i < this.members.length; i++) {
+                        const m = this.members[i];
+                        memberNameMap.set(m.id, m.name);
+                        if (m.empId) memberNameMap.set(m.empId, m.name);
+                    }
+                    this.leaveRequests = lData.map(l => ({
+                        id: l.id, empId: l.emp_id, type: l.type, startDate: l.start_date,
+                        endDate: l.end_date, startTime: l.start_time || '', endTime: l.end_time || '',
+                        reason: l.reason, status: l.status,
+                        requestedAt: l.requested_at || l.created_at || null,
+                        approvedAt: l.approved_at || l.reviewed_at || null,
+                        reviewedAt: l.reviewed_at || l.approved_at || null,
+                        reviewedByName: l.reviewed_by_name || '',
+                        reviewedByRole: l.reviewed_by_role || '',
+                        reviewedByEmpId: l.reviewed_by_emp_id || '',
+                        name: memberNameMap.get(l.emp_id) || ''
+                    }));
+                }
+
+                if (hData) {
+                    this.holidayList = hData;
+                }
+
+                const newYtdStats = {};
                 if (vData) {
-                    vData.forEach(row => {
-                        newYtdStats[row.member_id] = { leaves: row.ytd_leaves || 0, compOffs: row.ytd_comp_off || 0, permHours: row.ytd_perm_hours_used || 0 };
-                    });
+                    for (let i = 0; i < vData.length; i++) {
+                        const row = vData[i];
+                        newYtdStats[row.member_id] = {
+                            leaves: row.ytd_leaves || 0,
+                            compOffs: row.ytd_comp_off || 0,
+                            permHours: row.ytd_perm_hours_used || 0
+                        };
+                    }
                 }
                 this.ytdStats = newYtdStats;
 
-                let newAtt = {};
+                const newAtt = {};
                 if (aData) {
-                    aData.forEach(r => {
-                        if(!newAtt[r.date]) newAtt[r.date] = {};
+                    for (let i = 0; i < aData.length; i++) {
+                        const r = aData[i];
+                        if (!newAtt[r.date]) newAtt[r.date] = {};
                         newAtt[r.date][r.member_id] = r.status;
-                    });
+                    }
                 }
                 this.attendanceData = newAtt;
 
-                let newPunch = {};
+                const newPunch = {};
                 if (pData) {
-                    pData.forEach(r => {
-                        if(!newPunch[r.date]) newPunch[r.date] = {};
-                        newPunch[r.date][r.member_id] = { in: r.in_time || '', out: r.out_time || '', in_ip: r.in_ip || '', out_ip: r.out_ip || '', breaks: [], captchas: [] };
-                    });
+                    for (let i = 0; i < pData.length; i++) {
+                        const r = pData[i];
+                        if (!newPunch[r.date]) newPunch[r.date] = {};
+                        newPunch[r.date][r.member_id] = {
+                            in: r.in_time || '', out: r.out_time || '',
+                            in_ip: r.in_ip || '', out_ip: r.out_ip || '',
+                            breaks: [], captchas: []
+                        };
+                    }
                 }
                 if (bData) {
-                    bData.forEach(b => {
+                    for (let i = 0; i < bData.length; i++) {
+                        const b = bData[i];
                         if (!newPunch[b.log_date]) newPunch[b.log_date] = {};
                         if (!newPunch[b.log_date][b.member_id]) newPunch[b.log_date][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         newPunch[b.log_date][b.member_id].breaks.push({ start: b.start_time, end: b.end_time || '', type: b.type || '' });
-                    });
+                    }
                 }
                 if (capData) {
-                    capData.forEach(
-                        c => {
-                            if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
-                            if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-                            if (!newPunch[c.log_date][c.member_id].captchas) newPunch[c.log_date][c.member_id].captchas = [];
-                            newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
-                        });
+                    for (let i = 0; i < capData.length; i++) {
+                        const c = capData[i];
+                        if (!newPunch[c.log_date]) newPunch[c.log_date] = {};
+                        if (!newPunch[c.log_date][c.member_id]) newPunch[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+                        newPunch[c.log_date][c.member_id].captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
+                    }
                 }
                 this.punchLogs = newPunch;
-                
-                // NEW: Open modal if there is an active pending check from the cloud
+                invalidateMemo();
+
                 if (this.userSession) {
                     const today = this.getActiveShiftDate();
                     const log = this.punchLogs[today]?.[this.userSession.id];
@@ -1225,8 +1465,12 @@ async clearBroadcast() {
                 }
 
                 this.checkExpiredCaptchas();
-                setTimeout(() => this.renderUserCharts(), 300);
-                
+                this.processAutoLopForMissingPunches();
+                setTimeout(() => {
+                    this.renderUserCharts();
+                    this.renderDashboardChart();
+                }, 100);
+
                 this.syncError = false;
                 if (!silent) this.showNote("Database Synced", "success");
             } catch (e) {
@@ -1239,32 +1483,39 @@ async clearBroadcast() {
 
         async fetchHistoricalDate(targetDate) {
             this.isSyncing = true;
-            this.fetchedOldDates.add(targetDate); 
-            
+            this.fetchedOldDates.add(targetDate);
+
             try {
-                const { data: aData } = await this.supabase.from('attendance').select('*').eq('date', targetDate);
+                const [
+                    { data: aData },
+                    { data: pData },
+                    { data: bData },
+                    { data: capData }
+                ] = await Promise.all([
+                    this.supabase.from('attendance').select('*').eq('date', targetDate),
+                    this.supabase.from('punch_logs').select('*').eq('date', targetDate),
+                    this.supabase.from('break_logs').select('*').eq('log_date', targetDate),
+                    this.supabase.from('captcha_logs').select('*').eq('log_date', targetDate)
+                ]);
+
                 if (aData) {
                     if (!this.attendanceData[targetDate]) this.attendanceData[targetDate] = {};
                     aData.forEach(r => {
                         this.attendanceData[targetDate][r.member_id] = r.status;
                     });
-                    this.attendanceData = { ...this.attendanceData }; 
+                    this.attendanceData = { ...this.attendanceData };
                 }
 
-                const { data: pData } = await this.supabase.from('punch_logs').select('*').eq('date', targetDate);
-                const { data: bData } = await this.supabase.from('break_logs').select('*').eq('log_date', targetDate);
-                const { data: capData } = await this.supabase.from('captcha_logs').select('*').eq('log_date', targetDate);
-                
                 if (!this.punchLogs[targetDate]) this.punchLogs[targetDate] = {};
 
                 if (pData) {
                     pData.forEach(r => {
-                        this.punchLogs[targetDate][r.member_id] = { 
-                            in: r.in_time || '', out: r.out_time || '', in_ip: r.in_ip || '', out_ip: r.out_ip || '', breaks: [], captchas: [] 
+                        this.punchLogs[targetDate][r.member_id] = {
+                            in: r.in_time || '', out: r.out_time || '', in_ip: r.in_ip || '', out_ip: r.out_ip || '', breaks: [], captchas: []
                         };
                     });
                 }
-                
+
                 if (bData) {
                     bData.forEach(b => {
                         if (!this.punchLogs[targetDate][b.member_id]) this.punchLogs[targetDate][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
@@ -1280,14 +1531,15 @@ async clearBroadcast() {
                     });
                 }
 
-                this.punchLogs = { ...this.punchLogs }; 
+                this.punchLogs = { ...this.punchLogs };
+                invalidateMemo();
                 this.showNote(`Historical log loaded for ${this.formatDate(targetDate)}`, "success");
-            } catch(e) { 
-                console.error("Historical Pull Error:", e); 
+            } catch (e) {
+                console.error("Historical Pull Error:", e);
                 this.fetchedOldDates.delete(targetDate);
                 this.showNote("Failed to load historical data", "error");
-            } finally { 
-                this.isSyncing = false; 
+            } finally {
+                this.isSyncing = false;
             }
         },
 
@@ -1297,7 +1549,7 @@ async clearBroadcast() {
             if (idx > -1) {
                 const current = !!this.members[idx].captchaEnabled;
                 this.members[idx].captchaEnabled = !current;
-                
+
                 if (this.userSession && this.userSession.id === mId) {
                     this.userSession.captchaEnabled = !current;
                     if (this.userSession.captchaEnabled) {
@@ -1307,8 +1559,9 @@ async clearBroadcast() {
                         this.clearCaptchaTimers();
                     }
                 }
-                
-                this.upsertMemberCloud(this.members[idx]); 
+
+                this.upsertMemberCloud(this.members[idx]);
+                invalidateMemo();
                 this.showNote(`Verification for ${this.members[idx].firstName} ${!current ? 'Enabled' : 'Disabled'}`, "success");
             }
         },
@@ -1316,7 +1569,7 @@ async clearBroadcast() {
         clearCaptchaTimers() {
             if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
             if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
-	if (this.captchaCountdownInterval) { clearInterval(this.captchaCountdownInterval); this.captchaCountdownInterval = null; }	
+            if (this.captchaCountdownInterval) { clearInterval(this.captchaCountdownInterval); this.captchaCountdownInterval = null; }
 
             if (this._unlockAudioHandler) {
                 document.removeEventListener('click', this._unlockAudioHandler);
@@ -1325,16 +1578,16 @@ async clearBroadcast() {
             }
 
             if (this._captchaAudio) {
-                try { 
-                    this._captchaAudio.muted = true; 
-                    this._captchaAudio.pause(); 
-                    this._captchaAudio.currentTime = 0; 
-                    this._captchaAudio.removeAttribute('src'); 
-                } catch(e) {}
+                try {
+                    this._captchaAudio.muted = true;
+                    this._captchaAudio.pause();
+                    this._captchaAudio.currentTime = 0;
+                    this._captchaAudio.removeAttribute('src');
+                } catch (e) {}
                 this._captchaAudio = null;
             }
 
-            try { if (navigator.vibrate) navigator.vibrate(0); } catch(e) {}
+            try { if (navigator.vibrate) navigator.vibrate(0); } catch (e) {}
 
             if (this._captchaVisibilityHandler) {
                 document.removeEventListener('visibilitychange', this._captchaVisibilityHandler);
@@ -1342,7 +1595,7 @@ async clearBroadcast() {
                 this._captchaVisibilityHandler = null;
             }
 
-            try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch(e) {}
+            try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
 
             if (this.titleFlashInterval) {
                 clearInterval(this.titleFlashInterval);
@@ -1369,26 +1622,26 @@ async clearBroadcast() {
         },
 
         triggerCaptcha(forceTime = null) {
-	   if (isMobileDevice()) {
-        this.showNote("Verification Failed: Mobile devices are strictly prohibited.", "error");
-        this.recordCaptchaResult('Failed'); 
-        this.startBreak(null, 'Penalty'); // Automatically penalizes the mobile user
-        return;
-    }
+            if (isMobileDevice()) {
+                this.showNote("Verification Failed: Mobile devices are strictly prohibited.", "error");
+                this.recordCaptchaResult('Failed');
+                this.startBreak(null, 'Penalty');
+                return;
+            }
             this.clearCaptchaTimers();
             this.checkExpiredCaptchas();
-            
+
             if (!this.userSession) return;
             if (!forceTime && !this.userSession.captchaEnabled) return;
             if (!forceTime && this.userOnBreak) return;
-            
+
             const _guardDate = this.getActiveShiftDate();
             const _guardLog = this.punchLogs[_guardDate]?.[this.userSession.id];
             if (!forceTime && (!_guardLog?.in || _guardLog?.out)) return;
 
             if (this.showCaptchaModal && this.currentCaptchaTime) {
                 this.recordCaptchaResult('Passed', this.currentCaptchaTime);
-            }	
+            }
 
             this.captchaTargetNumber = Math.floor(Math.random() * 10).toString();
             this.captchaInput = '';
@@ -1411,16 +1664,16 @@ async clearBroadcast() {
                         tag: "captcha-alert",
                         renotify: true
                     });
-                } catch(e) {}
+                } catch (e) {}
             }
 
-            try { window.focus(); } catch(e) {}
+            try { window.focus(); } catch (e) {}
 
             try {
                 const el = document.documentElement;
                 if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
                 else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-            } catch(e) {}
+            } catch (e) {}
 
             try {
                 this._captchaAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -1443,11 +1696,11 @@ async clearBroadcast() {
                         document.addEventListener('keydown', this._unlockAudioHandler, { once: true });
                     });
                 }
-            } catch(e) {}
+            } catch (e) {}
 
             try {
                 if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
-            } catch(e) {}
+            } catch (e) {}
 
             const originalTitle = document.title || "RevCentric Solutions";
             let isFlashing = false;
@@ -1460,11 +1713,11 @@ async clearBroadcast() {
                 const bc = new BroadcastChannel('revcentric_captcha');
                 bc.postMessage({ type: 'CAPTCHA_TRIGGERED', userId: this.userSession?.id });
                 bc.close();
-            } catch(e) {}
+            } catch (e) {}
 
             this._captchaVisibilityHandler = () => {
                 if (!document.hidden && this.showCaptchaModal) {
-                    try { window.focus(); } catch(e) {}
+                    try { window.focus(); } catch (e) {}
                     setTimeout(() => {
                         const el = document.querySelector('[x-ref="captchaInputRef"]') ||
                                    document.getElementById('captcha-input-field');
@@ -1478,31 +1731,31 @@ async clearBroadcast() {
             this.captchaTimeoutTimer = setTimeout(() => {
                 this.handleCaptchaTimeout();
             }, 120000);
-	this.captchaSecondsRemaining = 120;
+            this.captchaSecondsRemaining = 120;
             this.captchaCountdownInterval = setInterval(() => {
                 if (this.captchaSecondsRemaining > 0) {
                     this.captchaSecondsRemaining--;
                 } else {
                     clearInterval(this.captchaCountdownInterval);
                 }
-            }, 1000);	
+            }, 1000);
         },
 
         submitCaptcha() {
             if (!this.showCaptchaModal) return;
             this.clearCaptchaTimers();
             this.showCaptchaModal = false;
-            
+
             const passed = this.captchaInput === this.captchaTargetNumber;
             this.recordCaptchaResult(passed ? 'Passed' : 'Failed');
             this.currentCaptchaTime = null;
-            
+
             if (passed) {
                 this.showNote("Verified Successfully", "success");
                 this.scheduleNextCaptcha();
             } else {
                 this.showNote("Verification Failed. Auto-initiating break.", "error");
-                this.startBreak(null, 'Penalty'); 
+                this.startBreak(null, 'Penalty');
             }
         },
 
@@ -1510,12 +1763,12 @@ async clearBroadcast() {
             if (!this.showCaptchaModal) return;
             this.showCaptchaModal = false;
             this.clearCaptchaTimers();
-            
+
             this.recordCaptchaResult('Missed');
             this.currentCaptchaTime = null;
-            
+
             this.showNote("Verification Missed. Auto-initiating break.", "error");
-            this.startBreak(null, 'Penalty'); 
+            this.startBreak(null, 'Penalty');
         },
 
         async recordCaptchaResult(status, timeOverride = null) {
@@ -1523,21 +1776,21 @@ async clearBroadcast() {
             let secureTime = null;
             if (!timeOverride && !this.currentCaptchaTime) {
                 secureTime = await fetchSecureApiTimeIST();
-                if (!secureTime) return; 
+                if (!secureTime) return;
             }
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             const checkTime = timeOverride || this.currentCaptchaTime || secureTime;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
-            
+
             this.checkSecurityFlag(currentIp, this.userSession.name);
-            
+
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                 this.punchLogs[activeDate][uId] = { in: secureTime, out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
             }
             if (!this.punchLogs[activeDate][uId].captchas) this.punchLogs[activeDate][uId].captchas = [];
-            
+
             const existingIdx = this.punchLogs[activeDate][uId].captchas.findIndex(c => c.time === checkTime);
             if (existingIdx > -1) {
                 this.punchLogs[activeDate][uId].captchas[existingIdx].status = status;
@@ -1546,7 +1799,8 @@ async clearBroadcast() {
                 this.punchLogs[activeDate][uId].captchas.push({ time: checkTime, status: status, ip: currentIp });
             }
             this.punchLogs = { ...this.punchLogs };
-            
+            invalidateMemo();
+
             try {
                 if (status === 'Pending') {
                     await this.supabase.from('captcha_logs').insert({
@@ -1557,14 +1811,14 @@ async clearBroadcast() {
                         .update({ status: status, ip_address: currentIp })
                         .match({ member_id: uId, log_date: activeDate, check_time: checkTime });
                 }
-            } catch(e) { console.error("Captcha log error", e); }
+            } catch (e) { console.error("Captcha log error", e); }
         },
 
         async forceCaptcha(mId) {
             if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
             const checkTime = this.getCurrentTimeIST();
             const currentIp = await this.fetchDeviceAndNetworkInfo();
-            
+
             const todayStr = getISTString();
             const yDate = getISTDateObject();
             yDate.setDate(yDate.getDate() - 1);
@@ -1574,19 +1828,19 @@ async clearBroadcast() {
 
             if (this.punchLogs[yesterdayStr]?.[mId]?.in && !this.punchLogs[yesterdayStr]?.[mId]?.out) {
                 dateKey = yesterdayStr;
-            } 
-            else if (this.punchLogs[todayStr]?.[mId]?.in && !this.punchLogs[todayStr]?.[mId]?.out) {
+            } else if (this.punchLogs[todayStr]?.[mId]?.in && !this.punchLogs[todayStr]?.[mId]?.out) {
                 dateKey = todayStr;
             }
-            
+
             if (!this.punchLogs[dateKey]) this.punchLogs[dateKey] = {};
             if (!this.punchLogs[dateKey][mId]) this.punchLogs[dateKey][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             if (!this.punchLogs[dateKey][mId].captchas) this.punchLogs[dateKey][mId].captchas = [];
-            
+
             const exists = this.punchLogs[dateKey][mId].captchas.find(c => c.time === checkTime);
             if (!exists) {
                 this.punchLogs[dateKey][mId].captchas.push({ time: checkTime, status: 'Pending', ip: currentIp });
                 this.punchLogs = { ...this.punchLogs };
+                invalidateMemo();
             }
 
             try {
@@ -1594,7 +1848,7 @@ async clearBroadcast() {
                     member_id: mId, log_date: dateKey, check_time: checkTime, status: 'Pending', ip_address: currentIp
                 });
                 this.showNote(`Verification Forced on ${dateKey} log`, "success");
-            } catch(e) {
+            } catch (e) {
                 console.error(e);
                 this.showNote("Failed to force verify", "error");
             }
@@ -1603,25 +1857,22 @@ async clearBroadcast() {
         get isManagerOrLead() {
             if (!this.userSession) return false;
             if (this.isAdminAuthenticated) return true;
-            
+
             const r = this.userSession.role;
             const allowedMenus = this.roleAccess[r] || [];
-            
-            // If they have ANY elevated permissions configured, treat them as a Lead for widgets
+
             if (Object.keys(this.roleAccess).length > 0) {
-                return allowedMenus.length > 0; 
+                return allowedMenus.length > 0;
             }
-            
-            // Legacy Fallback
+
             const rLower = (r || '').toLowerCase();
             return rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr');
         },
 
-get isSuperUser() {
+        get isSuperUser() {
             if (this.isAdminAuthenticated) return true;
             if (!this.userSession || !this.userSession.role) return false;
             const accessList = this.roleAccess[this.userSession.role];
-            // Strictly enforce array check to prevent false-positives
             return Array.isArray(accessList) ? accessList.includes('superuser') : false;
         },
 
@@ -1631,196 +1882,207 @@ get isSuperUser() {
             return `${mins}:${secs}`;
         },
 
-get activeTeamOnBreak() {
-    if (!this.isManagerOrLead) return [];
-    const activeDate = this.getActiveShiftDate();
-    // Inherits department isolation from filteredMembers
-    return this.filteredMembers.filter(m => this.isMemberOnBreak(m.id, activeDate));
-},
+        get activeTeamOnBreak() {
+            if (!this.isManagerOrLead) return [];
+            return memoizeFrame('activeTeamOnBreak', [
+                this.isManagerOrLead, this.filteredMembers, this.punchLogs,
+                this.userSession?.id, this.userSession?.shift, this.shifts
+            ], () => {
+                const activeDate = this.getActiveShiftDate();
+                return this.filteredMembers.filter(m => this.isMemberOnBreak(m.id, activeDate));
+            });
+        },
 
-get pendingLeaveRequests() {
-    return this.leaveRequests.filter(r => {
-        if (r.status !== 'pending') return false;
-        if (this.isManagerOrLead && !this.isSuperUser) {
-            const reqMember = this.members.find(m => m.id === r.empId);
-            if (reqMember && reqMember.dept !== this.userSession?.dept) return false;
-        }
-        return true;
-    });
-},
-get pendingLeaveCount() { return this.pendingLeaveRequests.length; },
-
-get reviewedLeaveRequests() {
-    if (!this.isManagerOrLead) return [];
-    return this.leaveRequests
-        .filter(r => r.status !== 'pending' && (r.reviewedAt || r.approvedAt))
-        .filter(r => {
-            if (this.isSuperUser) return true;
-            const reqMember = this.members.find(m => m.id === r.empId || m.empId === r.empId);
-            return !reqMember || reqMember.dept === this.userSession?.dept;
-        })
-        .sort((a, b) => new Date(b.reviewedAt || b.approvedAt || 0) - new Date(a.reviewedAt || a.approvedAt || 0))
-        .slice(0, 8);
-},
-
-get todayEvents() {
-            const curObj = getISTDateObject();
-            const curM = curObj.getUTCMonth() + 1;
-            const curD = curObj.getUTCDate();
-            const curY = curObj.getUTCFullYear();
-            const events = [];
-            
-            // 1. Strict Case-Insensitive Department Isolation
-            let targetMembers = [];
-            if (this.isAdminAuthenticated || this.isSuperUser) {
-                targetMembers = this.members;
-            } else if (this.userSession && this.userSession.dept) {
-                const myDept = String(this.userSession.dept).trim().toLowerCase();
-                targetMembers = this.members.filter(m => String(m.dept || '').trim().toLowerCase() === myDept);
-            }
-            
-            // 2. Build Event List
-            targetMembers.forEach(m => {
-                if (m.dob) {
-                    const [bY, bM, bD] = m.dob.split('-').map(Number);
-                    if (bM === curM && bD === curD) events.push({ id: 'bday_'+m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
+        get pendingLeaveRequests() {
+            return this.leaveRequests.filter(r => {
+                if (r.status !== 'pending') return false;
+                if (this.isManagerOrLead && !this.isSuperUser) {
+                    const reqMember = this.members.find(m => m.id === r.empId);
+                    if (reqMember && reqMember.dept !== this.userSession?.dept) return false;
                 }
-                if (m.doj) {
-                    const [jY, jM, jD] = m.doj.split('-').map(Number);
-                    if (jM === curM && jD === curD) {
-                        const yrs = curY - jY;
-                        events.push({ id: 'annv_'+m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+                return true;
+            });
+        },
+        get pendingLeaveCount() { return this.pendingLeaveRequests.length; },
+
+        get reviewedLeaveRequests() {
+            if (!this.isManagerOrLead) return [];
+            return this.leaveRequests
+                .filter(r => r.status !== 'pending' && (r.reviewedAt || r.approvedAt))
+                .filter(r => {
+                    if (this.isSuperUser) return true;
+                    const reqMember = this.members.find(m => m.id === r.empId || m.empId === r.empId);
+                    return !reqMember || reqMember.dept === this.userSession?.dept;
+                })
+                .sort((a, b) => new Date(b.reviewedAt || b.approvedAt || 0) - new Date(a.reviewedAt || a.approvedAt || 0))
+                .slice(0, 8);
+        },
+
+        get todayEvents() {
+            return memoizeFrame('todayEvents', [
+                this.isAdminAuthenticated, this.userSession?.id, this.userSession?.dept,
+                this.userSession?.role, this.members, this.roleAccess
+            ], () => {
+                const curObj = getISTDateObject();
+                const curM = curObj.getUTCMonth() + 1;
+                const curD = curObj.getUTCDate();
+                const curY = curObj.getUTCFullYear();
+                const events = [];
+
+                let targetMembers = [];
+                if (this.isAdminAuthenticated || this.isSuperUser) {
+                    targetMembers = this.members;
+                } else if (this.userSession && this.userSession.dept) {
+                    const myDept = String(this.userSession.dept).trim().toLowerCase();
+                    targetMembers = this.members.filter(m => String(m.dept || '').trim().toLowerCase() === myDept);
+                }
+
+                for (let i = 0; i < targetMembers.length; i++) {
+                    const m = targetMembers[i];
+                    if (m.dob) {
+                        const [bY, bM, bD] = m.dob.split('-').map(Number);
+                        if (bM === curM && bD === curD) events.push({ id: 'bday_' + m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
+                    }
+                    if (m.doj) {
+                        const [jY, jM, jD] = m.doj.split('-').map(Number);
+                        if (jM === curM && jD === curD) {
+                            const yrs = curY - jY;
+                            events.push({ id: 'annv_' + m.id, type: 'anniversary', member: m, title: yrs > 0 ? `Anniversary (${yrs} Yr)` : 'Joined Today!', icon: yrs > 0 ? '🎊' : '🎉', color: yrs > 0 ? 'text-emerald-600' : 'text-indigo-600', bg: yrs > 0 ? 'bg-emerald-100' : 'bg-indigo-100' });
+                        }
                     }
                 }
+                return events;
             });
-            return events;
         },
 
         get monthEvents() {
-            if (!this.members) return [];
-            
-            const currentMonth = this.calMonth; // 0-indexed (0 = Jan, 11 = Dec)
-            const currentYear = this.calYear;
-            const events = [];
-            let eventIdCounter = 1;
+            return memoizeFrame('monthEvents', [
+                this.calMonth, this.calYear, this.members
+            ], () => {
+                if (!this.members) return [];
+                const currentMonth = this.calMonth;
+                const currentYear = this.calYear;
+                const events = [];
+                let eventIdCounter = 1;
 
-            this.members.forEach(member => {
-                // 1. Check Birthdays
-                if (member.dob) {
-                    const dobParts = member.dob.split('-');
-                    const dobMonth = parseInt(dobParts[1], 10) - 1; // Convert to 0-indexed
-                    const dobDay = parseInt(dobParts[2], 10);
-                    
-                    if (dobMonth === currentMonth) {
-                        events.push({
-                            id: eventIdCounter++,
-                            type: 'birthday',
-                            day: dobDay,
-                            member: member,
-                            title: 'Birthday',
-                            icon: '🎂',
-                            bg: 'bg-pink-100 dark:bg-pink-900/40',
-                            color: 'text-pink-600 dark:text-pink-400'
-                        });
+                for (let i = 0; i < this.members.length; i++) {
+                    const member = this.members[i];
+                    if (member.dob) {
+                        const dobParts = member.dob.split('-');
+                        const dobMonth = parseInt(dobParts[1], 10) - 1;
+                        const dobDay = parseInt(dobParts[2], 10);
+
+                        if (dobMonth === currentMonth) {
+                            events.push({
+                                id: eventIdCounter++,
+                                type: 'birthday',
+                                day: dobDay,
+                                member: member,
+                                title: 'Birthday',
+                                icon: '🎂',
+                                bg: 'bg-pink-100 dark:bg-pink-900/40',
+                                color: 'text-pink-600 dark:text-pink-400'
+                            });
+                        }
+                    }
+
+                    if (member.doj) {
+                        const dojParts = member.doj.split('-');
+                        const dojYear = parseInt(dojParts[0], 10);
+                        const dojMonth = parseInt(dojParts[1], 10) - 1;
+                        const dojDay = parseInt(dojParts[2], 10);
+
+                        if (dojMonth === currentMonth && currentYear > dojYear) {
+                            const years = currentYear - dojYear;
+                            events.push({
+                                id: eventIdCounter++,
+                                type: 'anniversary',
+                                day: dojDay,
+                                member: member,
+                                title: `${years}Yr Work Anniversary`,
+                                icon: '🎉',
+                                bg: 'bg-emerald-100 dark:bg-emerald-900/40',
+                                color: 'text-emerald-600 dark:text-emerald-400'
+                            });
+                        }
                     }
                 }
 
-                // 2. Check Work Anniversaries
-                if (member.doj) {
-                    const dojParts = member.doj.split('-');
-                    const dojYear = parseInt(dojParts[0], 10);
-                    const dojMonth = parseInt(dojParts[1], 10) - 1; // Convert to 0-indexed
-                    const dojDay = parseInt(dojParts[2], 10);
-                    
-                    // Only show anniversary if the month matches AND they have been here at least 1 year
-                    if (dojMonth === currentMonth && currentYear > dojYear) {
-                        const years = currentYear - dojYear;
-                        events.push({
-                            id: eventIdCounter++,
-                            type: 'anniversary',
-                            day: dojDay,
-                            member: member,
-                            title: `${years}Yr Work Anniversary`,
-                            icon: '🎉',
-                            bg: 'bg-emerald-100 dark:bg-emerald-900/40',
-                            color: 'text-emerald-600 dark:text-emerald-400'
-                        });
-                    }
-                }
+                return events.sort((a, b) => a.day - b.day);
             });
-
-            // Return events sorted chronologically by day
-            return events.sort((a, b) => a.day - b.day);
         },
 
-get notificationGlowClass() {
-            // 1. Pink glow for Birthdays
-            if (this.todayEvents.some(e => e.type === 'birthday')) {
+        get notificationGlowClass() {
+            const events = this.todayEvents;
+            if (events.some(e => e.type === 'birthday')) {
                 return 'shadow-[0_0_15px_rgba(236,72,153,0.6)] animate-pulse text-pink-500';
             }
-            // 2. Emerald glow for Anniversaries
-            if (this.todayEvents.some(e => e.type === 'anniversary')) {
+            if (events.some(e => e.type === 'anniversary')) {
                 return 'shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse text-emerald-500';
             }
-            // 3. Rose glow for AI Security Insights (Admins/Managers)
             if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.offenderAlerts.length > 0) {
                 return 'shadow-[0_0_15px_rgba(244,63,94,0.6)] animate-pulse text-rose-500';
             }
-            // 4. Indigo glow for Pending Approvals (Admins/Managers)
             if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.pendingLeaveCount > 0) {
                 return 'shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-pulse text-indigo-500';
             }
-            // 5. Default Brand Orange for general month events
-            if (this.todayEvents.length > 0 || this.monthEvents.length > 0) {
+            if (events.length > 0 || this.monthEvents.length > 0) {
                 return 'shadow-[0_0_15px_rgba(242,101,34,0.6)] animate-pulse text-[#f26522]';
             }
-            // 6. Idle state (no notifications)
             return 'text-zinc-400 hover:text-indigo-500';
         },
 
-get offenderAlerts() {
-    const alerts = [];
-    const todayStr = this.getActiveShiftDate();
-    const THRESHOLD = 480; 
-    const VIOLATION_LIMIT = 3; 
-    
-    const [y, m, d] = todayStr.split('-').map(Number);
-    const cutoffObj = new Date(y, m - 1, d - 30);
-    const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
-    
-    this.members.forEach(member => {
-        if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== member.id)) return;
-        if (this.isManagerOrLead && !this.isSuperUser && member.dept !== this.userSession?.dept) return;
+        get offenderAlerts() {
+            return memoizeFrame('offenderAlerts', [
+                this.members, this.attendanceData, this.punchLogs,
+                this.userSession?.id, this.userSession?.dept, this.userSession?.role,
+                this.isAdminAuthenticated, this.roleAccess
+            ], () => {
+                const alerts = [];
+                const todayStr = this.getActiveShiftDate();
+                const THRESHOLD = 480;
+                const VIOLATION_LIMIT = 3;
 
-        const isPresentToday = this.attendanceData[todayStr]?.[member.id] === 'p' || 
-                              (this.punchLogs[todayStr]?.[member.id]?.in && !this.punchLogs[todayStr]?.[member.id]?.out);
-        
-        if (isPresentToday) {
-            let violations = 0;
-            Object.keys(this.punchLogs).forEach(date => {
-                if (date >= todayStr || date < cutoffDateStr) return; 
-                const log = this.punchLogs[date]?.[member.id];
-                if (this.attendanceData[date]?.[member.id] === 'p' && log && log.in && log.out) {
-                    const activeMins = this.getActiveMinsForLog(log, date);
-                    if (activeMins > 0 && activeMins < THRESHOLD) violations++;
+                const [y, m, d] = todayStr.split('-').map(Number);
+                const cutoffObj = new Date(y, m - 1, d - 30);
+                const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
+                const punchDates = Object.keys(this.punchLogs).filter(date => date < todayStr && date >= cutoffDateStr);
+
+                for (let i = 0; i < this.members.length; i++) {
+                    const member = this.members[i];
+                    if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== member.id)) continue;
+                    if (this.isManagerOrLead && !this.isSuperUser && member.dept !== this.userSession?.dept) continue;
+
+                    const isPresentToday = this.attendanceData[todayStr]?.[member.id] === 'p' ||
+                                          (this.punchLogs[todayStr]?.[member.id]?.in && !this.punchLogs[todayStr]?.[member.id]?.out);
+
+                    if (isPresentToday) {
+                        let violations = 0;
+                        for (let j = 0; j < punchDates.length; j++) {
+                            const date = punchDates[j];
+                            const log = this.punchLogs[date]?.[member.id];
+                            if (this.attendanceData[date]?.[member.id] === 'p' && log && log.in && log.out) {
+                                const activeMins = this.getActiveMinsForLog(log, date);
+                                if (activeMins > 0 && activeMins < THRESHOLD) violations++;
+                            }
+                        }
+                        if (violations >= VIOLATION_LIMIT) {
+                            alerts.push({ id: 'ai_' + member.id, member: member, violations: violations, title: 'Flight Risk Detected', message: `${violations} shifts under 8h in last 30 days`, icon: '🤖', color: 'text-rose-600', bg: 'bg-rose-100' });
+                        }
+                    }
                 }
+                return alerts.sort((a, b) => b.violations - a.violations);
             });
-            if (violations >= VIOLATION_LIMIT) {
-                alerts.push({ id: 'ai_' + member.id, member: member, violations: violations, title: 'Flight Risk Detected', message: `${violations} shifts under 8h in last 30 days`, icon: '🤖', color: 'text-rose-600', bg: 'bg-rose-100' });
-            }
-        }
-    });
-    return alerts.sort((a, b) => b.violations - a.violations);
-},
+        },
 
         get userOnBreak() {
             if (!this.userSession) return false;
             const breaks = this.punchLogs[this.getActiveShiftDate()]?.[this.userSession.id]?.breaks;
-            return breaks && breaks.length > 0 && !breaks[breaks.length - 1].end;
+            return !!(breaks && breaks.length > 0 && !breaks[breaks.length - 1].end);
         },
         isMemberOnBreak(mId, dateKey) {
             const breaks = this.punchLogs[dateKey]?.[mId]?.breaks;
-            return breaks && breaks.length > 0 && !breaks[breaks.length - 1].end;
+            return !!(breaks && breaks.length > 0 && !breaks[breaks.length - 1].end);
         },
 
         submitLeave() {
@@ -1850,6 +2112,7 @@ get offenderAlerts() {
             };
             this.leaveRequests.unshift(req);
             this.upsertLeaveCloud(req);
+            invalidateMemo();
             this.showLeaveModal = false;
             this.newLeave = { type: 'a', startDate: '', endDate: '', startTime: '', endTime: '', reason: '' };
             this.showNote("Leave Request Forwarded", "success");
@@ -1874,7 +2137,7 @@ get offenderAlerts() {
             const reviewer = this.getLeaveReviewerInfo();
             const reviewedAt = getNow().toISOString();
             req.status = status;
-            req.approvedAt = reviewedAt; // Retained for compatibility with existing app versions.
+            req.approvedAt = reviewedAt;
             req.reviewedAt = reviewedAt;
             req.reviewedByName = reviewer.name;
             req.reviewedByRole = reviewer.role;
@@ -1891,9 +2154,10 @@ get offenderAlerts() {
                 const dStr = getISTString(d);
                 if (!this.attendanceData[dStr]) this.attendanceData[dStr] = {};
                 this.attendanceData[dStr][req.empId] = req.type;
-                this.upsertAttCloud(dStr, req.empId, req.type); 
+                this.upsertAttCloud(dStr, req.empId, req.type);
             }
-            this.attendanceData = { ...this.attendanceData }; 
+            this.attendanceData = { ...this.attendanceData };
+            invalidateMemo();
             this.showNote(`Approved leave for ${req.name}`);
         },
 
@@ -1901,6 +2165,7 @@ get offenderAlerts() {
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (req) {
                 this.recordLeaveReview(req, 'rejected');
+                invalidateMemo();
                 this.showNote(`Rejected leave for ${req.name}`, "error");
             }
         },
@@ -1911,7 +2176,7 @@ get offenderAlerts() {
                 this.members.forEach(m => {
                     if (h.dept === 'All' || h.dept === m.dept) {
                         if (!this.attendanceData[h.date]?.[m.id]) {
-                            if(!this.attendanceData[h.date]) this.attendanceData[h.date] = {};
+                            if (!this.attendanceData[h.date]) this.attendanceData[h.date] = {};
                             this.attendanceData[h.date][m.id] = 'fh';
                             bulkRecords.push({ date: h.date, member_id: m.id, status: 'fh' });
                         }
@@ -1919,7 +2184,80 @@ get offenderAlerts() {
                 });
             });
             if (bulkRecords.length > 0) {
-                this.attendanceData = { ...this.attendanceData }; 
+                this.attendanceData = { ...this.attendanceData };
+                invalidateMemo();
+                this.bulkUpsertAttCloud(bulkRecords);
+            }
+        },
+
+        processAutoLopForMissingPunches() {
+            const nowISTMs = getISTDate().getTime();
+            const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+            const bulkRecords = [];
+
+            const targetMembers = (this.isAdminAuthenticated || this.isManagerOrLead)
+                ? this.members
+                : (this.userSession ? [this.userSession] : []);
+
+            const shiftMap = new Map(this.shifts.map(s => [s.name, s]));
+            const exemptStatuses = new Set(['a', 'h', 'fh', 'co', 'w', 'lop', 'loph', 'lop1', 'lop2']);
+            const approvedLeaves = this.leaveRequests.filter(l => l.status === 'approved');
+
+            const datesToCheck = [];
+            for (let i = 0; i < 7; i++) {
+                const d = getISTDateObject();
+                d.setUTCDate(d.getUTCDate() - i);
+                const dateStr = getISTString(d);
+                const [y, mo, day] = dateStr.split('-').map(Number);
+                datesToCheck.push({ dateStr, y, mo, day, dayOfWeek: new Date(Date.UTC(y, mo - 1, day)).getUTCDay() });
+            }
+
+            for (let di = 0; di < datesToCheck.length; di++) {
+                const { dateStr, y, mo, day, dayOfWeek } = datesToCheck[di];
+
+                for (let mi = 0; mi < targetMembers.length; mi++) {
+                    const m = targetMembers[mi];
+                    if (m.doj && dateStr < m.doj) continue;
+                    if (m.doe && dateStr > m.doe) continue;
+
+                    const shiftObj = shiftMap.get(m.shift);
+                    if (!shiftObj || !shiftObj.inTime || !shiftObj.outTime) continue;
+
+                    const [outH, outM] = shiftObj.outTime.split(':').map(Number);
+                    const isNightShift = shiftObj.inTime > shiftObj.outTime;
+
+                    let shiftEndMs = Date.UTC(y, mo - 1, day, outH, outM);
+                    if (isNightShift) shiftEndMs += 86400000;
+                    if (nowISTMs < shiftEndMs + TWELVE_HOURS_MS) continue;
+
+                    const currentStatus = this.attendanceData[dateStr]?.[m.id];
+                    if (exemptStatuses.has(currentStatus)) continue;
+
+                    const isHoliday = this.holidayList.some(
+                        h => h.date === dateStr && (h.dept === 'All' || h.dept === m.dept)
+                    );
+                    if (isHoliday) continue;
+
+                    const hasApprovedLeave = approvedLeaves.some(
+                        l => l.empId === m.id && l.startDate <= dateStr && l.endDate >= dateStr
+                    );
+                    if (hasApprovedLeave) continue;
+
+                    const log = this.punchLogs[dateStr]?.[m.id];
+                    const isMissingOut = Boolean(log?.in && !log?.out);
+                    const isMissingIn = !log?.in && dayOfWeek !== 0 && dayOfWeek !== 6;
+
+                    if (isMissingOut || isMissingIn) {
+                        if (!this.attendanceData[dateStr]) this.attendanceData[dateStr] = {};
+                        this.attendanceData[dateStr][m.id] = 'lop';
+                        bulkRecords.push({ date: dateStr, member_id: m.id, status: 'lop' });
+                    }
+                }
+            }
+
+            if (bulkRecords.length > 0) {
+                this.attendanceData = { ...this.attendanceData };
+                invalidateMemo();
                 this.bulkUpsertAttCloud(bulkRecords);
             }
         },
@@ -1928,25 +2266,26 @@ get offenderAlerts() {
             if (!this.newHoliday.name || !this.newHoliday.date) return this.showNote("Invalid Details", "error");
             const h = { ...this.newHoliday, id: generateSecureId() };
             this.holidayList.push(h);
-            this.upsertHolidayCloud(h); 
+            this.holidayList = [...this.holidayList];
+            this.upsertHolidayCloud(h);
+            invalidateMemo();
             this.newHoliday = { name: '', date: '', dept: 'All' };
             this.showNote("Holiday Processed Successfully");
         },
 
         async removeHoliday(id) {
             this.holidayList = this.holidayList.filter(h => h.id !== id);
-            try { await this.supabase.from('holidays').delete().eq('id', id); } catch(e){}
+            invalidateMemo();
+            try { await this.supabase.from('holidays').delete().eq('id', id); } catch (e) {}
         },
 
         getCurrentTimeIST() {
-            return new Intl.DateTimeFormat('en-US', { 
-                timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true 
-            }).format(getNow());
+            return fmtISTTimeShort.format(getNow());
         },
         formatTimeDisplay(time24) {
             if (!time24) return '--:--';
             const [h, m] = time24.split(':');
-            let hNum = parseInt(h, 10);
+            const hNum = parseInt(h, 10);
             const ampm = hNum >= 12 ? 'PM' : 'AM';
             return `${(hNum % 12 || 12).toString().padStart(2, '0')}:${m} ${ampm}`;
         },
@@ -1957,12 +2296,12 @@ get offenderAlerts() {
             const shiftName = this.userSession.shift || '';
             const shiftObj = this.shifts.find(s => s.name === shiftName) || {};
             const currentHourIST = parseInt(getISTTime24().split(':')[0], 10);
-            let isNightShift = shiftObj.inTime && shiftObj.outTime ? (shiftObj.inTime > shiftObj.outTime) : shiftName.toLowerCase().includes('night');
-            
+            const isNightShift = shiftObj.inTime && shiftObj.outTime ? (shiftObj.inTime > shiftObj.outTime) : shiftName.toLowerCase().includes('night');
+
             if (isNightShift && currentHourIST < 14) {
                 const y = getISTDateObject(); y.setDate(y.getDate() - 1); return getISTString(y);
             } else if (!isNightShift && currentHourIST < 5) {
-                const y = getISTDateObject(); y.setDate(y.getDate() - 1); 
+                const y = getISTDateObject(); y.setDate(y.getDate() - 1);
                 if (this.punchLogs[getISTString(y)]?.[this.userSession.id]?.in && !this.punchLogs[getISTString(y)]?.[this.userSession.id]?.out) return getISTString(y);
             }
             return getISTString();
@@ -1970,29 +2309,29 @@ get offenderAlerts() {
 
         resetIdleTimer() {
             if (this.idleInterval) clearInterval(this.idleInterval);
-            
+
             const monitorAdmin = this.isAdminAuthenticated;
             const monitorUser = this.userSession && !this.userSession.captchaEnabled && !this.userOnBreak && !this.isManagerOrLead;
 
             if (monitorAdmin || monitorUser) {
                 this.idleSecondsRemaining = this.idleTimeout / 1000;
-                
+
                 this.idleInterval = setInterval(() => {
                     this.idleSecondsRemaining--;
-                    
+
                     if (this.idleSecondsRemaining <= 0) {
                         clearInterval(this.idleInterval);
-                        
-                        if (this.isAdminAuthenticated) { 
-                            this.logoutAdmin(); 
-                            this.showNote("Vault auto-locked due to inactivity", "error"); 
+
+                        if (this.isAdminAuthenticated) {
+                            this.logoutAdmin();
+                            this.showNote("Vault auto-locked due to inactivity", "error");
                         }
                         if (this.userSession && !this.userSession.captchaEnabled && !this.userOnBreak && !this.isManagerOrLead) {
-                            this.logoutUser(); 
+                            this.logoutUser();
                             this.showNote("Session expired due to inactivity", "error");
                         }
                     }
-                }, 1000); 
+                }, 1000);
             } else {
                 this.idleSecondsRemaining = this.idleTimeout / 1000;
             }
@@ -2006,27 +2345,27 @@ get offenderAlerts() {
                 const today = this.getActiveShiftDate();
                 const uid = this.userSession.id;
                 const log = this.punchLogs[today]?.[uid];
-                
+
                 if (log && log.captchas) {
                     const pendings = log.captchas.filter(c => c.status === 'Pending');
                     for (const cap of pendings) {
                         if (this.diffInMins(cap.time, now) >= 2) {
                             cap.status = 'Missed';
                             updated = true;
-                            
+
                             if (this.showCaptchaModal && this.currentCaptchaTime === cap.time) {
                                 this.showCaptchaModal = false;
                                 this.clearCaptchaTimers();
                                 this.currentCaptchaTime = null;
                             }
-                            
+
                             this.supabase.from('captcha_logs')
                                 .update({ status: 'Missed' })
                                 .match({ member_id: uid, log_date: today, check_time: cap.time }).then();
-                                
+
                             if (!this.userOnBreak) {
                                 this.showNote("Verification Missed (Timeout). Tool Locked.", "error");
-                                this.startBreak(null, 'Penalty'); 
+                                this.startBreak(null, 'Penalty');
                             }
                         }
                     }
@@ -2034,11 +2373,11 @@ get offenderAlerts() {
             }
 
             if (this.isAdminAuthenticated || this.isManagerOrLead) {
-                const checkDate = this.currentDate; 
+                const checkDate = this.currentDate;
                 if (this.punchLogs[checkDate]) {
                     for (const mId in this.punchLogs[checkDate]) {
-                        if (this.userSession && this.userSession.id === mId) continue; 
-                        
+                        if (this.userSession && this.userSession.id === mId) continue;
+
                         const log = this.punchLogs[checkDate][mId];
                         if (log && log.captchas) {
                             const pendings = log.captchas.filter(c => c.status === 'Pending');
@@ -2046,11 +2385,11 @@ get offenderAlerts() {
                                 if (this.diffInMins(cap.time, now) >= 2) {
                                     cap.status = 'Missed';
                                     updated = true;
-                                    
+
                                     this.supabase.from('captcha_logs')
                                         .update({ status: 'Missed' })
                                         .match({ member_id: mId, log_date: checkDate, check_time: cap.time }).then();
-                                    
+
                                     const breaks = log.breaks || [];
                                     if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
                                         breaks.push({ start: now, end: '', type: 'Penalty' });
@@ -2067,19 +2406,20 @@ get offenderAlerts() {
 
             if (updated) {
                 this.punchLogs = { ...this.punchLogs };
+                invalidateMemo();
             }
         },
 
         async startBreak(timeOverride = null, type = null) {
-	    if (isMobileDevice()) {
-        this.showNote("Action Denied: Breaks cannot be initiated from a mobile device.", "error");
-        return;
-  	 }		
+            if (isMobileDevice()) {
+                this.showNote("Action Denied: Breaks cannot be initiated from a mobile device.", "error");
+                return;
+            }
             if (!this.userSession) return;
-            
+
             let breakType = type || this.selectedBreakType;
             if (timeOverride && !breakType) breakType = 'Penalty';
-            
+
             if (!breakType) {
                 this.showNote("Please select a break type first.", "error");
                 return;
@@ -2088,7 +2428,7 @@ get offenderAlerts() {
             this.clearCaptchaTimers();
             const secureTime = await fetchSecureApiTimeIST();
             if (!secureTime) return;
-                    
+
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
             const startTime = (typeof timeOverride === 'string') ? timeOverride : secureTime;
@@ -2096,50 +2436,50 @@ get offenderAlerts() {
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
             if (!this.punchLogs[activeDate][uId].breaks) this.punchLogs[activeDate][uId].breaks = [];
-            
+
             const breaks = this.punchLogs[activeDate][uId].breaks;
-            
+
             if (breaks.length > 0 && !breaks[breaks.length - 1].end) {
                 if (timeOverride) {
                     breaks[breaks.length - 1].start = startTime;
                     try {
                         await this.supabase.from('break_logs').update({ start_time: startTime, type: breakType })
                             .match({ member_id: uId, log_date: activeDate }).is('end_time', null);
-                    } catch(e) {}
+                    } catch (e) {}
                 }
             } else {
-                breaks.push({ start: startTime, end: '', type: breakType }); 
+                breaks.push({ start: startTime, end: '', type: breakType });
                 try {
                     await this.supabase.from('break_logs').insert({
                         member_id: uId, log_date: activeDate, start_time: startTime, type: breakType
                     });
-                } catch(e) { console.error("Break start error", e); }
+                } catch (e) { console.error("Break start error", e); }
             }
-            
+
             this.punchLogs = { ...this.punchLogs };
+            invalidateMemo();
             this.breakPinInput = '';
-            
+
             this.showNote(timeOverride ? "Penalty Break Applied" : `${breakType} Break Started`, timeOverride ? "error" : "success");
-            try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>e); } catch(e) {}
-            setTimeout(() => { const el = document.getElementById('break-pin-input'); if(el) el.focus(); }, 100);
+            try { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e => e); } catch (e) {}
+            setTimeout(() => { const el = document.getElementById('break-pin-input'); if (el) el.focus(); }, 100);
         },
 
         handleBreakUnlock() {
             if (this.breakPinInput === this.userSession.pin) {
                 this.endBreak();
                 this.breakPinInput = '';
-                try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e=>e); } catch(e){}
+                try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => e); } catch (e) {}
             } else {
                 this.showNote("Invalid PIN.", "error"); this.breakPinInput = '';
             }
         },
 
         async endBreak() {
-	    if (isMobileDevice()) {
-        this.showNote("Action Denied: Breaks cannot be ended from a mobile device.", "error");
-        return;
-	    } 		   
-	
+            if (isMobileDevice()) {
+                this.showNote("Action Denied: Breaks cannot be ended from a mobile device.", "error");
+                return;
+            }
             if (!this.userSession) return;
             const secureTime = await fetchSecureApiTimeIST();
             if (!secureTime) return;
@@ -2151,66 +2491,69 @@ get offenderAlerts() {
             if (breaks && breaks.length > 0 && !breaks[breaks.length - 1].end) {
                 breaks[breaks.length - 1].end = endTime;
                 this.punchLogs = { ...this.punchLogs };
-                
+                invalidateMemo();
+
                 try {
                     await this.supabase.from('break_logs')
                         .update({ end_time: endTime })
                         .match({ member_id: uId, log_date: activeDate })
-                        .is('end_time', null); 
-                } catch(e) { console.error("Break end error", e); }
-                
+                        .is('end_time', null);
+                } catch (e) { console.error("Break end error", e); }
+
                 this.showNote("Break Ended", "success");
-                this.selectedBreakType = ''; 
+                this.selectedBreakType = '';
                 this.scheduleNextCaptcha();
             }
         },
 
         diffInMins(t1, t2) {
-            if(!t1 || !t2) return 0;
-            const p = (str) => {
-                const m = str.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                if(!m) return null;
-                let h = parseInt(m[1], 10);
-                if(m[3].toUpperCase() === 'PM' && h < 12) h += 12;
-                if(m[3].toUpperCase() === 'AM' && h === 12) h = 0;
-                const d = new Date(); d.setHours(h, parseInt(m[2], 10), 0, 0); return d;
-            };
-            const d1 = p(t1), d2 = p(t2);
-            if (!d1 || !d2) return 0;
-            let diff = (d2 - d1) / 60000;
-            return Math.floor(diff < 0 ? diff + 1440 : diff);
+            if (!t1 || !t2) return 0;
+            const m1 = parseTimeToMins(t1);
+            const m2 = parseTimeToMins(t2);
+            if (m1 < 0 || m2 < 0) return 0;
+            const diff = m2 - m1;
+            return diff < 0 ? diff + 1440 : diff;
         },
+
         calculateTotalBreakMins(breaks) {
             if (!breaks || !breaks.length) return 0;
             const now = this.getCurrentTimeIST();
-            return breaks.reduce((acc, b) => {
-                if (b.type === 'Split Shift') return acc; // Exclude from regular break penalty
-                return acc + this.diffInMins(b.start, b.end || now);
-            }, 0);
+            let total = 0;
+            for (let i = 0; i < breaks.length; i++) {
+                const b = breaks[i];
+                if (b.type !== 'Split Shift') total += this.diffInMins(b.start, b.end || now);
+            }
+            return total;
         },
 
         calculateSplitShiftMins(breaks) {
             if (!breaks || !breaks.length) return 0;
             const now = this.getCurrentTimeIST();
-            return breaks.reduce((acc, b) => {
-                if (b.type === 'Split Shift') return acc + this.diffInMins(b.start, b.end || now);
-                return acc;
-            }, 0);
+            let total = 0;
+            for (let i = 0; i < breaks.length; i++) {
+                const b = breaks[i];
+                if (b.type === 'Split Shift') total += this.diffInMins(b.start, b.end || now);
+            }
+            return total;
         },
 
         getActiveMinsForLog(log, dateKey) {
             if (!log || !log.in) return 0;
-            const outTime = log.out || (dateKey === getISTString() ? this.getCurrentTimeIST() : null);
+            const outTime = log.out || (dateKey === initialToday ? this.getCurrentTimeIST() : null);
             if (!outTime) return 0;
             const gross = this.diffInMins(log.in, outTime);
-            // Exclude ALL breaks (including Split Shift) from Net Active time.
-            const allBreaks = log.breaks ? log.breaks.reduce((acc, b) => acc + this.diffInMins(b.start, b.end || outTime), 0) : 0;
+            let allBreaks = 0;
+            if (log.breaks && log.breaks.length) {
+                for (let i = 0; i < log.breaks.length; i++) {
+                    allBreaks += this.diffInMins(log.breaks[i].start, log.breaks[i].end || outTime);
+                }
+            }
             return Math.max(0, gross - allBreaks);
         },
 
         formatBreakDisplay(mins) {
             if (!mins || mins <= 0) return '0m';
-            return Math.floor(mins/60) > 0 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`;
+            return Math.floor(mins / 60) > 0 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
         },
         formatClockDisplay(mins) {
             if (!mins || mins <= 0) return '00:00';
@@ -2220,237 +2563,321 @@ get offenderAlerts() {
         },
 
         get dashboardStats() {
-            const dates = this.getFilteredDatesByPeriod(this.dashboardPeriod);
-            const totals = {};
-            this.statusOptions.forEach(o => totals[o.id] = 0);
-            dates.forEach(dk => {
-                this.filteredMembers.forEach(m => { if(this.attendanceData[dk]?.[m.id]) totals[this.attendanceData[dk][m.id]]++; });
+            return memoizeFrame('dashboardStats', [
+                this.dashboardPeriod, this.attendanceData, this.filteredMembers
+            ], () => {
+                const dates = this.getFilteredDatesByPeriod(this.dashboardPeriod);
+                const totals = {};
+                this.statusOptions.forEach(o => totals[o.id] = 0);
+                const members = this.filteredMembers;
+                let grandTotal = 0;
+
+                for (let i = 0; i < dates.length; i++) {
+                    const dayMap = this.attendanceData[dates[i]];
+                    if (!dayMap) continue;
+                    for (let j = 0; j < members.length; j++) {
+                        const st = dayMap[members[j].id];
+                        if (st) {
+                            totals[st] = (totals[st] || 0) + 1;
+                            grandTotal++;
+                        }
+                    }
+                }
+                return { totals, grandTotal };
             });
-            return { totals, grandTotal: Object.values(totals).reduce((a, b) => a + b, 0) };
         },
 
-get individualStats() {
+        get userPatterns() {
+            return memoizeFrame('userPatterns', [
+                this.dashboardPeriod, this.attendanceData, this.punchLogs, this.filteredMembers
+            ], () => {
+                const todayStr = getISTString();
+                const ist = getISTDateObject();
+                const curY = ist.getFullYear();
+                const curM = ist.getMonth() + 1;
+                const curD = ist.getDate();
+
+                const isInPeriod = (d) => {
+                    const [y, m, day] = d.split('-').map(Number);
+                    if (this.dashboardPeriod === 'day') return y === curY && m === curM && day === curD;
+                    if (this.dashboardPeriod === 'month') return y === curY && m === curM;
+                    return y === curY;
+                };
+
+                const dates = Array.from(new Set([
+                    ...this.getFilteredDatesByPeriod(this.dashboardPeriod),
+                    ...Object.keys(this.punchLogs).filter(isInPeriod)
+                ]));
+
+                return this.filteredMembers.map(m => {
+                    let totalActiveMins = 0;
+                    let totalBreakMins = 0;
+                    let loggedDays = 0;
+                    let breakExceeds = 0;
+                    let leaves = 0;
+
+                    for (let i = 0; i < dates.length; i++) {
+                        const dk = dates[i];
+                        const st = this.attendanceData[dk]?.[m.id];
+                        const log = this.punchLogs[dk]?.[m.id];
+
+                        if (st === 'a' || st === 'lop') leaves += 1;
+                        else if (st === 'h' || st === 'loph') leaves += 0.5;
+
+                        if (log && log.in) {
+                            const brkMins = this.calculateTotalBreakMins(log.breaks);
+                            if (brkMins > 60) breakExceeds++;
+                            if (log.out || dk === todayStr) {
+                                totalActiveMins += this.getActiveMinsForLog(log, dk);
+                                totalBreakMins += brkMins;
+                                loggedDays++;
+                            }
+                        }
+                    }
+
+                    const avgNetMins = loggedDays > 0 ? Math.round(totalActiveMins / loggedDays) : 0;
+                    const avgBreakMins = loggedDays > 0 ? Math.round(totalBreakMins / loggedDays) : 0;
+                    const totalFlags = breakExceeds + Math.ceil(leaves);
+
+                    return {
+                        id: m.id,
+                        empId: m.empId,
+                        name: m.name,
+                        dept: m.dept || 'General',
+                        shift: m.shift || 'Standard',
+                        avgNetMins,
+                        avgBreakMins,
+                        loggedDays,
+                        breakExceeds,
+                        leaves,
+                        totalFlags
+                    };
+                })
+                .filter(u => u.loggedDays > 0 || u.totalFlags > 0)
+                .sort((a, b) => b.totalFlags - a.totalFlags || b.avgBreakMins - a.avgBreakMins || a.avgNetMins - b.avgNetMins);
+            });
+        },
+
+        get individualStats() {
             if (!this.userSession) return null;
-            const user = this.members.find(m => m.id === this.userSession.id) || this.userSession;
-            
-            const curRef = getISTDateObject();
-            const curM = curRef.getUTCMonth() + 1;
-            const curD = curRef.getUTCDate();
+            return memoizeFrame('individualStats', [
+                this.userSession?.id, this.members, this.calYear, this.calMonth,
+                this.shifts, this.attendanceData, this.punchLogs,
+                this.userExceptionHistory, this.holidayList
+            ], () => {
+                const user = this.members.find(m => m.id === this.userSession.id) || this.userSession;
 
-            // Dynamically bind MTD & YTD limits to the selected Calendar Month
-            const calY = this.calYear;
-            const calM = this.calMonth + 1;
-            
-            const id = user.id;
+                const curRef = getISTDateObject();
+                const curM = curRef.getUTCMonth() + 1;
+                const curD = curRef.getUTCDate();
 
-            const stats = { periodTotals: {}, history: [] };
-            this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
+                const calY = this.calYear;
+                const calM = this.calMonth + 1;
+                const id = user.id;
 
-            const userShift = this.shifts.find(s => s.name === user.shift) || { inTime: '09:00', outTime: '18:00' };
-            const totalShiftMins = this.diffInMins(userShift.inTime, userShift.outTime) || 540; 
-            const allowedBreakMins = 60; 
-            const baseTargetMins = totalShiftMins - allowedBreakMins; 
-            
-            const activeDateKey = this.getActiveShiftDate();
+                const statusMap = new Map(this.statusOptions.map(s => [s.id, s]));
+                const stats = { periodTotals: {}, history: [] };
+                this.statusOptions.forEach(opt => stats.periodTotals[opt.id] = 0);
 
-            for (let i = 0; i < 15; i++) {
-                const day = getISTDateObject(); day.setDate(day.getDate() - i);
-                const dk = getISTString(day);
-                const sObj = this.statusOptions.find(s => s.id === this.attendanceData[dk]?.[id]) || { id: '-', label: 'Unrecorded', color: 'text-zinc-400', bg: 'bg-zinc-100/50', display: '-' };
-                stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', {month:'short', day:'numeric', weekday:'short', timeZone: 'UTC'}), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
-            }
+                const userShift = this.shifts.find(s => s.name === user.shift) || { inTime: '09:00', outTime: '18:00' };
+                const totalShiftMins = this.diffInMins(userShift.inTime, userShift.outTime) || 540;
+                const allowedBreakMins = 60;
+                const baseTargetMins = totalShiftMins - allowedBreakMins;
 
-            let mtd = { 
-                p:0, lv:0, prmHrs:0, lop:0, activeMins:0, breakMins:0, 
-                completedDays:0, targetActiveMins:0, targetBreakMins:0
-            };
-            let ytd = { 
-                lv:0, prm:0, co:0, activeMins:0, breakMins:0, 
-                completedDays:0, lop:0
-            };
+                const activeDateKey = this.getActiveShiftDate();
+                const unrecorded = { id: '-', label: 'Unrecorded', color: 'text-zinc-400', bg: 'bg-zinc-100/50', display: '-' };
 
-            const processedDates = new Set();
-
-            // HELPER: Executes Exact Mathematical Sums 
-            const processStatus = (s, dk) => {
-                if (!s) return;
-                const [dy, dm] = dk.split('-').map(Number);
-                
-                // Track dynamic YTD strictly up to the selected Calendar Month
-                if (dy === calY && dm <= calM) {
-                    
-                    // Exact YTD Summation
-                    if (s === 'co') ytd.co += 1;
-                    if (s === 'a') ytd.lv += 1; 
-                    if (s === 'h') ytd.lv += 0.5;
-                    if (s === '1p') ytd.prm += 1; 
-                    if (s === '2p') ytd.prm += 2;
-                    
-                    if (s === 'lop') ytd.lop += 1;
-                    if (s === 'loph') ytd.lop += 0.5;
-                    if (s === 'lop1') ytd.lop += 0.125; 
-                    if (s === 'lop2') ytd.lop += 0.25;
-
-                    // Exact MTD Summation
-                    if (dm === calM) {
-                        if (['p','wfh','1p','2p','co', 'lop1', 'lop2'].includes(s)) mtd.p += 1;
-                        if (s === 'h' || s === 'loph') mtd.p += 0.5;
-                        
-                        if (s === 'h') mtd.lv += 0.5;
-                        if (s === 'a') mtd.lv += 1;
-                        
-                        if (s === '1p') mtd.prmHrs += 1;
-                        if (s === '2p') mtd.prmHrs += 2;
-                        
-                        if (s === 'lop') mtd.lop += 1;
-                        if (s === 'loph') mtd.lop += 0.5;
-                        if (s === 'lop1') mtd.lop += 0.125; 
-                        if (s === 'lop2') mtd.lop += 0.25;  
-                    }
-
-                    // Target Calculations
-                    if (['p', 'wfh', '1p', '2p', 'co', 'h', 'lop1', 'lop2', 'loph'].includes(s)) {
-                        const log = this.punchLogs[dk]?.[id];
-                        const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
-                        
-                        if (!isActiveShift) {
-                            let dailyActiveTarget = baseTargetMins;
-                            if (s === '1p' || s === 'lop1') dailyActiveTarget = (baseTargetMins - 60); 
-                            else if (s === '2p' || s === 'lop2') dailyActiveTarget = (baseTargetMins - 120); 
-                            else if (s === 'h' || s === 'loph') dailyActiveTarget = (baseTargetMins / 2); 
-
-                            let dailyBreakTarget = ['h', 'loph'].includes(s) ? (allowedBreakMins / 2) : allowedBreakMins; 
-
-                            ytd.completedDays++;
-
-                            if (dm === calM) {
-                                mtd.targetActiveMins += dailyActiveTarget;
-                                mtd.targetBreakMins += dailyBreakTarget;
-                                mtd.completedDays++;
-                            }
-                        }
-                    }
+                for (let i = 0; i < 15; i++) {
+                    const day = getISTDateObject(); day.setDate(day.getDate() - i);
+                    const dk = getISTString(day);
+                    const sObj = statusMap.get(this.attendanceData[dk]?.[id]) || unrecorded;
+                    stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' }), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
                 }
-            };
 
-            // 1. Process Live Attendance Data
-            Object.keys(this.attendanceData).forEach(dk => {
-                processedDates.add(dk);
-                processStatus(this.attendanceData[dk][id], dk);
-            });
+                const mtd = {
+                    p: 0, lv: 0, prmHrs: 0, lop: 0, activeMins: 0, breakMins: 0,
+                    completedDays: 0, targetActiveMins: 0, targetBreakMins: 0
+                };
+                const ytd = {
+                    lv: 0, prm: 0, co: 0, activeMins: 0, breakMins: 0,
+                    completedDays: 0, lop: 0
+                };
 
-            // 2. Process Missing Historical Data seamlessly via the Exception Log
-            if (this.userExceptionHistory) {
-                this.userExceptionHistory.forEach(exc => {
-                    // Only process dates that aren't already in attendanceData memory
-                    if (!processedDates.has(exc.date) && exc.status) {
-                        processStatus(exc.status.id, exc.date);
-                    }
-                });
-            }
+                const processedDates = new Set();
 
-            // 3. Process Active and Break Minutes
-            Object.keys(this.punchLogs).forEach(dk => {
-                const log = this.punchLogs[dk]?.[id];
-                if (log && log.in && log.out) {
+                const processStatus = (s, dk) => {
+                    if (!s) return;
                     const [dy, dm] = dk.split('-').map(Number);
-                    if (dy === calY && dm <= calM) {
-                        const isActiveShift = (dk === activeDateKey && !log.out);
-                        if (!isActiveShift) {
-                            const activeMins = this.getActiveMinsForLog(log, dk);
-                            const breakMins = this.calculateTotalBreakMins(log.breaks);
-                            
-                            ytd.activeMins += activeMins;
-                            ytd.breakMins += breakMins;
 
-                            if (dm === calM) {
-                                mtd.activeMins += activeMins;
-                                mtd.breakMins += breakMins;
+                    if (dy === calY && dm <= calM) {
+                        if (s === 'co') ytd.co += 1;
+                        else if (s === 'a') ytd.lv += 1;
+                        else if (s === 'h') ytd.lv += 0.5;
+                        else if (s === '1p') ytd.prm += 1;
+                        else if (s === '2p') ytd.prm += 2;
+                        else if (s === 'lop') ytd.lop += 1;
+                        else if (s === 'loph') ytd.lop += 0.5;
+                        else if (s === 'lop1') ytd.lop += 0.125;
+                        else if (s === 'lop2') ytd.lop += 0.25;
+
+                        if (dm === calM) {
+                            if (s === 'p' || s === 'wfh' || s === '1p' || s === '2p' || s === 'co' || s === 'lop1' || s === 'lop2') mtd.p += 1;
+                            else if (s === 'h' || s === 'loph') mtd.p += 0.5;
+
+                            if (s === 'h') mtd.lv += 0.5;
+                            else if (s === 'a') mtd.lv += 1;
+
+                            if (s === '1p') mtd.prmHrs += 1;
+                            else if (s === '2p') mtd.prmHrs += 2;
+
+                            if (s === 'lop') mtd.lop += 1;
+                            else if (s === 'loph') mtd.lop += 0.5;
+                            else if (s === 'lop1') mtd.lop += 0.125;
+                            else if (s === 'lop2') mtd.lop += 0.25;
+                        }
+
+                        if (s === 'p' || s === 'wfh' || s === '1p' || s === '2p' || s === 'co' || s === 'h' || s === 'lop1' || s === 'lop2' || s === 'loph') {
+                            const log = this.punchLogs[dk]?.[id];
+                            const isActiveShift = (dk === activeDateKey && log && log.in && !log.out);
+
+                            if (!isActiveShift) {
+                                let dailyActiveTarget = baseTargetMins;
+                                if (s === '1p' || s === 'lop1') dailyActiveTarget = (baseTargetMins - 60);
+                                else if (s === '2p' || s === 'lop2') dailyActiveTarget = (baseTargetMins - 120);
+                                else if (s === 'h' || s === 'loph') dailyActiveTarget = (baseTargetMins / 2);
+
+                                const dailyBreakTarget = (s === 'h' || s === 'loph') ? (allowedBreakMins / 2) : allowedBreakMins;
+
+                                ytd.completedDays++;
+
+                                if (dm === calM) {
+                                    mtd.targetActiveMins += dailyActiveTarget;
+                                    mtd.targetBreakMins += dailyBreakTarget;
+                                    mtd.completedDays++;
+                                }
+                            }
+                        }
+                    }
+                };
+
+                const attKeys = Object.keys(this.attendanceData);
+                for (let i = 0; i < attKeys.length; i++) {
+                    const dk = attKeys[i];
+                    processedDates.add(dk);
+                    processStatus(this.attendanceData[dk][id], dk);
+                }
+
+                if (this.userExceptionHistory) {
+                    for (let i = 0; i < this.userExceptionHistory.length; i++) {
+                        const exc = this.userExceptionHistory[i];
+                        if (!processedDates.has(exc.date) && exc.status) {
+                            processStatus(exc.status.id, exc.date);
+                        }
+                    }
+                }
+
+                const punchKeys = Object.keys(this.punchLogs);
+                for (let i = 0; i < punchKeys.length; i++) {
+                    const dk = punchKeys[i];
+                    const log = this.punchLogs[dk]?.[id];
+                    if (log && log.in && log.out) {
+                        const [dy, dm] = dk.split('-').map(Number);
+                        if (dy === calY && dm <= calM) {
+                            const isActiveShift = (dk === activeDateKey && !log.out);
+                            if (!isActiveShift) {
+                                const activeMins = this.getActiveMinsForLog(log, dk);
+                                const breakMins = this.calculateTotalBreakMins(log.breaks);
+
+                                ytd.activeMins += activeMins;
+                                ytd.breakMins += breakMins;
+
+                                if (dm === calM) {
+                                    mtd.activeMins += activeMins;
+                                    mtd.breakMins += breakMins;
+                                }
                             }
                         }
                     }
                 }
-            });
 
-            let monthsActiveThisYear = calM;
-            if (user.doj) {
-                const dojParts = user.doj.split('-');
-                if (dojParts.length === 3) {
-                    const dojY = parseInt(dojParts[0], 10);
-                    const dojM = parseInt(dojParts[1], 10);
-                    if (dojY === calY) {
-                        monthsActiveThisYear = Math.max(1, calM - dojM + 1);
-                    } else if (dojY > calY) {
-                        monthsActiveThisYear = 0;
+                let monthsActiveThisYear = calM;
+                if (user.doj) {
+                    const dojParts = user.doj.split('-');
+                    if (dojParts.length === 3) {
+                        const dojY = parseInt(dojParts[0], 10);
+                        const dojM = parseInt(dojParts[1], 10);
+                        if (dojY === calY) monthsActiveThisYear = Math.max(1, calM - dojM + 1);
+                        else if (dojY > calY) monthsActiveThisYear = 0;
                     }
                 }
-            }
 
-            const totalYearlyLeaves = (user.allowedPL || 0) + (user.allowedSL || 0);
-            const limitPerMonth = totalYearlyLeaves / 12;
-            const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
-            const remainingYTD = proratedLimitYTD + ytd.co - ytd.lv;
+                const totalYearlyLeaves = (user.allowedPL || 0) + (user.allowedSL || 0);
+                const limitPerMonth = totalYearlyLeaves / 12;
+                const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
+                const remainingYTD = proratedLimitYTD + ytd.co - ytd.lv;
 
-            const netUsedLeaves = Math.max(0, ytd.lv - ytd.co);
-            let leaveMonthUtilizedNum = limitPerMonth > 0 ? Math.ceil(netUsedLeaves / limitPerMonth) : 0;
-            if (leaveMonthUtilizedNum > 12) leaveMonthUtilizedNum = 12; 
-            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const leaveMonthStr = leaveMonthUtilizedNum > 0 ? monthNames[leaveMonthUtilizedNum - 1] : "N/A";
-            const potentialLeaveLOP = Math.max(0, netUsedLeaves - proratedLimitYTD);
+                const netUsedLeaves = Math.max(0, ytd.lv - ytd.co);
+                let leaveMonthUtilizedNum = limitPerMonth > 0 ? Math.ceil(netUsedLeaves / limitPerMonth) : 0;
+                if (leaveMonthUtilizedNum > 12) leaveMonthUtilizedNum = 12;
+                const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                const leaveMonthStr = leaveMonthUtilizedNum > 0 ? monthNames[leaveMonthUtilizedNum - 1] : "N/A";
+                const potentialLeaveLOP = Math.max(0, netUsedLeaves - proratedLimitYTD);
 
-            const permLimitPerMonth = user.allowedPerm || 0;
-            const proratedPermLimitYTD = permLimitPerMonth * monthsActiveThisYear;
-            let permMonthUtilizedNum = permLimitPerMonth > 0 ? Math.ceil(ytd.prm / permLimitPerMonth) : 0;
-            if (permMonthUtilizedNum > 12) permMonthUtilizedNum = 12;
-            const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum - 1] : "N/A";
-            const potentialPermLOP = Math.max(0, ytd.prm - proratedPermLimitYTD);
+                const permLimitPerMonth = user.allowedPerm || 0;
+                const proratedPermLimitYTD = permLimitPerMonth * monthsActiveThisYear;
+                let permMonthUtilizedNum = permLimitPerMonth > 0 ? Math.ceil(ytd.prm / permLimitPerMonth) : 0;
+                if (permMonthUtilizedNum > 12) permMonthUtilizedNum = 12;
+                const permMonthStr = permMonthUtilizedNum > 0 ? monthNames[permMonthUtilizedNum - 1] : "N/A";
+                const potentialPermLOP = Math.max(0, ytd.prm - proratedPermLimitYTD);
 
-            return {
-                ...stats,
-                isAnniversary: user.doj ? (user.doj.split('-').map(Number)[1] === curM && user.doj.split('-').map(Number)[2] === curD) : false,
-                isBirthday: user.dob ? (user.dob.split('-').map(Number)[1] === curM && user.dob.split('-').map(Number)[2] === curD) : false,
-                holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
-                metrics: {
-                    presentMTD: mtd.p, 
-                    lvMTD: mtd.lv, 
-                    prmUsedMTD: mtd.prmHrs,
-                    lopMTD: mtd.lop,
-                    
-                    plAllowed: user.allowedPL || 0, 
-                    slAllowed: user.allowedSL || 0, 
-                    coEarned: ytd.co,
-                    monthlyLeaveLimit: Number(limitPerMonth.toFixed(2)),
-                    proratedLeaveLimitYTD: Number(proratedLimitYTD.toFixed(2)),
-                    leaveQuotaYTD: Number(proratedLimitYTD.toFixed(2)),
-                    permQuotaYTD: proratedPermLimitYTD,
-                    
-                    usedLeavesMTD: mtd.lv,
-                    usedLeavesYTD: ytd.lv,
-                    remainingLeavesYTD: Number(remainingYTD.toFixed(2)),
-                    
-                    prmAvailYTD: proratedPermLimitYTD - ytd.prm, 
-                    prmUsedYTD: ytd.prm, 
-                    lopYTD: ytd.lop,
-                    
-                    leaveMonthUtilized: leaveMonthStr,
-                    leaveLOPWarning: Number(potentialLeaveLOP.toFixed(2)),
-                    permMonthUtilized: permMonthStr,
-                    permLOPWarning: potentialPermLOP,    
-                    
-                    targetActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.targetActiveMins / mtd.completedDays) : baseTargetMins,
-                    targetBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.targetBreakMins / mtd.completedDays) : allowedBreakMins,
-                    
-                    avgActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.activeMins / mtd.completedDays) : 0,
-                    avgBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.breakMins / mtd.completedDays) : 0,
-                    
-                    avgActiveYTD: ytd.completedDays > 0 ? Math.round(ytd.activeMins / ytd.completedDays) : 0,
-                    avgBreakYTD: ytd.completedDays > 0 ? Math.round(ytd.breakMins / ytd.completedDays) : 0
-                }
-            };
+                return {
+                    ...stats,
+                    isAnniversary: user.doj ? (user.doj.split('-').map(Number)[1] === curM && user.doj.split('-').map(Number)[2] === curD) : false,
+                    isBirthday: user.dob ? (user.dob.split('-').map(Number)[1] === curM && user.dob.split('-').map(Number)[2] === curD) : false,
+                    holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
+                    metrics: {
+                        presentMTD: mtd.p,
+                        lvMTD: mtd.lv,
+                        prmUsedMTD: mtd.prmHrs,
+                        lopMTD: mtd.lop,
+
+                        plAllowed: user.allowedPL || 0,
+                        slAllowed: user.allowedSL || 0,
+                        coEarned: ytd.co,
+                        monthlyLeaveLimit: Number(limitPerMonth.toFixed(2)),
+                        proratedLeaveLimitYTD: Number(proratedLimitYTD.toFixed(2)),
+                        leaveQuotaYTD: Number(proratedLimitYTD.toFixed(2)),
+                        permQuotaYTD: proratedPermLimitYTD,
+
+                        usedLeavesMTD: mtd.lv,
+                        usedLeavesYTD: ytd.lv,
+                        remainingLeavesYTD: Number(remainingYTD.toFixed(2)),
+
+                        prmAvailYTD: proratedPermLimitYTD - ytd.prm,
+                        prmUsedYTD: ytd.prm,
+                        lopYTD: ytd.lop,
+
+                        leaveMonthUtilized: leaveMonthStr,
+                        leaveLOPWarning: Number(potentialLeaveLOP.toFixed(2)),
+                        permMonthUtilized: permMonthStr,
+                        permLOPWarning: potentialPermLOP,
+
+                        targetActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.targetActiveMins / mtd.completedDays) : baseTargetMins,
+                        targetBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.targetBreakMins / mtd.completedDays) : allowedBreakMins,
+
+                        avgActiveMTD: mtd.completedDays > 0 ? Math.round(mtd.activeMins / mtd.completedDays) : 0,
+                        avgBreakMTD: mtd.completedDays > 0 ? Math.round(mtd.breakMins / mtd.completedDays) : 0,
+
+                        avgActiveYTD: ytd.completedDays > 0 ? Math.round(ytd.activeMins / ytd.completedDays) : 0,
+                        avgBreakYTD: ytd.completedDays > 0 ? Math.round(ytd.breakMins / ytd.completedDays) : 0
+                    }
+                };
+            });
         },
+
         getAdherenceTier() {
             if (!this.individualStats?.metrics) return 'Silver Tier';
-            
+
             const m = this.individualStats.metrics;
             const targetMins = m.targetActiveMTD || 480;
             const activePercent = ((m.avgActiveMTD || 0) / Math.max(1, targetMins)) * 100;
@@ -2470,140 +2897,155 @@ get individualStats() {
         },
 
         get rangeSummaryData() {
-            const sDate = this.summaryStartDate, eDate = this.summaryEndDate;
-            const endY = eDate ? parseInt(eDate.split('-')[0]) : getISTDateObject().getFullYear();
-            const endM = eDate ? parseInt(eDate.split('-')[1]) : (getISTDateObject().getMonth() + 1);
+            return memoizeFrame('rangeSummaryData', [
+                this.summaryStartDate, this.summaryEndDate, this.filteredMembers,
+                this.attendanceData, this.punchLogs, this.ytdStats
+            ], () => {
+                const sDate = this.summaryStartDate, eDate = this.summaryEndDate;
+                const endY = eDate ? parseInt(eDate.split('-')[0], 10) : getISTDateObject().getFullYear();
+                const endM = eDate ? parseInt(eDate.split('-')[1], 10) : (getISTDateObject().getMonth() + 1);
 
-            return this.filteredMembers.map(m => {
-                let d = { presentMTD:0, absentMTD:0, halfMTD:0, wfhMTD:0, coMTD:0, prmHrsMTD:0, lopMTD:0, holidayMTD:0, lvYTD:0, prmYTDUsed:0, availLv:0, availPrm:0, avgActiveMTD:0, avgBreakMTD:0, avgActiveYTD:0, avgBreakYTD:0 };
-                let ytd={ act:0, brk:0, days:0 }, mtd={ act:0, brk:0, days:0 };
-
-                Object.keys(this.attendanceData).forEach(dk => {
-    const s = this.attendanceData[dk]?.[m.id];
-    if (!s) return;
-    if (dk >= sDate && dk <= eDate) {
-        if (s === 'p' || s === 'wfh') d.presentMTD += 1;
-        if (s === 'a') d.absentMTD += 1;
-        if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
-        if (s === 'wfh') d.wfhMTD += 1;
-        if (s === 'co') d.coMTD += 1;
-        
-        if (s === '1p') { d.presentMTD += 1; d.prmHrsMTD += 1; }
-        if (s === '2p') { d.presentMTD += 1; d.prmHrsMTD += 2; }
-        
-        if (s === 'lop') d.lopMTD += 1; 
-        // ADD THESE LINES:
-        if (s === 'loph') { d.presentMTD += 0.5; d.lopMTD += 0.5; }
-        if (s === 'lop1') { d.presentMTD += 1; d.lopMTD += 0.125; }
-        if (s === 'lop2') { d.presentMTD += 1; d.lopMTD += 0.25; }
-        if (s === 'fh') d.holidayMTD += 1;
-    }
-});
-
-                Object.keys(this.punchLogs).forEach(dk => {
-                    const log = this.punchLogs[dk]?.[m.id];
-                    if (!log || !log.in) return;
-                    const [y, mm] = dk.split('-').map(Number);
-                    if (y === endY && dk <= eDate) {
-                        ytd.act += this.getActiveMinsForLog(log, dk); ytd.brk += this.calculateTotalBreakMins(log.breaks); ytd.days++;
-                        if (mm === endM) { mtd.act += this.getActiveMinsForLog(log, dk); mtd.brk += this.calculateTotalBreakMins(log.breaks); mtd.days++; }
-                    }
+                const attDatesInRange = Object.keys(this.attendanceData).filter(dk => dk >= sDate && dk <= eDate);
+                const punchDatesInYear = Object.keys(this.punchLogs).filter(dk => {
+                    const y = parseInt(dk.split('-')[0], 10);
+                    return y === endY && dk <= eDate;
                 });
 
-                const dbYTD = this.ytdStats[m.id] || { leaves: 0, compOffs: 0, permHours: 0 };
-                d.lvYTD = dbYTD.leaves;
-                d.prmYTDUsed = dbYTD.permHours;
+                return this.filteredMembers.map(m => {
+                    const d = {
+                        presentMTD: 0, absentMTD: 0, halfMTD: 0, wfhMTD: 0, coMTD: 0,
+                        prmHrsMTD: 0, lopMTD: 0, holidayMTD: 0, lvYTD: 0, prmYTDUsed: 0,
+                        availLv: 0, availPrm: 0, avgActiveMTD: 0, avgBreakMTD: 0, avgActiveYTD: 0, avgBreakYTD: 0
+                    };
+                    const ytd = { act: 0, brk: 0, days: 0 };
+                    const mtd = { act: 0, brk: 0, days: 0 };
 
-                let monthsActiveThisYear = endM;
-                if (m.doj) {
-                    const dojParts = m.doj.split('-');
-                    if (dojParts.length === 3) {
-                        const dojY = parseInt(dojParts[0], 10);
-                        const dojM = parseInt(dojParts[1], 10);
-                        if (dojY === endY) {
-                            monthsActiveThisYear = Math.max(1, endM - dojM + 1);
-                        } else if (dojY > endY) {
-                            monthsActiveThisYear = 0; 
+                    for (let i = 0; i < attDatesInRange.length; i++) {
+                        const s = this.attendanceData[attDatesInRange[i]]?.[m.id];
+                        if (!s) continue;
+                        if (s === 'p') d.presentMTD += 1;
+                        else if (s === 'wfh') { d.presentMTD += 1; d.wfhMTD += 1; }
+                        else if (s === 'a') d.absentMTD += 1;
+                        else if (s === 'h') { d.halfMTD += 1; d.presentMTD += 0.5; }
+                        else if (s === 'co') d.coMTD += 1;
+                        else if (s === '1p') { d.presentMTD += 1; d.prmHrsMTD += 1; }
+                        else if (s === '2p') { d.presentMTD += 1; d.prmHrsMTD += 2; }
+                        else if (s === 'lop') d.lopMTD += 1;
+                        else if (s === 'loph') { d.presentMTD += 0.5; d.lopMTD += 0.5; }
+                        else if (s === 'lop1') { d.presentMTD += 1; d.lopMTD += 0.125; }
+                        else if (s === 'lop2') { d.presentMTD += 1; d.lopMTD += 0.25; }
+                        else if (s === 'fh') d.holidayMTD += 1;
+                    }
+
+                    for (let i = 0; i < punchDatesInYear.length; i++) {
+                        const dk = punchDatesInYear[i];
+                        const log = this.punchLogs[dk]?.[m.id];
+                        if (!log || !log.in) continue;
+                        const mm = parseInt(dk.split('-')[1], 10);
+                        const act = this.getActiveMinsForLog(log, dk);
+                        const brk = this.calculateTotalBreakMins(log.breaks);
+                        ytd.act += act; ytd.brk += brk; ytd.days++;
+                        if (mm === endM) { mtd.act += act; mtd.brk += brk; mtd.days++; }
+                    }
+
+                    const dbYTD = this.ytdStats[m.id] || { leaves: 0, compOffs: 0, permHours: 0 };
+                    d.lvYTD = dbYTD.leaves;
+                    d.prmYTDUsed = dbYTD.permHours;
+
+                    let monthsActiveThisYear = endM;
+                    if (m.doj) {
+                        const dojParts = m.doj.split('-');
+                        if (dojParts.length === 3) {
+                            const dojY = parseInt(dojParts[0], 10);
+                            const dojM = parseInt(dojParts[1], 10);
+                            if (dojY === endY) monthsActiveThisYear = Math.max(1, endM - dojM + 1);
+                            else if (dojY > endY) monthsActiveThisYear = 0;
                         }
                     }
-                }
 
-                const totalYearlyLeaves = (m.allowedPL || 0) + (m.allowedSL || 0);
-                const limitPerMonth = totalYearlyLeaves / 12;
-                const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
-                const remainingYTD = proratedLimitYTD + dbYTD.compOffs - dbYTD.leaves;
-                
-                d.availLv = Number(remainingYTD.toFixed(2));
-                d.availPrm = ((m.allowedPerm || 0) * monthsActiveThisYear) - dbYTD.permHours;
+                    const totalYearlyLeaves = (m.allowedPL || 0) + (m.allowedSL || 0);
+                    const limitPerMonth = totalYearlyLeaves / 12;
+                    const proratedLimitYTD = limitPerMonth * monthsActiveThisYear;
+                    const remainingYTD = proratedLimitYTD + dbYTD.compOffs - dbYTD.leaves;
 
-                d.avgActiveMTD = mtd.days ? Math.floor(mtd.act/mtd.days) : 0; 
-                d.avgBreakMTD = mtd.days ? Math.floor(mtd.brk/mtd.days) : 0;
-                d.avgActiveYTD = ytd.days ? Math.floor(ytd.act/ytd.days) : 0; 
-                d.avgBreakYTD = ytd.days ? Math.floor(ytd.brk/ytd.days) : 0;
-                
-                return { ...m, ...d };
+                    d.availLv = Number(remainingYTD.toFixed(2));
+                    d.availPrm = ((m.allowedPerm || 0) * monthsActiveThisYear) - dbYTD.permHours;
+
+                    d.avgActiveMTD = mtd.days ? Math.floor(mtd.act / mtd.days) : 0;
+                    d.avgBreakMTD = mtd.days ? Math.floor(mtd.brk / mtd.days) : 0;
+                    d.avgActiveYTD = ytd.days ? Math.floor(ytd.act / ytd.days) : 0;
+                    d.avgBreakYTD = ytd.days ? Math.floor(ytd.brk / ytd.days) : 0;
+
+                    return { ...m, ...d };
+                });
             });
         },
 
         getFilteredDatesByPeriod(p) {
             const ist = getISTDateObject();
+            const curY = ist.getFullYear(), curM = ist.getMonth() + 1, curD = ist.getDate();
             return Object.keys(this.attendanceData).filter(d => {
                 const [y, m, day] = d.split('-').map(Number);
-                if (p === 'day') return y === ist.getFullYear() && m === (ist.getMonth() + 1) && day === ist.getDate();
-                if (p === 'month') return y === ist.getFullYear() && m === (ist.getMonth() + 1);
-                return y === ist.getFullYear();
+                if (p === 'day') return y === curY && m === curM && day === curD;
+                if (p === 'month') return y === curY && m === curM;
+                return y === curY;
             });
         },
 
-get availablePersonnelOptions() { 
-    const today = getISTString();
-    const activeOnly = this.members.filter(m => !m.doe || m.doe >= today);
-    let scoped = activeOnly;
-    
-    // Isolate if standard manager
-    if (this.isManagerOrLead && !this.isSuperUser) {
-        scoped = activeOnly.filter(m => m.dept === this.userSession?.dept);
-    }
-    
-    return (this.filterDept && this.isSuperUser) ? scoped.filter(m => m.dept === this.filterDept) : scoped; 
-},
+        get availablePersonnelOptions() {
+            const today = getISTString();
+            const activeOnly = this.members.filter(m => !m.doe || m.doe >= today);
+            let scoped = activeOnly;
 
-get filteredMembers() { 
-    return this.members.filter(m => {
-        if (this.filterName && m.id !== this.filterName) return false;
-        
-        // Enforce department lockdown for standard managers
-        if (this.isManagerOrLead && !this.isSuperUser) {
-            if (m.dept !== this.userSession?.dept) return false;
-        } else {
-            if (this.filterDept && m.dept !== this.filterDept) return false;
-        }
-        
-        if (this.view === 'record' || this.view === 'dashboard') {
-            if (m.doe && m.doe < this.currentDate) return false;
-        }
-        
-        if (this.view === 'summary') {
-            if (m.doe && m.doe < this.summaryStartDate) return false;
-        }
-        
-        return true;
-    }); 
-},
+            if (this.isManagerOrLead && !this.isSuperUser) {
+                scoped = activeOnly.filter(m => m.dept === this.userSession?.dept);
+            }
+
+            return (this.filterDept && this.isSuperUser) ? scoped.filter(m => m.dept === this.filterDept) : scoped;
+        },
+
+        get filteredMembers() {
+            return memoizeFrame('filteredMembers', [
+                this.members, this.filterName, this.filterDept, this.view,
+                this.currentDate, this.summaryStartDate,
+                this.isManagerOrLead, this.isSuperUser, this.userSession?.dept
+            ], () => {
+                return this.members.filter(m => {
+                    if (this.filterName && m.id !== this.filterName) return false;
+
+                    if (this.isManagerOrLead && !this.isSuperUser) {
+                        if (m.dept !== this.userSession?.dept) return false;
+                    } else {
+                        if (this.filterDept && m.dept !== this.filterDept) return false;
+                    }
+
+                    if (this.view === 'record' || this.view === 'dashboard') {
+                        if (m.doe && m.doe < this.currentDate) return false;
+                    }
+
+                    if (this.view === 'summary') {
+                        if (m.doe && m.doe < this.summaryStartDate) return false;
+                    }
+
+                    return true;
+                });
+            });
+        },
 
         handleNameFilterChange() { if (this.filterName) this.filterDept = this.members.find(m => m.id === this.filterName)?.dept; },
 
-        markAttendance(id, s) { 
-            if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {}; 
+        markAttendance(id, s) {
+            if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {};
             this.attendanceData[this.currentDate][id] = s;
-            this.attendanceData = { ...this.attendanceData }; 
-            this.upsertAttCloud(this.currentDate, id, s); 
+            this.attendanceData = { ...this.attendanceData };
+            invalidateMemo();
+            this.upsertAttCloud(this.currentDate, id, s);
         },
-        
+
         isMarked(id, s) { return this.attendanceData[this.currentDate]?.[id] === s; },
         getTimeInputVal(tStr) {
             if (!tStr || tStr === '--:--') return '';
-            if (/^\d{2}:\d{2}$/.test(tStr)) return tStr; 
+            if (/^\d{2}:\d{2}$/.test(tStr)) return tStr;
             const m = tStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
             if (!m) return '';
             let h = parseInt(m[1], 10);
@@ -2612,64 +3054,61 @@ get filteredMembers() {
             return `${h.toString().padStart(2, '0')}:${m[2]}`;
         },
 
-async commitEditLog() {
-    if (!this.editingLogId) return;
-    const id = this.editingLogId;
-    if (!this.punchLogs[this.currentDate]) this.currentDate = getISTString();
-    if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-    
-    const formatT = (t) => {
-        if(!t) return ''; const [h, m] = t.split(':');
-        return `${(parseInt(h,10)%12||12).toString().padStart(2,'0')}:${m} ${parseInt(h,10)>=12?'PM':'AM'}`;
-    };
-    
-    // Save main punches
-    this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
-    this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
-    
-    // Format the edited break timeline
-    const newBreaks = this.tempPunches.breaks.map(b => ({
-        start: formatT(b.start),
-        end: formatT(b.end),
-        type: b.type || 'Admin Override'
-    }));
-    
-    this.punchLogs[this.currentDate][id].breaks = newBreaks;
-    this.punchLogs = { ...this.punchLogs };
-    
-    // 1. Save to the main punch logs table
-    this.upsertPunchCloud(this.currentDate, id); 
+        async commitEditLog() {
+            if (!this.editingLogId) return;
+            const id = this.editingLogId;
+            if (!this.punchLogs[this.currentDate]) this.currentDate = getISTString();
+            if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
-    // 2. NEW: Overwrite the dedicated break_logs table to prevent the rebounce
-    try {
-        // Wipe the old break records for this specific user on this specific day
-        await this.supabase.from('break_logs')
-            .delete()
-            .match({ member_id: id, log_date: this.currentDate });
+            const formatT = (t) => {
+                if (!t) return '';
+                const [h, m] = t.split(':');
+                return `${(parseInt(h, 10) % 12 || 12).toString().padStart(2, '0')}:${m} ${parseInt(h, 10) >= 12 ? 'PM' : 'AM'}`;
+            };
 
-        // Insert the newly edited break records
-        if (newBreaks.length > 0) {
-            const breakInserts = newBreaks.map(b => ({
-                member_id: id,
-                log_date: this.currentDate,
-                start_time: b.start,
-                end_time: b.end || null,
-                type: b.type
+            this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
+            this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
+
+            const newBreaks = this.tempPunches.breaks.map(b => ({
+                start: formatT(b.start),
+                end: formatT(b.end),
+                type: b.type || 'Admin Override'
             }));
-            await this.supabase.from('break_logs').insert(breakInserts);
-        }
-    } catch (e) {
-        console.error("Failed to update break_logs", e);
-    }
 
-    this.showNote("Punch and Break Timings Saved", "success");
-    this.editingLogId = null;
-},
+            this.punchLogs[this.currentDate][id].breaks = newBreaks;
+            this.punchLogs = { ...this.punchLogs };
+            invalidateMemo();
+
+            this.upsertPunchCloud(this.currentDate, id);
+
+            try {
+                await this.supabase.from('break_logs')
+                    .delete()
+                    .match({ member_id: id, log_date: this.currentDate });
+
+                if (newBreaks.length > 0) {
+                    const breakInserts = newBreaks.map(b => ({
+                        member_id: id,
+                        log_date: this.currentDate,
+                        start_time: b.start,
+                        end_time: b.end || null,
+                        type: b.type
+                    }));
+                    await this.supabase.from('break_logs').insert(breakInserts);
+                }
+            } catch (e) {
+                console.error("Failed to update break_logs", e);
+            }
+
+            this.showNote("Punch and Break Timings Saved", "success");
+            this.editingLogId = null;
+        },
+
         async adminToggleBreak(mId) {
-            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return; 
-        if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
-    if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-           
+            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
+            if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
+
             const breaks = this.punchLogs[this.currentDate][mId].breaks;
             const currentTime = this.getCurrentTimeIST();
 
@@ -2682,216 +3121,202 @@ async commitEditLog() {
                         .is('end_time', null);
                     this.showNote("Break Force-Ended", "success");
                 } else {
-                    breaks.push({ start: currentTime, end: '', type: 'Admin Override' }); 
+                    breaks.push({ start: currentTime, end: '', type: 'Admin Override' });
                     await this.supabase.from('break_logs').insert({
                         member_id: mId, log_date: this.currentDate, start_time: currentTime, type: 'Admin Override'
                     });
                     this.showNote("Break Force-Started", "success");
                 }
                 this.punchLogs = { ...this.punchLogs };
-            } catch(e) { 
-                console.error("Admin break toggle error", e); 
+                invalidateMemo();
+            } catch (e) {
+                console.error("Admin break toggle error", e);
                 this.showNote("Error saving break", "error");
             }
         },
 
-        formatDate(d) { return d ? new Date(d.split('-').map(Number)[0], d.split('-').map(Number)[1] - 1, d.split('-').map(Number)[2]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }) : '...'; },
-        changeDate(n) { const dt = new Date(this.currentDate.split('-').map(Number)[0], this.currentDate.split('-').map(Number)[1] - 1, this.currentDate.split('-').map(Number)[2]); dt.setDate(dt.getDate() + n); this.currentDate = getISTString(dt); },
+        formatDate(d) {
+            if (!d) return '...';
+            const parts = d.split('-').map(Number);
+            return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
+        },
+        changeDate(n) {
+            const parts = this.currentDate.split('-').map(Number);
+            const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+            dt.setDate(dt.getDate() + n);
+            this.currentDate = getISTString(dt);
+        },
         isMarkedPortal(s) { return this.attendanceData[this.getActiveShiftDate()]?.[this.userSession?.id] === s; },
-        
+
         async markPortalAttendance(s) {
             if (!this.userSession) return;
-            
+
             const secureTime = await fetchSecureApiTimeIST();
-            if (!secureTime) return;	
-            
+            if (!secureTime) return;
+
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
             const currentIp = await this.fetchDeviceAndNetworkInfo();
-            
+
             this.checkSecurityFlag(currentIp, this.userSession.name);
 
             if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
             this.attendanceData[activeDate][uId] = s;
-            
+
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            
+
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                 this.punchLogs[activeDate][uId] = { in: secureTime, out: '', in_ip: currentIp, out_ip: '', breaks: [], captchas: [] };
             }
-            
+
             this.attendanceData = { ...this.attendanceData };
             this.punchLogs = { ...this.punchLogs };
-            
-            this.upsertAttCloud(activeDate, uId, s); 
-            this.upsertPunchCloud(activeDate, uId); 
+            invalidateMemo();
+
+            this.upsertAttCloud(activeDate, uId, s);
+            this.upsertPunchCloud(activeDate, uId);
             this.showNote("Shift Record Updated", "success");
             this.scheduleNextCaptcha();
         },
-        
-        initiateLogout() { 
-    // 1. Block mobile devices immediately
-    if (isMobileDevice()) {
-        this.showNote("Action Denied: You cannot punch out using a mobile device.", "error");
-        return;
-    }
-    
-    if (!this.userSession) return; 
 
-    // 2. Compute Active Time & Check for Approved Leaves
-    const activeMins = this.liveActiveMins; 
-    const activeDate = this.getActiveShiftDate();
-    const uId = this.userSession.id;
-    
-    // Find the specific active leave rather than just checking if ANY leave exists
-    const activeLeave = this.leaveRequests.find(l => 
-        l.empId === uId && 
-        l.status === 'approved' && 
-        l.startDate <= activeDate && 
-        l.endDate >= activeDate
-    );
+        initiateLogout() {
+            if (isMobileDevice()) {
+                this.showNote("Action Denied: You cannot punch out using a mobile device.", "error");
+                return;
+            }
+            if (!this.userSession) return;
 
-    // Calculate dynamic threshold based on the approved request type
-    let requiredMins = 480;
-    if (activeLeave) {
-        if (['a', 'co', 'fh'].includes(activeLeave.type)) requiredMins = 0; // Full day off
-        else if (activeLeave.type === 'h') requiredMins = 240; // Half Day (480 / 2)
-        else if (activeLeave.type === '1p') requiredMins = 420; // 1 HR Perm (480 - 60)
-        else if (activeLeave.type === '2p') requiredMins = 360; // 2 HR Perm (480 - 120)
-    }
+            const activeMins = this.liveActiveMins;
+            const activeDate = this.getActiveShiftDate();
+            const uId = this.userSession.id;
 
-    // 3. Set LOP Warning Message based on thresholds IF requirement isn't met
-    this.logoutPenaltyWarning = null; 
-    if (activeMins < requiredMins) {
-        if (activeMins < 240) {
-            this.logoutPenaltyWarning = "Full Day LOP (Less than 4 hours active)";
-        } else if (activeMins < 360) {
-            this.logoutPenaltyWarning = "Half Day LOP (Between 4 - 5h 59m active)";
-        } else if (activeMins < 420) {
-            this.logoutPenaltyWarning = "2 HR LOP (Between 6 - 6h 59m active)";
-        } else if (activeMins < 480) {
-            this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 59m active)";
-        }
-    }
+            const activeLeave = this.leaveRequests.find(l =>
+                l.empId === uId &&
+                l.status === 'approved' &&
+                l.startDate <= activeDate &&
+                l.endDate >= activeDate
+            );
 
-    this.logoutTimePreview = this.getCurrentTimeIST(); 
-    this.showLogoutModal = true; 
-},
-        
-async confirmLogoutPortal() {
-    if (isMobileDevice()) {
-        this.showLogoutModal = false;
-        this.showNote("Action Denied: Mobile punch-out is strictly prohibited.", "error");
-        return;
-    }
-    this.clearCaptchaTimers();
-    const secureTime = await fetchSecureApiTimeIST();
-    if (!secureTime) {
-        this.showLogoutModal = false; 
-        return; 
-    }
-    const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
-    if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-    if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-    
-    const breaks = this.punchLogs[activeDate][uId].breaks;
-    if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = secureTime;
-    
-    const currentIp = await this.fetchDeviceAndNetworkInfo();
-    this.checkSecurityFlag(currentIp, this.userSession.name);
-    
-    this.punchLogs[activeDate][uId].out = secureTime;
-    this.punchLogs[activeDate][uId].out_ip = currentIp;
-    this.punchLogs = { ...this.punchLogs };
-    
-    await this.upsertPunchCloud(activeDate, uId); 
+            let requiredMins = 480;
+            if (activeLeave) {
+                if (['a', 'co', 'fh'].includes(activeLeave.type)) requiredMins = 0;
+                else if (activeLeave.type === 'h') requiredMins = 240;
+                else if (activeLeave.type === '1p') requiredMins = 420;
+                else if (activeLeave.type === '2p') requiredMins = 360;
+            }
 
-    // --- SILENT LOP DATABASE ENFORCEMENT ---
-    const finalActiveMins = this.getActiveMinsForLog(this.punchLogs[activeDate][uId], activeDate);
-    const activeLeave = this.leaveRequests.find(l => 
-        l.empId === uId && l.status === 'approved' && l.startDate <= activeDate && l.endDate >= activeDate
-    );
+            this.logoutPenaltyWarning = null;
+            if (activeMins < requiredMins) {
+                if (activeMins < 240) {
+                    this.logoutPenaltyWarning = "Full Day LOP (Less than 4 hours active)";
+                } else if (activeMins < 360) {
+                    this.logoutPenaltyWarning = "Half Day LOP (Between 4 - 5h 59m active)";
+                } else if (activeMins < 420) {
+                    this.logoutPenaltyWarning = "2 HR LOP (Between 6 - 6h 59m active)";
+                } else if (activeMins < 480) {
+                    this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 59m active)";
+                }
+            }
 
-// Compute final requirement
-    let requiredMins = 480;
-    if (activeLeave) {
-        if (['a', 'co', 'fh'].includes(activeLeave.type)) requiredMins = 0;
-        else if (activeLeave.type === 'h') requiredMins = 240;
-        else if (activeLeave.type === '1p') requiredMins = 420;
-        else if (activeLeave.type === '2p') requiredMins = 360;
-    }
+            this.logoutTimePreview = this.getCurrentTimeIST();
+            this.showLogoutModal = true;
+        },
 
-    // Apply LOP if the required time was not met
-    if (finalActiveMins < requiredMins) {
-        let penaltyStatus = null;
+        async confirmLogoutPortal() {
+            if (isMobileDevice()) {
+                this.showLogoutModal = false;
+                this.showNote("Action Denied: Mobile punch-out is strictly prohibited.", "error");
+                return;
+            }
+            this.clearCaptchaTimers();
+            const secureTime = await fetchSecureApiTimeIST();
+            if (!secureTime) {
+                this.showLogoutModal = false;
+                return;
+            }
+            const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
+            if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+            if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
-        if (finalActiveMins < 240) penaltyStatus = 'lop';       // < 4 hours
-        else if (finalActiveMins < 360) penaltyStatus = 'loph'; // 4 to 5.59 hours
-        else if (finalActiveMins < 420) penaltyStatus = 'lop2'; // 6 to 6.59 hours
-        else if (finalActiveMins < 480) penaltyStatus = 'lop1'; // 7 to 7.59 hours
+            const breaks = this.punchLogs[activeDate][uId].breaks;
+            if (breaks?.length > 0 && !breaks[breaks.length - 1].end) breaks[breaks.length - 1].end = secureTime;
 
-        if (penaltyStatus) {
-            if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
-            this.attendanceData[activeDate][uId] = penaltyStatus;
-            this.attendanceData = { ...this.attendanceData };
-            this.upsertAttCloud(activeDate, uId, penaltyStatus);
-        }
-    }
+            const currentIp = await this.fetchDeviceAndNetworkInfo();
+            this.checkSecurityFlag(currentIp, this.userSession.name);
 
-    this.showLogoutModal = false; 
-    this.showNote("Shift Logged Out", "success");
-    await this.logoutUser(); 
-},
+            this.punchLogs[activeDate][uId].out = secureTime;
+            this.punchLogs[activeDate][uId].out_ip = currentIp;
+            this.punchLogs = { ...this.punchLogs };
+            invalidateMemo();
 
-toggleEditLog(id) {
-    if (this.editingLogId === id) this.commitEditLog();
-    else { 
-        if (this.editingLogId) this.commitEditLog(); 
-        this.editingLogId = id; 
-        const log = this.punchLogs[this.currentDate]?.[id];
-        
-        this.tempPunches = { 
-            in: this.getTimeInputVal(log?.in), 
-            out: this.getTimeInputVal(log?.out),
-            breaks: log?.breaks ? log.breaks.map(b => ({
-                start: this.getTimeInputVal(b.start),
-                end: this.getTimeInputVal(b.end),
-                type: b.type
-            })) : []
-        }; 
-    }
-},
+            await this.upsertPunchCloud(activeDate, uId);
+
+            const finalActiveMins = this.getActiveMinsForLog(this.punchLogs[activeDate][uId], activeDate);
+            const activeLeave = this.leaveRequests.find(l =>
+                l.empId === uId && l.status === 'approved' && l.startDate <= activeDate && l.endDate >= activeDate
+            );
+
+            let requiredMins = 480;
+            if (activeLeave) {
+                if (['a', 'co', 'fh'].includes(activeLeave.type)) requiredMins = 0;
+                else if (activeLeave.type === 'h') requiredMins = 240;
+                else if (activeLeave.type === '1p') requiredMins = 420;
+                else if (activeLeave.type === '2p') requiredMins = 360;
+            }
+
+            if (finalActiveMins < requiredMins) {
+                let penaltyStatus = null;
+                if (finalActiveMins < 240) penaltyStatus = 'lop';
+                else if (finalActiveMins < 360) penaltyStatus = 'loph';
+                else if (finalActiveMins < 420) penaltyStatus = 'lop2';
+                else if (finalActiveMins < 480) penaltyStatus = 'lop1';
+
+                if (penaltyStatus) {
+                    if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
+                    this.attendanceData[activeDate][uId] = penaltyStatus;
+                    this.attendanceData = { ...this.attendanceData };
+                    invalidateMemo();
+                    this.upsertAttCloud(activeDate, uId, penaltyStatus);
+                }
+            }
+
+            this.showLogoutModal = false;
+            this.showNote("Shift Logged Out", "success");
+            await this.logoutUser();
+        },
+
+        toggleEditLog(id) {
+            if (this.editingLogId === id) this.commitEditLog();
+            else {
+                if (this.editingLogId) this.commitEditLog();
+                this.editingLogId = id;
+                const log = this.punchLogs[this.currentDate]?.[id];
+
+                this.tempPunches = {
+                    in: this.getTimeInputVal(log?.in),
+                    out: this.getTimeInputVal(log?.out),
+                    breaks: log?.breaks ? log.breaks.map(b => ({
+                        start: this.getTimeInputVal(b.start),
+                        end: this.getTimeInputVal(b.end),
+                        type: b.type
+                    })) : []
+                };
+            }
+        },
 
         startEdit(m) { this.isEditing = true; this.newMember = JSON.parse(JSON.stringify(m)); this.isAddingMember = true; },
         resetMemberForm() { this.isAddingMember = false; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
-        
-        handleIdEntry() { 
-            const found = this.members.find(m => m.empId.trim().toUpperCase() === this.loginIdInput.trim().toUpperCase()); 
-            if (found) {
-                const todayStr = getISTString();
-                if (found.doe && found.doe < todayStr) {
-                    this.loginIdInput = '';
-                    return this.showNote("Access Denied: Account Deactivated", "error");
-                }
-                this.tempUser = JSON.parse(JSON.stringify(found));
-                this.loginStep = !found.pin ? 'setup' : 'pin';
-                if ("Notification" in window && Notification.permission === "default") {
-                    Notification.requestPermission().catch(() => {});
-                }
-                setTimeout(() => document.getElementById(this.loginStep === 'pin' ? 'login-pin-input' : 'setup-pin-input')?.focus(), 50);
-            } else this.showNote("Invalid ID", "error"); 
-        },
-        
-        async handlePinVerification() { 
+
+        async handlePinVerification() {
             const uid = this.tempUser.id;
             const empId = this.tempUser.empId.toUpperCase();
-            const ghostEmail = `${empId}@revcentric.local`; 
-            const pinPassword = this.loginPinInput; 
+            const ghostEmail = `${empId}@revcentric.local`;
+            const pinPassword = this.loginPinInput;
 
-            if (this.userLockoutUntil[uid] && Date.now() < this.userLockoutUntil[uid]) { 
-                this.loginPinInput = ''; 
-                return this.showNote(`Account locked. Try again later`, "error"); 
+            if (this.userLockoutUntil[uid] && Date.now() < this.userLockoutUntil[uid]) {
+                this.loginPinInput = '';
+                return this.showNote(`Account locked. Try again later`, "error");
             }
-            
+
             let { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
                 email: ghostEmail,
                 password: pinPassword
@@ -2902,13 +3327,13 @@ toggleEditLog(id) {
                     email: ghostEmail,
                     password: pinPassword
                 });
-                
+
                 if (!signUpError && signUpData.user) {
                     authData = signUpData;
                     authError = null;
                     await this.supabase.from('members').update({ auth_id: authData.user.id }).eq('id', uid);
                 } else if (signUpError && signUpError.message.includes("already registered")) {
-                    authError = signUpError; 
+                    authError = signUpError;
                 }
             }
 
@@ -2916,68 +3341,58 @@ toggleEditLog(id) {
                 this.pinErrorShake = true;
                 setTimeout(() => this.pinErrorShake = false, 500);
 
-                this.userFailedAttempts[uid] = (this.userFailedAttempts[uid] || 0) + 1; 
+                this.userFailedAttempts[uid] = (this.userFailedAttempts[uid] || 0) + 1;
                 this.loginPinInput = '';
-                if (this.userFailedAttempts[uid] >= 3) { 
-                    this.userLockoutUntil[uid] = Date.now() + 30000; 
-                    this.userFailedAttempts[uid] = 0; 
-                    this.showNote("Too many failed attempts. Locked for 30s.", "error"); 
+                if (this.userFailedAttempts[uid] >= 3) {
+                    this.userLockoutUntil[uid] = Date.now() + 30000;
+                    this.userFailedAttempts[uid] = 0;
+                    this.showNote("Too many failed attempts. Locked for 30s.", "error");
                 } else {
-                    this.showNote(`Invalid PIN (${3 - this.userFailedAttempts[uid]} attempts left)`, "error"); 
+                    this.showNote(`Invalid PIN (${3 - this.userFailedAttempts[uid]} attempts left)`, "error");
                 }
                 return;
             }
 
-            this.userFailedAttempts[uid] = 0; 
-            this.userSession = JSON.parse(JSON.stringify(this.tempUser)); 
-            this.userSession.auth_id = authData.user.id; 
+            this.userFailedAttempts[uid] = 0;
+            this.userSession = JSON.parse(JSON.stringify(this.tempUser));
+            this.userSession.auth_id = authData.user.id;
 
-            this.localSessionToken = generateSecureId(); 
+            this.localSessionToken = generateSecureId();
             await this.supabase.from('members')
                 .update({ current_session: this.localSessionToken })
                 .eq('id', uid);
 
             this.setupUserRealtime();
-            await this.syncUserData(true);
+            await Promise.all([
+                this.syncUserData(true),
+                this.fetchExceptionHistory()
+            ]);
 
-            const { data: excData } = await this.supabase
-                .from('member_exceptions_view')
-                .select('date, status')
-                .eq('member_id', this.userSession.id)
-                .order('date', { ascending: false });
-
-            if (excData) {
-                this.userExceptionHistory = excData.map(log => ({
-                    date: log.date,
-                    label: this.formatDate(log.date),
-                    status: this.statusOptions.find(s => s.id === log.status)
-                }));
-            }
-
-            const trapDate = this.getActiveShiftDate(); 
+            const trapDate = this.getActiveShiftDate();
             const todaysCaptchas = this.punchLogs[trapDate]?.[uid]?.captchas || [];
             const pendingCaptchas = todaysCaptchas.filter(c => c.status === 'Pending');
 
             if (pendingCaptchas.length > 0) {
                 this.showNote("Window closed during verification. Penalty applied.", "error");
-                
+
                 let penaltyTime = pendingCaptchas[0].time;
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
                 this.checkSecurityFlag(currentIp, this.userSession.name);
-                
+
                 for (const cap of pendingCaptchas) {
                     cap.status = 'Missed';
                     await this.supabase.from('captcha_logs')
                         .update({ status: 'Missed', ip_address: currentIp })
                         .match({ member_id: uid, log_date: trapDate, check_time: cap.time });
-                    
+
                     if (cap.time < penaltyTime) penaltyTime = cap.time;
                 }
-                this.punchLogs = { ...this.punchLogs }; 
-                
+                this.punchLogs = { ...this.punchLogs };
+                invalidateMemo();
+
                 this.startBreak(null, 'Penalty');
                 this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
-                return; 
+                return;
             }
 
             const reopenLog = this.punchLogs[trapDate]?.[uid];
@@ -2986,15 +3401,16 @@ toggleEditLog(id) {
                 const missedTime = this.getCurrentTimeIST();
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
                 this.checkSecurityFlag(currentIp, this.userSession.name);
-                
+
                 if (!this.punchLogs[trapDate][uid].captchas) this.punchLogs[trapDate][uid].captchas = [];
                 this.punchLogs[trapDate][uid].captchas.push({ time: missedTime, status: 'Missed', ip: currentIp });
                 this.punchLogs = { ...this.punchLogs };
+                invalidateMemo();
                 try {
                     await this.supabase.from('captcha_logs').insert({
                         member_id: uid, log_date: trapDate, check_time: missedTime, status: 'Missed', ip_address: currentIp
                     });
-                } catch(e) { console.error("Session-close captcha log error", e); }
+                } catch (e) { console.error("Session-close captcha log error", e); }
 
                 this.showNote("Session closed during active shift. Break initiated.", "error");
                 this.startBreak(missedTime);
@@ -3003,30 +3419,33 @@ toggleEditLog(id) {
             }
 
             const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
-            if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {}; 
+            if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
             if (!this.attendanceData[activeDate][uId]) {
-                this.attendanceData[activeDate][uId] = 'p'; 
+                this.attendanceData[activeDate][uId] = 'p';
+                this.attendanceData = { ...this.attendanceData };
                 this.upsertAttCloud(activeDate, uId, 'p');
             }
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-            
+
             if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                 const currentIp = await this.fetchDeviceAndNetworkInfo();
                 this.checkSecurityFlag(currentIp, this.userSession.name);
-                
-                this.punchLogs[activeDate][uId] = { 
-                    in: this.getCurrentTimeIST(), out: '', 
-                    in_ip: currentIp, out_ip: '', 
-                    breaks: [], captchas: [] 
+
+                this.punchLogs[activeDate][uId] = {
+                    in: this.getCurrentTimeIST(), out: '',
+                    in_ip: currentIp, out_ip: '',
+                    breaks: [], captchas: []
                 };
+                this.punchLogs = { ...this.punchLogs };
                 this.upsertPunchCloud(activeDate, uId);
             }
-            this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
+            invalidateMemo();
+            this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
             this.scheduleNextCaptcha();
         },
 
-        async handlePinSetup() { 
-            if (this.loginPinInput.length === 6) { 
+        async handlePinSetup() {
+            if (this.loginPinInput.length === 6) {
                 const uid = this.tempUser.id;
                 const empId = this.tempUser.empId.toUpperCase();
                 const ghostEmail = `${empId}@revcentric.local`;
@@ -3038,36 +3457,25 @@ toggleEditLog(id) {
 
                 if (authError) return this.showNote("Auth Error: " + authError.message, "error");
 
-                const idx = this.members.findIndex(m => m.id === this.tempUser.id); 
-                if (idx !== -1) { 
-                    this.members[idx].pin = pinPassword; 
+                const idx = this.members.findIndex(m => m.id === this.tempUser.id);
+                if (idx !== -1) {
+                    this.members[idx].pin = pinPassword;
                     this.members[idx].auth_id = authData.user.id;
-                    this.upsertMemberCloud(this.members[idx]); 
+                    this.upsertMemberCloud(this.members[idx]);
 
-                    this.userSession = JSON.parse(JSON.stringify(this.members[idx])); 
+                    this.userSession = JSON.parse(JSON.stringify(this.members[idx]));
                     this.userSession.auth_id = authData.user.id;
 
-                    this.localSessionToken = generateSecureId(); 
+                    this.localSessionToken = generateSecureId();
                     await this.supabase.from('members')
                         .update({ current_session: this.localSessionToken })
                         .eq('id', uid);
 
                     this.setupUserRealtime();
-                    await this.syncUserData(true); 
-
-                    const { data: excData } = await this.supabase
-                        .from('member_exceptions_view')
-                        .select('date, status')
-                        .eq('member_id', this.userSession.id)
-                        .order('date', { ascending: false });
-
-                    if (excData) {
-                        this.userExceptionHistory = excData.map(log => ({
-                            date: log.date,
-                            label: this.formatDate(log.date),
-                            status: this.statusOptions.find(s => s.id === log.status)
-                        }));
-                    }
+                    await Promise.all([
+                        this.syncUserData(true),
+                        this.fetchExceptionHistory()
+                    ]);
 
                     const setupTrapDate = this.getActiveShiftDate();
                     const setupUid = this.userSession.id;
@@ -3076,89 +3484,96 @@ toggleEditLog(id) {
 
                     if (setupPendingCaptchas.length > 0) {
                         this.showNote("Window closed during verification. Penalty applied.", "error");
-                        
+
                         let penaltyTime = setupPendingCaptchas[0].time;
                         const currentIp = await this.fetchDeviceAndNetworkInfo();
                         this.checkSecurityFlag(currentIp, this.userSession.name);
-                        
+
                         for (const cap of setupPendingCaptchas) {
                             cap.status = 'Missed';
                             await this.supabase.from('captcha_logs')
                                 .update({ status: 'Missed', ip_address: currentIp })
                                 .match({ member_id: setupUid, log_date: setupTrapDate, check_time: cap.time });
-                                
+
                             if (cap.time < penaltyTime) penaltyTime = cap.time;
                         }
                         this.punchLogs = { ...this.punchLogs };
-                        
+                        invalidateMemo();
+
                         this.startBreak(null, 'Penalty');
                         this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
                         return;
                     }
 
                     const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
-                    if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {}; 
-                    this.attendanceData[activeDate][uId] = 'p'; 
+                    if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
+                    this.attendanceData[activeDate][uId] = 'p';
+                    this.attendanceData = { ...this.attendanceData };
                     this.upsertAttCloud(activeDate, uId, 'p');
 
                     if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
                     if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
                         const currentIp = await this.fetchDeviceAndNetworkInfo();
                         this.checkSecurityFlag(currentIp, this.userSession.name);
-                        
-                        this.punchLogs[activeDate][uId] = { 
-                            in: this.getCurrentTimeIST(), out: '', 
-                            in_ip: currentIp, out_ip: '', 
-                            breaks: [], captchas: [] 
+
+                        this.punchLogs[activeDate][uId] = {
+                            in: this.getCurrentTimeIST(), out: '',
+                            in_ip: currentIp, out_ip: '',
+                            breaks: [], captchas: []
                         };
+                        this.punchLogs = { ...this.punchLogs };
                         this.upsertPunchCloud(activeDate, uId);
                     }
-                    this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; 
-                    this.scheduleNextCaptcha(); this.showNote("Security Registered", "success"); 
-                } 
-            } else this.showNote("PIN must be 6 digits", "error"); 
+                    invalidateMemo();
+                    this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
+                    this.scheduleNextCaptcha(); this.showNote("Security Registered", "success");
+                }
+            } else this.showNote("PIN must be 6 digits", "error");
         },
 
-        async logoutUser() { 
-            this.clearCaptchaTimers(); 
-            this.currentCaptchaTime = null; 
-            this.userSession = null; 
-            this.localSessionToken = null; 
-            
+        async logoutUser() {
+            this.clearCaptchaTimers();
+            this.currentCaptchaTime = null;
+            this.userSession = null;
+            this.localSessionToken = null;
+
             if (this.userSyncChannel) {
                 this.supabase.removeChannel(this.userSyncChannel);
                 this.userSyncChannel = null;
-            } 
-            
-            this.loginStep = 'id'; 
-            
+            }
+
+            this.loginStep = 'id';
+
             try {
                 await this.supabase.auth.signOut();
-            } catch(e) {
+            } catch (e) {
                 console.warn("Supabase signout skipped or failed:", e);
             }
 
             localStorage.clear();
             sessionStorage.clear();
-            window.location.reload(); 
+            window.location.reload();
         },
 
         cancelLogin() { this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null; },
-        
+
         async handleIdEntry() {
             if (!this.loginIdInput) return;
             const empIdClean = this.loginIdInput.trim().toUpperCase();
             const matched = this.members.find(m => m.empId.toUpperCase() === empIdClean);
-            
+
             if (matched) {
                 const todayStr = getISTString();
                 if (matched.doe && matched.doe < todayStr) {
                     this.loginIdInput = '';
                     return this.showNote("Access Denied: Account Deactivated", "error");
                 }
-                this.tempUser = matched;
+                this.tempUser = JSON.parse(JSON.stringify(matched));
                 this.loginStep = !matched.pin ? 'setup' : 'pin';
                 this.loginIdInput = '';
+                if ("Notification" in window && Notification.permission === "default") {
+                    Notification.requestPermission().catch(() => {});
+                }
                 setTimeout(() => {
                     const el = document.getElementById(this.loginStep === 'pin' ? 'login-pin-input' : 'setup-pin-input');
                     if (el) el.focus();
@@ -3168,10 +3583,10 @@ toggleEditLog(id) {
             }
         },
 
-        async verifyAdmin() { 
+        async verifyAdmin() {
             if (Date.now() < this.adminLockoutUntil) { this.adminPinInput = ''; return this.showNote(`Vault locked.`, "error"); }
-            if (this.adminPinInput === this.masterPin) { 
-                let { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
+            if (this.adminPinInput === this.masterPin) {
+                const { error: authError } = await this.supabase.auth.signInWithPassword({
                     email: 'master@revcentric.local',
                     password: this.adminPinInput
                 });
@@ -3183,30 +3598,28 @@ toggleEditLog(id) {
                     });
                 }
 
-                this.isAdminAuthenticated = true; 
-                // Set persistent local flags for admin sessions
+                this.isAdminAuthenticated = true;
                 localStorage.setItem('rc_admin_authenticated', 'true');
                 localStorage.setItem('rc_admin_pin', this.adminPinInput);
 
-                this.adminPinInput = ''; 
-                this.adminFailedAttempts = 0; 
+                this.adminPinInput = '';
+                this.adminFailedAttempts = 0;
                 this.resetIdleTimer();
-                this.setupUserRealtime(); 
+                this.setupUserRealtime();
                 this.syncUserData(true);
-            } 
-            else { 
+            } else {
                 this.adminFailedAttempts++; this.adminPinInput = '';
-                if (this.adminFailedAttempts >= 3) { this.adminLockoutUntil = Date.now() + 30000; this.adminFailedAttempts = 0; this.showNote("Vault Lockdown Triggered", "error"); } 
-                else { this.pinErrorShake = true; setTimeout(()=> this.pinErrorShake = false, 500); this.showNote(`Access Denied`, "error"); } 
-            } 
+                if (this.adminFailedAttempts >= 3) { this.adminLockoutUntil = Date.now() + 30000; this.adminFailedAttempts = 0; this.showNote("Vault Lockdown Triggered", "error"); }
+                else { this.pinErrorShake = true; setTimeout(() => this.pinErrorShake = false, 500); this.showNote(`Access Denied`, "error"); }
+            }
         },
 
-        async logoutAdmin() { 
-            this.isAdminAuthenticated = false; 
+        async logoutAdmin() {
+            this.isAdminAuthenticated = false;
             localStorage.removeItem('rc_admin_authenticated');
             localStorage.removeItem('rc_admin_pin');
-            this.view = 'portal'; 
-            if(this.idleInterval) clearInterval(this.idleInterval); 
+            this.view = 'portal';
+            if (this.idleInterval) clearInterval(this.idleInterval);
 
             if (this.userSyncChannel) {
                 this.supabase.removeChannel(this.userSyncChannel);
@@ -3219,16 +3632,18 @@ toggleEditLog(id) {
             if (!this.newMember.firstName || !this.newMember.empId) return this.showNote("Fields missing", "error");
             const fullName = (this.newMember.firstName + ' ' + (this.newMember.lastName || '')).trim();
             const cleanMember = { ...this.newMember, id: this.newMember.empId, name: fullName, allowedPL: Number(this.newMember.allowedPL ?? 0), allowedSL: Number(this.newMember.allowedSL ?? 0), allowedPerm: Number(this.newMember.allowedPerm ?? 0) };
-            
+
             if (this.isEditing) { const idx = this.members.findIndex(m => m.empId === cleanMember.empId); if (idx !== -1) this.members[idx] = cleanMember; }
             else { if (this.members.find(m => m.empId === cleanMember.empId)) return this.showNote("ID exists", "error"); this.members.push(cleanMember); }
-            
-            this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' })); 
 
-            this.upsertMemberCloud(cleanMember); 
+            this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
+            this.members = [...this.members];
+            invalidateMemo();
+
+            this.upsertMemberCloud(cleanMember);
             this.resetMemberForm();
         },
-        
+
         savePoliciesNote() {
             this.policiesNote = String(this.policyNoteDraft || '').trim();
             this.upsertConfigCloud('policies_note', this.policiesNote);
@@ -3248,35 +3663,45 @@ toggleEditLog(id) {
         formatAuditDateTime(value) {
             if (!value) return '—';
             const d = new Date(value);
-            return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString([], { year:'numeric', month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+            return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString([], { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         },
 
         addRole() { if (this.newRoleName.trim() && !this.roles.includes(this.newRoleName.trim())) { this.roles = [...this.roles, this.newRoleName.trim()]; this.upsertConfigCloud('roles', this.roles); this.newRoleName = ''; this.showNote("Role added", "success"); } },
         addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments = [...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
-        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts = [...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
+        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts = [...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); invalidateMemo(); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
 
         removeDept(dept) { this.departments = this.departments.filter(d => d !== dept); this.upsertConfigCloud('departments', this.departments); },
         removeRole(role) { this.roles = this.roles.filter(r => r !== role); this.upsertConfigCloud('roles', this.roles); },
-        removeShift(s) { this.shifts = this.shifts.filter(x => x.name !== s); this.upsertConfigCloud('shifts', this.shifts); },
-        
+        removeShift(s) { this.shifts = this.shifts.filter(x => x.name !== s); invalidateMemo(); this.upsertConfigCloud('shifts', this.shifts); },
+
         showNote(msg, type = 'success') { this.notification = { msg, type }; setTimeout(() => this.notification = null, 4000); },
-        
-        async executeWipe() { 
-            if (this.memberToDelete) { 
-                this.members = this.members.filter(m => m.id !== this.memberToDelete); 
-                try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch(e){} 
-            } 
-            this.showDeleteModal = false; 
+
+        async executeWipe() {
+            if (this.memberToDelete) {
+                this.members = this.members.filter(m => m.id !== this.memberToDelete);
+                invalidateMemo();
+                try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch (e) {}
+            }
+            this.showDeleteModal = false;
             this.memberToDelete = null;
         },
-        
-        exportToPDF() { 
+
+        async exportToPDF() {
+            if (!window.html2pdf) {
+                this.showNote("Loading PDF engine...", "success");
+                try {
+                    await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+                } catch (e) {
+                    return this.showNote("Failed to load PDF engine", "error");
+                }
+            }
             const el = document.getElementById('summary-content'), scrollArea = document.getElementById('audit-table-scroll');
             if (scrollArea) scrollArea.classList.remove('max-h-[600px]', 'overflow-x-auto');
             html2pdf().from(el).set({ margin: 10, filename: `Audit_Report_${this.summaryStartDate}_to_${this.summaryEndDate}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a3', orientation: 'landscape' } }).save().then(() => {
                 if (scrollArea) scrollArea.classList.add('max-h-[600px]', 'overflow-x-auto'); this.showNote("PDF Downloaded", "success");
-            }); 
+            });
         },
+
         async fetchReportDataRange() {
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Please select both dates", "error");
             if (this.summaryStartDate > this.summaryEndDate) return this.showNote("Start date must be before end date", "error");
@@ -3285,10 +3710,10 @@ toggleEditLog(id) {
             this.showNote("Fetching historical report data...", "success");
 
             try {
-                let attQuery = this.supabase.from('attendance').select('*').gte('date', this.summaryStartDate).lte('date', this.summaryEndDate);
-                let punchQuery = this.supabase.from('punch_logs').select('*').gte('date', this.summaryStartDate).lte('date', this.summaryEndDate);
-                let breakQuery = this.supabase.from('break_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
-                let apiQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
+                const attQuery = this.supabase.from('attendance').select('*').gte('date', this.summaryStartDate).lte('date', this.summaryEndDate);
+                const punchQuery = this.supabase.from('punch_logs').select('*').gte('date', this.summaryStartDate).lte('date', this.summaryEndDate);
+                const breakQuery = this.supabase.from('break_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
+                const apiQuery = this.supabase.from('captcha_logs').select('*').gte('log_date', this.summaryStartDate).lte('log_date', this.summaryEndDate);
 
                 const [{ data: aData }, { data: pData }, { data: bData }, { data: capData }] = await Promise.all([
                     attQuery, punchQuery, breakQuery, apiQuery
@@ -3320,7 +3745,7 @@ toggleEditLog(id) {
                     bData.forEach(b => {
                         if (!this.punchLogs[b.log_date]) this.punchLogs[b.log_date] = {};
                         if (!this.punchLogs[b.log_date][b.member_id]) this.punchLogs[b.log_date][b.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
-                        
+
                         const breaks = this.punchLogs[b.log_date][b.member_id].breaks;
                         if (!breaks.find(existing => existing.start === b.start_time)) {
                             breaks.push({ start: b.start_time, end: b.end_time || '', type: b.type || '' });
@@ -3333,7 +3758,7 @@ toggleEditLog(id) {
                         if (!this.punchLogs[c.log_date]) this.punchLogs[c.log_date] = {};
                         if (!this.punchLogs[c.log_date][c.member_id]) this.punchLogs[c.log_date][c.member_id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                         if (!this.punchLogs[c.log_date][c.member_id].captchas) this.punchLogs[c.log_date][c.member_id].captchas = [];
-                        
+
                         const captchas = this.punchLogs[c.log_date][c.member_id].captchas;
                         if (!captchas.find(existing => existing.time === c.check_time)) {
                             captchas.push({ time: c.check_time, status: c.status, ip: c.ip_address || '' });
@@ -3342,7 +3767,8 @@ toggleEditLog(id) {
                 }
 
                 this.punchLogs = { ...this.punchLogs };
-                
+                invalidateMemo();
+
                 if (this.summaryStartDate < this.scopeStartStr) {
                     this.scopeStartStr = this.summaryStartDate;
                 }
@@ -3356,17 +3782,20 @@ toggleEditLog(id) {
             }
         },
 
-        exportDetailedExcel() {
+        async exportDetailedExcel() {
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Invalid date range", "error");
+            if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
+
             const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), detailedRows = [];
+            const statusMap = new Map(this.statusOptions.map(s => [s.id, s.label]));
             this.filteredMembers.forEach(m => {
                 for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
                     const dateStr = getISTString(d), statusId = this.attendanceData[dateStr]?.[m.id] || '-';
                     const punchLog = this.punchLogs[dateStr]?.[m.id] || { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     let notes = '';
-                    if (statusId === 'fh') { const h = this.holidayList.find(hol => hol.date === dateStr && (hol.dept === 'All' || hol.dept === m.dept)); if (h) notes = `Holiday: ${h.name}`; } 
-                    else if (['a', 'h', '1p', '2p', 'lop', 'wfh'].includes(statusId)) { const leave = this.leaveRequests.find(l => l.empId === m.id && l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
-                    detailedRows.push({ 'Date': dateStr, 'Emp ID': m.empId, 'Name': m.name, 'Department': m.dept, 'Shift': m.shift, 'Status': this.statusOptions.find(s => s.id === statusId)?.label || 'Unrecorded', 'Punch In': punchLog.in || '', 'Punch In IP': punchLog.in_ip || '', 'Punch Out': punchLog.out || '', 'Punch Out IP': punchLog.out_ip || '', 'Active (Mins)': this.getActiveMinsForLog(punchLog, dateStr), 'Break (Mins)': this.calculateTotalBreakMins(punchLog.breaks), 'Captcha Fails': punchLog.captchas?.filter(c => c.status !== 'Passed').length || 0, 'Notes': notes });
+                    if (statusId === 'fh') { const h = this.holidayList.find(hol => hol.date === dateStr && (hol.dept === 'All' || hol.dept === m.dept)); if (h) notes = `Holiday: ${h.name}`; }
+                    else if (['a', 'h', '1p', '2p', 'lop', 'wfh'].includes(statusId)) { const leave = this.leaveRequests.find(l => l.empId === m.id &&l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
+                    detailedRows.push({ 'Date': dateStr, 'Emp ID': m.empId, 'Name': m.name, 'Department': m.dept, 'Shift': m.shift, 'Status': statusMap.get(statusId) || 'Unrecorded', 'Punch In': punchLog.in || '', 'Punch In IP': punchLog.in_ip || '', 'Punch Out': punchLog.out || '', 'Punch Out IP': punchLog.out_ip || '', 'Active (Mins)': this.getActiveMinsForLog(punchLog, dateStr), 'Break (Mins)': this.calculateTotalBreakMins(punchLog.breaks), 'Captcha Fails': punchLog.captchas?.filter(c => c.status !== 'Passed').length || 0, 'Notes': notes });
                 }
             });
             if (detailedRows.length === 0) return this.showNote("No data", "error");
@@ -3375,14 +3804,16 @@ toggleEditLog(id) {
             XLSX.utils.book_append_sheet(wb, ws, "Detailed_Logs"); XLSX.writeFile(wb, `Detailed_Log_Report_${this.summaryStartDate}_to_${this.summaryEndDate}.xlsx`); this.showNote("Report Downloaded", "success");
         },
 
-        exportSecurityAuditExcel() {
+        async exportSecurityAuditExcel() {
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Invalid date range", "error");
+            if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
+
             const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), auditRows = [];
-            
+
             const parseNetworkString = (str) => {
                 if (!str) return { ip: 'N/A', geo: 'US/Unknown', os: 'N/A' };
                 let ip = str.split(' | ')[0] || 'N/A';
-                let os = str.split(' | OS: ')[1] || 'N/A';
+                const os = str.split(' | OS: ')[1] || 'N/A';
                 let geo = 'US (Assumed)';
                 if (ip.includes('[🚨 Outside US:')) {
                     const match = ip.match(/\[🚨 Outside US: (.*?)\]/);
@@ -3416,16 +3847,18 @@ toggleEditLog(id) {
             });
 
             if (auditRows.length === 0) return this.showNote("No security data found in range", "error");
-            
+
             const wb = XLSX.utils.book_new(), ws = XLSX.utils.json_to_sheet(auditRows);
             ws['!cols'] = [{wch: 12}, {wch: 10}, {wch: 25}, {wch: 18}, {wch: 12}, {wch: 18}, {wch: 18}, {wch: 25}];
-            XLSX.utils.book_append_sheet(wb, ws, "Security_Audit"); 
-            XLSX.writeFile(wb, `Security_Device_Audit_${this.summaryStartDate}_to_${this.summaryEndDate}.xlsx`); 
+            XLSX.utils.book_append_sheet(wb, ws, "Security_Audit");
+            XLSX.writeFile(wb, `Security_Device_Audit_${this.summaryStartDate}_to_${this.summaryEndDate}.xlsx`);
             this.showNote("Security Audit Downloaded", "success");
         },
 
-        exportRosterExcel() {
+        async exportRosterExcel() {
             if (!this.members || this.members.length === 0) return this.showNote("No personnel data", "error");
+            if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
+
             const detailedRows = this.members.map(m => ({
                 'Emp ID': m.empId,
                 'Full Name': m.name,
@@ -3446,74 +3879,76 @@ toggleEditLog(id) {
             this.showNote("Roster Report Downloaded", "success");
         },
 
-        async executeFullSystemExport() { 
+        async executeFullSystemExport() {
             if (!this.members || this.members.length === 0) return this.showNote("No data available to export", "error");
+            if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
 
             this.showNote("Compiling Database Snapshot...", "success");
-            const wb = XLSX.utils.book_new(); 
+            const wb = XLSX.utils.book_new();
+            const memberNameMap = new Map(this.members.map(m => [m.id, m.name]));
 
-            const personnelRows = this.members.map(m => ({ 
-                'Employee ID': m.empId, 
-                'Full Name': m.name, 
-                'Department': m.dept, 
-                'Role': m.role, 
-                'Shift Type': m.shift, 
-                'PL Allowance': m.allowedPL, 
-                'SL Allowance': m.allowedSL, 
-                'Perm (Hrs/Mo)': m.allowedPerm, 
-                'Date of Joining': m.doj, 
+            const personnelRows = this.members.map(m => ({
+                'Employee ID': m.empId,
+                'Full Name': m.name,
+                'Department': m.dept,
+                'Role': m.role,
+                'Shift Type': m.shift,
+                'PL Allowance': m.allowedPL,
+                'SL Allowance': m.allowedSL,
+                'Perm (Hrs/Mo)': m.allowedPerm,
+                'Date of Joining': m.doj,
                 'Date of Birth': m.dob || 'N/A',
                 'Verification Enforced': m.captchaEnabled ? 'Yes' : 'No'
             }));
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personnelRows), "Personnel_Master"); 
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personnelRows), "Personnel_Master");
 
-            const attendanceRows = []; 
+            const attendanceRows = [];
             Object.keys(this.attendanceData).sort().forEach(date => {
-                Object.keys(this.attendanceData[date]).forEach(empId => { 
+                Object.keys(this.attendanceData[date]).forEach(empId => {
                     if (this.attendanceData[date][empId]) {
-                        attendanceRows.push({ 
-                            'Date': date, 
-                            'Emp ID': empId, 
-                            'Name': this.members.find(m => m.id === empId)?.name || 'Unknown', 
-                            'Status': this.attendanceData[date][empId].toUpperCase() 
-                        }); 
+                        attendanceRows.push({
+                            'Date': date,
+                            'Emp ID': empId,
+                            'Name': memberNameMap.get(empId) || 'Unknown',
+                            'Status': this.attendanceData[date][empId].toUpperCase()
+                        });
                     }
-                }); 
+                });
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceRows), "Attendance_Registry");
 
-            const punchRows = []; 
+            const punchRows = [];
             Object.keys(this.punchLogs).sort().forEach(date => {
-                Object.keys(this.punchLogs[date]).forEach(empId => { 
-                    const log = this.punchLogs[date][empId]; 
+                Object.keys(this.punchLogs[date]).forEach(empId => {
+                    const log = this.punchLogs[date][empId];
                     const captchaFails = (log.captchas || []).filter(c => c.status !== 'Passed').length;
-                    
-                    punchRows.push({ 
-                        'Date': date, 
-                        'Emp ID': empId, 
-                        'Name': this.members.find(m => m.id === empId)?.name || 'Unknown', 
-                        'Punch In': log.in || 'Missing', 
+
+                    punchRows.push({
+                        'Date': date,
+                        'Emp ID': empId,
+                        'Name': memberNameMap.get(empId) || 'Unknown',
+                        'Punch In': log.in || 'Missing',
                         'Punch In IP': log.in_ip || 'N/A',
-                        'Punch Out': log.out || 'Missing', 
+                        'Punch Out': log.out || 'Missing',
                         'Punch Out IP': log.out_ip || 'N/A',
-                        'Active (Mins)': this.getActiveMinsForLog(log, date), 
+                        'Active (Mins)': this.getActiveMinsForLog(log, date),
                         'Break (Mins)': this.calculateTotalBreakMins(log.breaks),
                         'Failed Verifications': captchaFails
-                    }); 
-                }); 
+                    });
+                });
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(punchRows), "Punch_and_Break_Logs");
 
-            const leaveRows = this.leaveRequests.map(l => ({ 
-                'Request ID': l.id, 
-                'Emp ID': l.empId, 
-                'Name': l.name, 
-                'Leave Type': l.type.toUpperCase(), 
-                'Start Date': l.startDate, 
-                'End Date': l.endDate, 
+            const leaveRows = this.leaveRequests.map(l => ({
+                'Request ID': l.id,
+                'Emp ID': l.empId,
+                'Name': l.name,
+                'Leave Type': l.type.toUpperCase(),
+                'Start Date': l.startDate,
+                'End Date': l.endDate,
                 'Start Time': l.startTime || '',
                 'End Time': l.endTime || '',
-                'Reason': l.reason, 
+                'Reason': l.reason,
                 'Approval Status': l.status.toUpperCase(),
                 'Reviewed By': l.reviewedByName || '',
                 'Reviewer Role': l.reviewedByRole || '',
@@ -3522,18 +3957,18 @@ toggleEditLog(id) {
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leaveRows), "Time_Off_Requests");
 
-            const holidayRows = this.holidayList.map(h => ({ 
-                'Holiday Name': h.name, 
-                'Date': h.date, 
-                'Applicable Department': h.dept 
+            const holidayRows = this.holidayList.map(h => ({
+                'Holiday Name': h.name,
+                'Date': h.date,
+                'Applicable Department': h.dept
             }));
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(holidayRows), "Holiday_Calendar");
-            
+
             const securityRows = [];
             const parseNetworkString = (str) => {
                 if (!str) return { ip: 'N/A', geo: 'US/Unknown', os: 'N/A' };
                 let ip = str.split(' | ')[0] || 'N/A';
-                let os = str.split(' | OS: ')[1] || 'N/A';
+                const os = str.split(' | OS: ')[1] || 'N/A';
                 let geo = 'US (Assumed)';
                 if (ip.includes('[🚨 Outside US:')) {
                     const match = ip.match(/\[🚨 Outside US: (.*?)\]/);
@@ -3543,10 +3978,10 @@ toggleEditLog(id) {
                 return { ip: ip.trim(), geo: geo.trim(), os: os.trim() };
             };
             Object.keys(this.punchLogs).sort().forEach(date => {
-                Object.keys(this.punchLogs[date]).forEach(empId => { 
-                    const log = this.punchLogs[date][empId]; 
-                    const mName = this.members.find(m => m.id === empId)?.name || 'Unknown';
-                    
+                Object.keys(this.punchLogs[date]).forEach(empId => {
+                    const log = this.punchLogs[date][empId];
+                    const mName = memberNameMap.get(empId) || 'Unknown';
+
                     if (log.in && log.in_ip) {
                         const parsedIn = parseNetworkString(log.in_ip);
                         securityRows.push({ 'Date': date, 'Emp ID': empId, 'Name': mName, 'Event': 'Punch In', 'Time': log.in, 'IP Address': parsedIn.ip, 'Location': parsedIn.geo, 'OS': parsedIn.os });
@@ -3561,105 +3996,97 @@ toggleEditLog(id) {
                             securityRows.push({ 'Date': date, 'Emp ID': empId, 'Name': mName, 'Event': `Captcha (${cap.status})`, 'Time': cap.time, 'IP Address': parsedCap.ip, 'Location': parsedCap.geo, 'OS': parsedCap.os });
                         });
                     }
-                }); 
+                });
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(securityRows), "Security_Audit");
 
             const fileName = `RevCentric_DB_Snapshot_${getISTString()}.xlsx`;
-            XLSX.writeFile(wb, fileName); 
+            XLSX.writeFile(wb, fileName);
             this.showNote("Snapshot Downloaded Successfully", "success");
         },
 
-	viewAsStaff(mId) {
+        viewAsStaff(mId) {
             if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
             const member = this.members.find(m => m.id === mId);
             if (member) {
-                // 1. Cache the original Manager session before overwriting it
                 if (this.userSession && !this.originalAdminSession) {
                     this.originalAdminSession = JSON.parse(JSON.stringify(this.userSession));
                 }
-                
-                // 2. Clone the member data into the active session
+
                 this.userSession = JSON.parse(JSON.stringify(member));
-                this.fetchExceptionHistory(); 
-                this.view = 'portal'; 
+                invalidateMemo();
+                this.fetchExceptionHistory();
+                this.view = 'portal';
                 this.showNote(`Viewing portal as ${member.firstName}`, "success");
             }
         },
 
         closeStaffView() {
-            // 1. Restore the Manager's original session (or clear it if it was the Master Admin)
             if (this.originalAdminSession) {
                 this.userSession = JSON.parse(JSON.stringify(this.originalAdminSession));
                 this.originalAdminSession = null;
-                this.fetchExceptionHistory(); // Reload Manager's exception history
+                invalidateMemo();
+                this.fetchExceptionHistory();
             } else {
                 this.userSession = null;
+                invalidateMemo();
             }
-            
-            // 2. Return safely to the Roster
+
             this.view = 'members';
             this.showNote("Returned to Admin Roster", "success");
         },
 
-hasAccess(menuId) {
-            if (this.isAdminAuthenticated) return true; // Master Admin gets everything
-            if (menuId === 'portal') return true; // Everyone gets the portal
+        hasAccess(menuId) {
+            if (this.isAdminAuthenticated) return true;
+            if (menuId === 'portal') return true;
             if (!this.userSession) return false;
-            
+
             const userRole = this.userSession.role;
             const allowedMenus = this.roleAccess[userRole] || [];
-            
-            // Legacy Name-based Fallback
+
             if (Object.keys(this.roleAccess).length === 0) {
                 const rLower = (userRole || '').toLowerCase();
                 if (rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr')) return true;
             }
-            
+
             return allowedMenus.includes(menuId);
         },
 
-        // NEW: Evaluates if a role has modification rights for a specific module
         hasWriteAccess(menuId) {
-            if (this.isAdminAuthenticated) return true; // Master Admin gets full write access
+            if (this.isAdminAuthenticated) return true;
             if (!this.userSession) return false;
-            
+
             const userRole = this.userSession.role;
             const allowedMenus = this.roleAccess[userRole] || [];
-            
-            // Legacy Name-based Fallback
+
             if (Object.keys(this.roleAccess).length === 0) {
                 const rLower = (userRole || '').toLowerCase();
                 if (rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr')) return true;
             }
-            
+
             return allowedMenus.includes(menuId + '_write');
         },
 
-        // UPDATED: Handles toggling read vs write configurations interactively
         toggleRoleAccess(role, menuId, isWrite = false) {
             if (!this.roleAccess[role]) this.roleAccess[role] = [];
             const accessKey = isWrite ? `${menuId}_write` : menuId;
             const idx = this.roleAccess[role].indexOf(accessKey);
-            
+
             if (idx > -1) {
                 this.roleAccess[role].splice(idx, 1);
-                // If turning off Read, also turn off Write automatically
                 if (!isWrite) {
                     const writeIdx = this.roleAccess[role].indexOf(`${menuId}_write`);
                     if (writeIdx > -1) this.roleAccess[role].splice(writeIdx, 1);
                 }
             } else {
                 this.roleAccess[role].push(accessKey);
-                // If turning on Write, also turn on Read automatically
-                if (isWrite) {
-                    if (!this.roleAccess[role].includes(menuId)) {
-                        this.roleAccess[role].push(menuId);
-                    }
+                if (isWrite && !this.roleAccess[role].includes(menuId)) {
+                    this.roleAccess[role].push(menuId);
                 }
             }
-            
+
             this.roleAccess = { ...this.roleAccess };
+            invalidateMemo();
             this.upsertConfigCloud('role_access', this.roleAccess);
         },
 
@@ -3667,10 +4094,12 @@ hasAccess(menuId) {
         removeMember(id) { this.memberToDelete = id; this.showDeleteModal = true; },
         resetUserPin(id) {
             const idx = this.members.findIndex(m => m.id === id);
-            if (idx !== -1) { 
-                this.members[idx].pin = ''; 
-                this.upsertMemberCloud(this.members[idx]); 
-                this.showNote("User security reset"); 
+            if (idx !== -1) {
+                this.members[idx].pin = '';
+                this.members = [...this.members];
+                invalidateMemo();
+                this.upsertMemberCloud(this.members[idx]);
+                this.showNote("User security reset");
             }
         }
     };
