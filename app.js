@@ -791,6 +791,7 @@ window.attendanceApp = () => {
         broadcastDept: 'All',
         broadcastMessage: '',
         activeBroadcast: null,
+	broadcastDismissed: false,
 
         newRoleName: '',
         newDeptName: '',
@@ -803,7 +804,6 @@ window.attendanceApp = () => {
         isSyncing: false,
         syncError: false,
 
-        showDeleteModal: false,
         showPoliciesModal: false,
         showLeaveModal: false,
         showNotifications: false,
@@ -812,7 +812,6 @@ window.attendanceApp = () => {
         logoutPenaltyWarning: null,
         editingLogId: null,
         tempPunches: { in: '', out: '', breaks: [] },
-        memberToDelete: null,
         notification: null,
 
         newMember: { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false },
@@ -1184,24 +1183,27 @@ window.attendanceApp = () => {
                     }
                 })
                 .on('broadcast', { event: 'system_notice' }, (payload) => {
-                    if (this.userSession && (payload.payload.dept === 'All' || payload.payload.dept === this.userSession.dept)) {
-                        this.showNote(`📢 NOTICE: ${payload.payload.message}`, "success");
-                        this.activeBroadcast = payload.payload;
+    this.activeBroadcast = payload.payload;
+    this.broadcastDismissed = false;
 
-                        if ("Notification" in window && Notification.permission === "granted") {
-                            try {
-                                new Notification(`📢 ${payload.payload.sender} (Broadcast)`, {
-                                    body: payload.payload.message,
-                                    icon: "logo.png",
-                                    requireInteraction: true
-                                });
-                            } catch (e) {}
-                        }
-                    }
-                })
-                .on('broadcast', { event: 'clear_notice' }, () => {
-                    this.activeBroadcast = null;
-                })
+    if (this.userSession && (payload.payload.dept === 'All' || payload.payload.dept === this.userSession.dept)) {
+        this.showNote(`📢 NOTICE: ${payload.payload.message}`, "success");
+
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                new Notification(`📢 ${payload.payload.sender} (Broadcast)`, {
+                    body: payload.payload.message,
+                    icon: "logo.png",
+                    requireInteraction: true
+                });
+            } catch (e) {}
+        }
+    }
+})
+.on('broadcast', { event: 'clear_notice' }, () => {
+    this.activeBroadcast = null;
+    this.broadcastDismissed = false;
+})
                 .subscribe();
         },
 
@@ -1222,52 +1224,55 @@ window.attendanceApp = () => {
         },
 
         sendBroadcast() {
-            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
-            if (!this.broadcastMessage.trim()) {
-                return this.showNote("Please enter a message to broadcast.", "error");
-            }
-            if (!this.systemBroadcastChannel) {
-                return this.showNote("Broadcast channel not connected.", "error");
-            }
+    if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+    if (!this.broadcastMessage.trim()) {
+        return this.showNote("Please enter a message to broadcast.", "error");
+    }
+    if (!this.systemBroadcastChannel) {
+        return this.showNote("Broadcast channel not connected.", "error");
+    }
 
-            const actor = this.activeAuthSession;
-            const payload = {
-                dept: this.broadcastDept,
-                message: this.broadcastMessage.trim(),
-                sender: actor?.name || 'Admin',
-                time: this.getCurrentTimeIST(),
-                timestamp: Date.now()
-            };
+    const actor = this.activeAuthSession;
+    const payload = {
+        dept: this.broadcastDept,
+        message: this.broadcastMessage.trim(),
+        sender: actor?.name || 'Admin',
+        time: this.getCurrentTimeIST(),
+        timestamp: Date.now()
+    };
 
-            this.upsertConfigCloud('active_broadcast', payload);
+    this.activeBroadcast = payload;
+    this.broadcastDismissed = false;
+    this.upsertConfigCloud('active_broadcast', payload);
 
-            this.systemBroadcastChannel.send({
-                type: 'broadcast',
-                event: 'system_notice',
-                payload: payload
-            });
+    this.systemBroadcastChannel.send({
+        type: 'broadcast',
+        event: 'system_notice',
+        payload: payload
+    });
 
-            this.showNote(`Broadcast sent to ${this.broadcastDept}`, "success");
-            this.broadcastMessage = '';
-        },
+    this.showNote(`Broadcast sent to ${this.broadcastDept}`, "success");
+    this.broadcastMessage = '';
+},
 
-        async clearBroadcast() {
-            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
-            this.activeBroadcast = null;
-            try {
-                await this.supabase.from('system_config').delete().eq('key', 'active_broadcast');
-            } catch (e) {
-                console.error("Failed to delete broadcast:", e);
-            }
-            if (this.systemBroadcastChannel) {
-                this.systemBroadcastChannel.send({
-                    type: 'broadcast',
-                    event: 'clear_notice',
-                    payload: {}
-                });
-            }
-            this.showNote("Broadcast cleared globally", "success");
-        },
+async clearBroadcast() {
+    if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+    this.activeBroadcast = null;
+    this.broadcastDismissed = false;
+    try {
+        await this.supabase.from('system_config').delete().eq('key', 'active_broadcast');
+    } catch (e) {
+        console.error("Failed to delete broadcast:", e);
+    }
+    if (this.systemBroadcastChannel) {
+        this.systemBroadcastChannel.send({
+            type: 'broadcast',
+            event: 'clear_notice',
+            payload: {}
+        });
+    }
+    this.showNote("Broadcast cleared globally", "success");
+},
 
         handleRealtimePayload(payload) {
             if (this.isEditingLog || this.isAddingMember) return;
@@ -2564,11 +2569,13 @@ window.attendanceApp = () => {
         },
 
         async removeHoliday(id) {
-            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
-            this.holidayList = this.holidayList.filter(h => h.id !== id);
-            invalidateMemo();
-            try { await this.supabase.from('holidays').delete().eq('id', id); } catch (e) {}
-        },
+    if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+    this.holidayList = this.holidayList.filter(h => h.id !== id);
+    if (this.editingHolidayId === id) this.cancelEditHoliday();
+    invalidateMemo();
+    try { await this.supabase.from('holidays').delete().eq('id', id); } catch (e) {}
+    this.showNote("Holiday removed", "success");
+},
 
         getCurrentTimeIST() {
             return fmtISTTimeShort.format(getNow());
@@ -4064,6 +4071,11 @@ window.attendanceApp = () => {
             return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString([], { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         },
 
+getActiveAssignedCount(field, value) {
+    const today = getISTString();
+    return this.members.filter(m => (!m.doe || m.doe >= today) && m[field] === value).length;
+},
+
         // Master Config: Roles CRUD
         addRole() {
             if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
@@ -4116,11 +4128,22 @@ window.attendanceApp = () => {
             this.showNote("Role updated", "success");
         },
         removeRole(role) {
-            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
-            this.roles = this.roles.filter(r => r !== role);
-            if (this.editingRole === role) this.cancelEditRole();
-            this.upsertConfigCloud('roles', this.roles);
-        },
+    if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+    const assignedCount = this.getActiveAssignedCount('role', role);
+    if (assignedCount > 0) {
+        return this.showNote(`Cannot remove "${role}": ${assignedCount} active member${assignedCount > 1 ? 's' : ''} still assigned`, "error");
+    }
+    this.roles = this.roles.filter(r => r !== role);
+    if (this.roleAccess[role]) {
+        delete this.roleAccess[role];
+        this.roleAccess = { ...this.roleAccess };
+        this.upsertConfigCloud('role_access', this.roleAccess);
+    }
+    if (this.editingRole === role) this.cancelEditRole();
+    invalidateMemo();
+    this.upsertConfigCloud('roles', this.roles);
+    this.showNote("Role removed", "success");
+},
 
         // Master Config: Departments CRUD
         addDept() {
@@ -4176,11 +4199,17 @@ window.attendanceApp = () => {
             this.showNote("Department updated", "success");
         },
         removeDept(dept) {
-            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
-            this.departments = this.departments.filter(d => d !== dept);
-            if (this.editingDept === dept) this.cancelEditDept();
-            this.upsertConfigCloud('departments', this.departments);
-        },
+    if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+    const assignedCount = this.getActiveAssignedCount('dept', dept);
+    if (assignedCount > 0) {
+        return this.showNote(`Cannot remove "${dept}": ${assignedCount} active member${assignedCount > 1 ? 's' : ''} still assigned`, "error");
+    }
+    this.departments = this.departments.filter(d => d !== dept);
+    if (this.editingDept === dept) this.cancelEditDept();
+    invalidateMemo();
+    this.upsertConfigCloud('departments', this.departments);
+    this.showNote("Department removed", "success");
+},
 
         // Master Config: Shifts CRUD
         addShift() {
@@ -4232,29 +4261,19 @@ window.attendanceApp = () => {
             this.showNote("Shift schedule updated", "success");
         },
         removeShift(s) {
-            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
-            this.shifts = this.shifts.filter(x => x.name !== s);
-            if (this.editingShift === s) this.cancelEditShift();
-            invalidateMemo();
-            this.upsertConfigCloud('shifts', this.shifts);
-        },
+    if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+    const assignedCount = this.getActiveAssignedCount('shift', s);
+    if (assignedCount > 0) {
+        return this.showNote(`Cannot remove "${s}": ${assignedCount} active member${assignedCount > 1 ? 's' : ''} still assigned`, "error");
+    }
+    this.shifts = this.shifts.filter(x => x.name !== s);
+    if (this.editingShift === s) this.cancelEditShift();
+    invalidateMemo();
+    this.upsertConfigCloud('shifts', this.shifts);
+    this.showNote("Shift removed", "success");
+},
 
         showNote(msg, type = 'success') { this.notification = { msg, type }; setTimeout(() => this.notification = null, 4000); },
-
-        async executeWipe() {
-            if (!this.hasWriteAccess('members')) {
-                this.showDeleteModal = false;
-                return this.showNote("Read-only access for Roster", "error");
-            }
-            if (this.memberToDelete) {
-                this.members = this.members.filter(m => m.id !== this.memberToDelete);
-                invalidateMemo();
-                try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch (e) {}
-                this.showNote("Personnel record removed", "success");
-            }
-            this.showDeleteModal = false;
-            this.memberToDelete = null;
-        },
 
         async exportToPDF() {
             if (!this.hasWriteAccess('summary')) return this.showNote("Read-only access for Reports", "error");
@@ -4690,11 +4709,7 @@ window.attendanceApp = () => {
             this.isEditing = false;
             this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false };
         },
-        removeMember(id) {
-            if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
-            this.memberToDelete = id;
-            this.showDeleteModal = true;
-        },
+        
         async resetUserPin(id) {
             if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
             const idx = this.members.findIndex(m => m.id === id);
