@@ -18,7 +18,30 @@ window.attendanceApp = () => {
         timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
     });
 
-    // Timeout-safe fetch wrapper so slow third-party APIs never stall boot or punches
+    const YTD_SNAPSHOT_REGEX = /\s*\[\[YTD_AVAIL:([^|\]]*)\|([^\]]*)\]\]\s*$/;
+
+    const parseLeaveSnapshot = (l) => {
+        let rawReason = l.reason || '';
+        let ytdLeaveAvail = (l.ytd_leave_avail !== undefined && l.ytd_leave_avail !== null && l.ytd_leave_avail !== '')
+            ? Number(l.ytd_leave_avail) : null;
+        let ytdPermAvail = (l.ytd_perm_avail !== undefined && l.ytd_perm_avail !== null && l.ytd_perm_avail !== '')
+            ? Number(l.ytd_perm_avail) : null;
+
+        const match = rawReason.match(YTD_SNAPSHOT_REGEX);
+        if (match) {
+            if (ytdLeaveAvail === null && match[1] !== '') {
+                const parsedLv = Number(match[1]);
+                if (!Number.isNaN(parsedLv)) ytdLeaveAvail = parsedLv;
+            }
+            if (ytdPermAvail === null && match[2] !== '') {
+                const parsedPrm = Number(match[2]);
+                if (!Number.isNaN(parsedPrm)) ytdPermAvail = parsedPrm;
+            }
+            rawReason = rawReason.replace(YTD_SNAPSHOT_REGEX, '').trim();
+        }
+        return { cleanReason: rawReason, ytdLeaveAvail, ytdPermAvail };
+    };
+
     const fetchWithTimeout = (url, options = {}, timeoutMs = 2500) => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -26,7 +49,6 @@ window.attendanceApp = () => {
             .finally(() => clearTimeout(timer));
     };
 
-    // On-demand deduplicated script loader for heavy optional libraries (Chart.js, SheetJS, html2pdf)
     const scriptLoadCache = new Map();
     const loadScriptOnce = (src) => {
         if (scriptLoadCache.has(src)) return scriptLoadCache.get(src);
@@ -73,7 +95,6 @@ window.attendanceApp = () => {
         return !!window.XLSX;
     };
 
-    // Fast integer time parser (replaces Date allocations in diffInMins)
     const parseTimeToMins = (str) => {
         if (!str) return -1;
         const m = str.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
@@ -88,7 +109,6 @@ window.attendanceApp = () => {
         return h * 60 + mins;
     };
 
-    // Frame-scoped memoizer to prevent repeated O(N*D) getter loops during a single render pass
     const _memoCache = new Map();
     let _memoClearScheduled = false;
     const invalidateMemo = () => _memoCache.clear();
@@ -109,11 +129,9 @@ window.attendanceApp = () => {
         return value;
     };
 
-    // Short-lived cache for network/IP lookup so consecutive actions stay instant
     let _cachedNetInfo = null;
     let _cachedNetInfoAt = 0;
 
-    // Dynamic, resilient sync with public APIs and Supabase Server Headers
     const syncTrueTime = async () => {
         try {
             const res = await fetchWithTimeout('https://worldtimeapi.org/api/timezone/Asia/Kolkata', {}, 2500);
@@ -132,10 +150,7 @@ window.attendanceApp = () => {
         }
     };
 
-    // Base true time
     const getNow = () => new Date(Date.now() + timeDrift);
-
-    // Bypasses browser timezone by shifting UTC natively by +5.5 hours (19,800,000 ms)
     const getISTDate = (baseDate = getNow()) => new Date(baseDate.getTime() + 19800000);
 
     const getISTString = (date = getNow()) => {
@@ -154,9 +169,7 @@ window.attendanceApp = () => {
     };
 
     const getCurrentTimeIST = () => fmtISTTimeShort.format(getNow());
-
     const generateSecureId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
-
     const fetchSecureApiTimeIST = async () => getCurrentTimeIST();
 
     const getGreetingFromDate = (istDate) => {
@@ -166,10 +179,9 @@ window.attendanceApp = () => {
 
     const initialToday = getISTString();
     const todayObj = getISTDateObject();
-    const firstDayStr = getISTString(new Date(todayObj.getTime() - (todayObj.getUTCDate() - 1) * 86400000));
-    const lastDayStr = getISTString(new Date(todayObj.getTime() + (32 - todayObj.getUTCDate()) * 86400000));
+    const firstDayStr = getISTString(new Date(Date.UTC(todayObj.getUTCFullYear(), todayObj.getUTCMonth(), 1)));
+    const lastDayStr = getISTString(new Date(Date.UTC(todayObj.getUTCFullYear(), todayObj.getUTCMonth() + 1, 0)));
 
-    // Initialize recurring sync
     setInterval(syncTrueTime, 15 * 60 * 1000);
 
     const isMobileDevice = () => {
@@ -180,22 +192,43 @@ window.attendanceApp = () => {
         return uaMobile || isSpoofedMac || (hasTouchScreen && isSmallScreen);
     };
 
+    const clearAuthStorageOnly = () => {
+        localStorage.removeItem('rc_admin_authenticated');
+        localStorage.removeItem('rc_admin_pin');
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith('sb-')) localStorage.removeItem(k);
+        });
+        sessionStorage.clear();
+    };
+
     return {
         theme: localStorage.getItem('appTheme') || 'light',
         showPortalCharts: localStorage.getItem('showPortalCharts') !== 'false',
         originalAdminSession: null,
+        isImpersonating: false,
         roleAccess: {},
         splitShiftEmps: [],
+        weekOffDays: [0, 6],
         receivedWishes: [],
         systemBroadcastChannel: null,
 
-        calMonth: new Date().getMonth(),
-        calYear: new Date().getFullYear(),
+        // Master Config inline editing states
+        editingDept: null,
+        editDeptValue: '',
+        editingRole: null,
+        editRoleValue: '',
+        editingShift: null,
+        editShiftForm: { name: '', inTime: '', outTime: '' },
+        editingHolidayId: null,
+        editHolidayForm: { id: '', name: '', date: '', dept: 'All' },
+
+        calMonth: todayObj.getUTCMonth(),
+        calYear: todayObj.getUTCFullYear(),
         selectedCalDate: initialToday,
         pinErrorShake: false,
 
         get monthName() {
-            return new Date(this.calYear, this.calMonth).toLocaleString('default', { month: 'long' });
+            return new Date(Date.UTC(this.calYear, this.calMonth, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
         },
 
         get calendarDays() {
@@ -205,8 +238,8 @@ window.attendanceApp = () => {
             ], () => {
                 const year = this.calYear;
                 const month = this.calMonth;
-                const firstDay = new Date(year, month, 1).getDay();
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const firstDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
+                const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
                 const days = [];
 
                 const mEvents = this.monthEvents || [];
@@ -243,6 +276,17 @@ window.attendanceApp = () => {
                 }
                 return days;
             });
+        },
+
+        get upcomingHolidays() {
+            if (!this.holidayList || !this.holidayList.length) return [];
+            const tomorrow = getISTDateObject();
+            tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+            const tomorrowStr = getISTString(tomorrow);
+            const userDept = this.userSession?.dept;
+            return this.holidayList.filter(h =>
+                h.date === tomorrowStr && (h.dept === 'All' || !userDept || h.dept === userDept)
+            );
         },
 
         async syncCalendar() {
@@ -310,14 +354,15 @@ window.attendanceApp = () => {
                 const dStr = ymPrefix + String(i).padStart(2, '0');
                 const st = this.attendanceData[dStr]?.[uid];
                 if (st) {
-                    if (st === 'p' || st === 'wfh' || st === 'co') p++;
+                    if (['p', 'wfh', 'co', '1p', '2p', 'lop1', 'lop2'].includes(st)) p++;
                     else if (st === 'a') a++;
-                    else if (st === '1p') prm += 1;
-                    else if (st === '2p') prm += 2;
                     else if (st === 'h') lv += 0.5;
                     else if (st === 'fh') lv += 1;
                     else if (st === 'lop') lop += 1;
                     else if (st === 'loph') lop += 0.5;
+
+                    if (st === '1p') prm += 1;
+                    else if (st === '2p') prm += 2;
                     else if (st === 'lop1') lop += 0.125;
                     else if (st === 'lop2') lop += 0.25;
                 }
@@ -343,9 +388,9 @@ window.attendanceApp = () => {
                 window.userPolarChart = new Chart(ctxPolar, {
                     type: 'polarArea',
                     data: {
-                        labels: ['Present', 'Absent', 'Permission', 'LOP', 'Leave/Off'],
+                        labels: ['Present', 'Absent', 'Perm (Hrs)', 'LOP', 'Holiday / Half'],
                         datasets: [{
-                            data: [p, a, prm, lop, lv],
+                            data: [p, a, prm, Number(lop.toFixed(2)), lv],
                             backgroundColor: [
                                 'rgba(16, 185, 129, 0.78)',
                                 'rgba(242, 101, 34, 0.78)',
@@ -376,67 +421,216 @@ window.attendanceApp = () => {
                 });
             }
 
+            // Build rolling Last 30 Days datasets (IST)
+            const ACTIVE_TARGET = 480; // 8h target in minutes
+            const BREAK_LIMIT = 60;    // 60m daily allowance
+
+            const last30Labels = [];
+            const last30Active = [];
+            const last30Break = [];
+            let sumAct30 = 0, actDays30 = 0;
+            let sumBrk30 = 0, brkDays30 = 0;
+            const activeShiftDate = this.getActiveShiftDate();
+
+            for (let i = 29; i >= 0; i--) {
+                const d = getISTDateObject();
+                d.setUTCDate(d.getUTCDate() - i);
+                const dStr = getISTString(d);
+                last30Labels.push(
+                    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+                );
+
+                const log = this.punchLogs[dStr]?.[uid];
+                let actMins = 0;
+                let brkMins = 0;
+
+                if (log && log.in) {
+                    const isCountable = Boolean(log.out || dStr === activeShiftDate);
+                    if (isCountable) {
+                        actMins = this.getActiveMinsForLog(log, dStr);
+                        brkMins = this.calculateTotalBreakMins(log.breaks);
+                        if (actMins > 0) {
+                            sumAct30 += actMins;
+                            actDays30++;
+                        }
+                        sumBrk30 += brkMins;
+                        brkDays30++;
+                    }
+                }
+
+                last30Active.push(actMins);
+                last30Break.push(brkMins);
+            }
+
+            const avgAct30 = actDays30 ? Math.round(sumAct30 / actDays30) : 0;
+            const avgBrk30 = brkDays30 ? Math.round(sumBrk30 / brkDays30) : 0;
+
+// Active Shift Pace: Last 30 Days Bar Graph + 30D Avg Line + 480m Target Line
             const ctxBar = document.getElementById('barChart');
             if (ctxBar) {
-                const avgAct = days ? Math.floor(totalAct / days) : 0;
+                const activeBarColors = last30Active.map(v =>
+                    (v > 0 && v < ACTIVE_TARGET) ? '#e11d48' : '#0f4c81'
+                );
+
                 window.userBarChart = new Chart(ctxBar, {
                     type: 'bar',
                     data: {
-                        labels: ['Avg Active'],
+                        labels: last30Labels,
                         datasets: [
-                            { label: 'Achieved (m)', data: [avgAct], backgroundColor: '#0f4c81', borderRadius: 10, barThickness: 22 },
-                            { label: 'Target (m)', data: [480], backgroundColor: isDark ? '#27272a' : '#e2e8f0', borderRadius: 10, barThickness: 22 }
+                            {
+                                type: 'bar',
+                                label: 'Active (m)',
+                                data: last30Active,
+                                backgroundColor: activeBarColors,
+                                borderRadius: 4,
+                                barPercentage: 0.78,
+                                categoryPercentage: 0.88,
+                                order: 3
+                            },
+                            {
+                                type: 'line',
+                                label: `30D Avg (${this.formatBreakDisplay(avgAct30)})`,
+                                data: Array(30).fill(avgAct30),
+                                borderColor: '#f26522',
+                                borderWidth: 2,
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                fill: false,
+                                order: 2
+                            },
+                            {
+                                type: 'line',
+                                label: `Target (${ACTIVE_TARGET}m)`,
+                                data: Array(30).fill(ACTIVE_TARGET),
+                                borderColor: '#10b981',
+                                borderWidth: 1.75,
+                                borderDash: [2, 3],
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                fill: false,
+                                order: 1
+                            }
                         ]
                     },
                     options: {
-                        indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
                         plugins: {
                             legend: {
                                 position: 'bottom',
-                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 11 } }
+                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 10 } }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const val = ctx.parsed.y;
+                                        const flag = ctx.dataset.type === 'bar' && val > 0 && val < ACTIVE_TARGET ? ' — Below Target' : '';
+                                        return `${ctx.dataset.label}: ${val}m (${this.formatBreakDisplay(val)})${flag}`;
+                                    }
+                                }
                             }
                         },
                         scales: {
-                            x: { beginAtZero: true, max: 540, grid: { color: gridColor }, ticks: { color: fontColor, font: { size: 10 } } },
-                            y: { grid: { display: false }, ticks: { color: fontColor, font: { weight: '700', size: 11 } } }
-                        }
-                    }
-                });
-            }
-
-            const ctxRadial = document.getElementById('radialChart');
-            if (ctxRadial) {
-                const avgBrk = days ? Math.floor(totalBrk / days) : 0;
-                window.userRadialChart = new Chart(ctxRadial, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Break Taken (Avg)', 'Remaining Allowance'],
-                        datasets: [{
-                            data: [avgBrk, Math.max(0, 60 - avgBrk)],
-                            backgroundColor: [avgBrk > 60 ? '#e11d48' : '#f26522', isDark ? '#27272a' : '#e2e8f0'],
-                            borderWidth: 0,
-                            borderRadius: 10
-                        }]
-                    },
-                    options: {
-                        rotation: -90,
-                        circumference: 180,
-                        cutout: '76%',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 11 } }
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: fontColor, maxTicksLimit: 6, maxRotation: 0, font: { size: 9, weight: '600' } }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                suggestedMax: Math.max(540, ...last30Active),
+                                grid: { color: gridColor },
+                                ticks: { color: fontColor, font: { size: 9 } }
                             }
                         }
                     }
                 });
             }
-        },
 
+            // Break Budget: Last 30 Days Bar Graph + 30D Avg Line + 60m Limit Line
+            const ctxRadial = document.getElementById('radialChart');
+            if (ctxRadial) {
+                const breakBarColors = last30Break.map(v =>
+                    v > BREAK_LIMIT ? '#e11d48' : '#f26522'
+                );
+
+                window.userRadialChart = new Chart(ctxRadial, {
+                    type: 'bar',
+                    data: {
+                        labels: last30Labels,
+                        datasets: [
+                            {
+                                type: 'bar',
+                                label: 'Break (m)',
+                                data: last30Break,
+                                backgroundColor: breakBarColors,
+                                borderRadius: 4,
+                                barPercentage: 0.78,
+                                categoryPercentage: 0.88,
+                                order: 3
+                            },
+                            {
+                                type: 'line',
+                                label: `30D Avg (${avgBrk30}m)`,
+                                data: Array(30).fill(avgBrk30),
+                                borderColor: isDark ? '#38bdf8' : '#0f4c81',
+                                borderWidth: 2,
+                                borderDash: [6, 4],
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                fill: false,
+                                order: 2
+                            },
+                            {
+                                type: 'line',
+                                label: `Limit (${BREAK_LIMIT}m)`,
+                                data: Array(30).fill(BREAK_LIMIT),
+                                borderColor: '#e11d48',
+                                borderWidth: 1.75,
+                                borderDash: [2, 3],
+                                pointRadius: 0,
+                                pointHoverRadius: 0,
+                                fill: false,
+                                order: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: fontColor, boxWidth: 10, usePointStyle: true, font: { family: 'Outfit', weight: '700', size: 10 } }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const val = ctx.parsed.y;
+                                        const flag = ctx.dataset.type === 'bar' && val > BREAK_LIMIT ? ' — Exceeded' : '';
+                                        return `${ctx.dataset.label}: ${val}m${flag}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: fontColor, maxTicksLimit: 6, maxRotation: 0, font: { size: 9, weight: '600' } }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                suggestedMax: Math.max(80, ...last30Break),
+                                grid: { color: gridColor },
+                                ticks: { color: fontColor, font: { size: 9 } }
+                            }
+                        }
+                    }
+                });
+            }
+	 },	
         async renderDashboardChart() {
             if (this.view !== 'dashboard') return;
             const ready = await ensureChartJS();
@@ -497,20 +691,27 @@ window.attendanceApp = () => {
         },
 
         toggleSplitShiftAccess(mId) {
-            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!mId || !this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
             if (!this.splitShiftEmps) this.splitShiftEmps = [];
             const idx = this.splitShiftEmps.indexOf(mId);
-            if (idx > -1) {
-                this.splitShiftEmps.splice(idx, 1);
-            } else {
-                this.splitShiftEmps.push(mId);
-            }
+            if (idx > -1) this.splitShiftEmps.splice(idx, 1);
+            else this.splitShiftEmps.push(mId);
+
             this.splitShiftEmps = [...this.splitShiftEmps];
             this.upsertConfigCloud('split_shift_emps', this.splitShiftEmps);
             this.showNote(`Split Shift Access Updated`, "success");
         },
 
-        breakTypes: ['Lunch', 'Dinner', 'Tea', 'Bio', 'Meeting', 'Other'],
+        toggleWeekOffDay(dayIdx) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const set = new Set(this.weekOffDays || [0, 6]);
+            if (set.has(dayIdx)) set.delete(dayIdx);
+            else set.add(dayIdx);
+            this.weekOffDays = Array.from(set).sort((a, b) => a - b);
+            this.upsertConfigCloud('week_off_days', this.weekOffDays);
+            this.showNote("Week-off schedule updated", "success");
+        },
+
         selectedBreakType: '',
         view: 'portal',
         dashboardPeriod: 'month',
@@ -586,10 +787,7 @@ window.attendanceApp = () => {
         shifts: [],
         holidayList: [],
         policiesNote: '',
-        leaveListByDept: {},
         policyNoteDraft: '',
-        leaveListDeptDraft: 'All',
-        leaveListDraft: '',
         broadcastDept: 'All',
         broadcastMessage: '',
         activeBroadcast: null,
@@ -604,7 +802,6 @@ window.attendanceApp = () => {
 
         isSyncing: false,
         syncError: false,
-        syncTimer: null,
 
         showDeleteModal: false,
         showPoliciesModal: false,
@@ -703,7 +900,6 @@ window.attendanceApp = () => {
         },
 
         async init() {
-            // Initialize scopeStartStr BEFORE restoring session so initial DB sync fetches only 31 days instead of full history
             const todayRef = getISTDateObject();
             const initScopeDate = new Date(todayRef.getTime() - 31 * 86400000);
             this.scopeStartStr = getISTString(initScopeDate);
@@ -719,9 +915,10 @@ window.attendanceApp = () => {
             this.supabase.auth.onAuthStateChange((event) => {
                 if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
                     this.userSession = null;
+                    this.originalAdminSession = null;
+                    this.isImpersonating = false;
                     this.localSessionToken = null;
-                    localStorage.clear();
-                    sessionStorage.clear();
+                    clearAuthStorageOnly();
                 }
             });
 
@@ -730,10 +927,8 @@ window.attendanceApp = () => {
                 this.adminPinInput = localStorage.getItem('rc_admin_pin') || '';
             }
 
-            // Fire non-blocking true-time sync in the background
             syncTrueTime();
 
-            // Fetch initial config, members, and active auth session in parallel
             const [, sessionRes] = await Promise.all([
                 this.syncInitialConfig(),
                 this.supabase.auth.getSession()
@@ -768,6 +963,11 @@ window.attendanceApp = () => {
                 this.currentISTTimeWidget = fmtISTTimeFull.format(now);
                 this.currentESTTimeWidget = fmtESTTimeFull.format(now);
                 this.currentCSTTimeWidget = fmtCSTTimeFull.format(now);
+
+                const todayIST = getISTString(now);
+                if (this.initialToday !== todayIST) {
+                    this.initialToday = todayIST;
+                }
 
                 const istDate = getISTDate(now);
                 const dateKeyDay = istDate.getUTCDate();
@@ -825,10 +1025,7 @@ window.attendanceApp = () => {
                 const { data: { session }, error } = preloadedSessionRes || await this.supabase.auth.getSession();
 
                 if (error || !session) {
-                    if (!this.isAdminAuthenticated) {
-                        localStorage.clear();
-                        sessionStorage.clear();
-                    }
+                    if (!this.isAdminAuthenticated) clearAuthStorageOnly();
                     return;
                 }
 
@@ -873,7 +1070,7 @@ window.attendanceApp = () => {
                 }
             } catch (e) {
                 console.error("Session restore failed", e);
-                if (!this.isAdminAuthenticated) localStorage.clear();
+                if (!this.isAdminAuthenticated) clearAuthStorageOnly();
             }
         },
 
@@ -951,7 +1148,8 @@ window.attendanceApp = () => {
                 this.userSyncChannel = null;
             }
 
-            if (!this.userSession && !this.isAdminAuthenticated) return;
+            const actor = this.activeAuthSession;
+            if (!actor && !this.isAdminAuthenticated) return;
 
             if (this.isManagerOrLead || this.isAdminAuthenticated) {
                 this.userSyncChannel = this.supabase.channel('admin-tracking')
@@ -962,7 +1160,7 @@ window.attendanceApp = () => {
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members' }, p => this.handleRealtimePayload(p))
                     .subscribe();
             } else {
-                const myId = this.userSession.id;
+                const myId = actor.id;
                 this.userSyncChannel = this.supabase.channel(`user-${myId}-tracking`)
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'punch_logs', filter: `member_id=eq.${myId}` }, p => this.handleRealtimePayload(p))
@@ -1016,7 +1214,7 @@ window.attendanceApp = () => {
                 event: 'send_wish',
                 payload: {
                     targetId: targetId,
-                    senderName: this.userSession.firstName || this.userSession.name
+                    senderName: this.activeAuthSession?.firstName || this.userSession.firstName || this.userSession.name
                 }
             });
 
@@ -1024,6 +1222,7 @@ window.attendanceApp = () => {
         },
 
         sendBroadcast() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
             if (!this.broadcastMessage.trim()) {
                 return this.showNote("Please enter a message to broadcast.", "error");
             }
@@ -1031,10 +1230,11 @@ window.attendanceApp = () => {
                 return this.showNote("Broadcast channel not connected.", "error");
             }
 
+            const actor = this.activeAuthSession;
             const payload = {
                 dept: this.broadcastDept,
                 message: this.broadcastMessage.trim(),
-                sender: this.userSession?.name || 'Admin',
+                sender: actor?.name || 'Admin',
                 time: this.getCurrentTimeIST(),
                 timestamp: Date.now()
             };
@@ -1052,6 +1252,7 @@ window.attendanceApp = () => {
         },
 
         async clearBroadcast() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
             this.activeBroadcast = null;
             try {
                 await this.supabase.from('system_config').delete().eq('key', 'active_broadcast');
@@ -1074,7 +1275,8 @@ window.attendanceApp = () => {
             const { table, eventType, new: newRecord } = payload;
 
             if (table === 'members' && eventType === 'UPDATE') {
-                if (this.userSession && newRecord.id === this.userSession.id) {
+                const actor = this.activeAuthSession;
+                if (actor && newRecord.id === actor.id && !this.isImpersonating) {
                     if (newRecord.current_session !== this.localSessionToken) {
                         this.logoutUser();
                         this.showNote("Logged out from another device/session", "error");
@@ -1147,7 +1349,7 @@ window.attendanceApp = () => {
             if (table === 'captcha_logs') {
                 const record = payload.new || payload.old;
 
-                if (eventType === 'INSERT' && record?.status === 'Pending' && this.userSession && record.member_id === this.userSession.id) {
+                if (eventType === 'INSERT' && record?.status === 'Pending' && this.userSession && !this.isImpersonating && record.member_id === this.userSession.id) {
                     this.triggerCaptcha(record.check_time);
                 }
 
@@ -1212,7 +1414,6 @@ window.attendanceApp = () => {
         async bulkUpsertAttCloud(recordsArray) {
             if (!recordsArray || recordsArray.length === 0) return;
             try {
-                // Execute updates/inserts in parallel batches of 10 instead of 2N serial awaits
                 const BATCH_SIZE = 10;
                 for (let i = 0; i < recordsArray.length; i += BATCH_SIZE) {
                     const chunk = recordsArray.slice(i, i + BATCH_SIZE);
@@ -1256,18 +1457,33 @@ window.attendanceApp = () => {
         },
 
         async upsertLeaveCloud(req) {
+            const cleanReason = String(req.reason || '').replace(YTD_SNAPSHOT_REGEX, '').trim();
+            const basePayload = {
+                id: req.id, emp_id: req.empId, type: req.type, start_date: req.start_date || req.startDate,
+                end_date: req.end_date || req.endDate, start_time: req.startTime || null,
+                end_time: req.endTime || null, reason: cleanReason, status: req.status,
+                requested_at: req.requestedAt || null,
+                approved_at: req.approvedAt || null,
+                reviewed_at: req.reviewedAt || req.approvedAt || null,
+                reviewed_by_name: req.reviewedByName || null,
+                reviewed_by_role: req.reviewedByRole || null,
+                reviewed_by_emp_id: req.reviewedByEmpId || null
+            };
+            const extendedPayload = {
+                ...basePayload,
+                ytd_leave_avail: req.ytdLeaveAvail ?? null,
+                ytd_perm_avail: req.ytdPermAvail ?? null
+            };
             try {
-                await this.supabase.from('leave_requests').upsert({
-                    id: req.id, emp_id: req.empId, type: req.type, start_date: req.start_date || req.startDate,
-                    end_date: req.end_date || req.endDate, start_time: req.startTime || null,
-                    end_time: req.endTime || null, reason: req.reason, status: req.status,
-                    requested_at: req.requestedAt || null,
-                    approved_at: req.approvedAt || null,
-                    reviewed_at: req.reviewedAt || req.approvedAt || null,
-                    reviewed_by_name: req.reviewedByName || null,
-                    reviewed_by_role: req.reviewedByRole || null,
-                    reviewed_by_emp_id: req.reviewedByEmpId || null
-                });
+                const { error } = await this.supabase.from('leave_requests').upsert(extendedPayload);
+                if (error) {
+                    const hasSnap = (req.ytdLeaveAvail !== null && req.ytdLeaveAvail !== undefined) ||
+                                    (req.ytdPermAvail !== null && req.ytdPermAvail !== undefined);
+                    const fallbackReason = hasSnap
+                        ? `${cleanReason} [[YTD_AVAIL:${req.ytdLeaveAvail ?? ''}|${req.ytdPermAvail ?? ''}]]`.trim()
+                        : cleanReason;
+                    await this.supabase.from('leave_requests').upsert({ ...basePayload, reason: fallbackReason });
+                }
             } catch (e) { console.error("Leave save error", e); }
         },
 
@@ -1291,9 +1507,9 @@ window.attendanceApp = () => {
                         if (row.key === 'shifts') this.shifts = row.value;
                         if (row.key === 'master_pin') this.masterPin = row.value;
                         if (row.key === 'split_shift_emps') this.splitShiftEmps = row.value || [];
+                        if (row.key === 'week_off_days' && Array.isArray(row.value)) this.weekOffDays = row.value;
                         if (row.key === 'role_access') this.roleAccess = row.value || {};
                         if (row.key === 'policies_note') { this.policiesNote = row.value || ''; this.policyNoteDraft = this.policiesNote; }
-                        if (row.key === 'leave_list_by_dept') this.leaveListByDept = row.value || {};
                         if (row.key === 'active_broadcast' && row.value) {
                             this.activeBroadcast = (Date.now() - row.value.timestamp < 86400000) ? row.value : null;
                         }
@@ -1359,7 +1575,6 @@ window.attendanceApp = () => {
                     capQuery = capQuery.eq('member_id', myId);
                 }
 
-                // Run all 7 queries in a single parallel batch
                 const [
                     { data: lData },
                     { data: hData },
@@ -1381,23 +1596,26 @@ window.attendanceApp = () => {
                         memberNameMap.set(m.id, m.name);
                         if (m.empId) memberNameMap.set(m.empId, m.name);
                     }
-                    this.leaveRequests = lData.map(l => ({
-                        id: l.id, empId: l.emp_id, type: l.type, startDate: l.start_date,
-                        endDate: l.end_date, startTime: l.start_time || '', endTime: l.end_time || '',
-                        reason: l.reason, status: l.status,
-                        requestedAt: l.requested_at || l.created_at || null,
-                        approvedAt: l.approved_at || l.reviewed_at || null,
-                        reviewedAt: l.reviewed_at || l.approved_at || null,
-                        reviewedByName: l.reviewed_by_name || '',
-                        reviewedByRole: l.reviewed_by_role || '',
-                        reviewedByEmpId: l.reviewed_by_emp_id || '',
-                        name: memberNameMap.get(l.emp_id) || ''
-                    }));
+                    this.leaveRequests = lData.map(l => {
+                        const snap = parseLeaveSnapshot(l);
+                        return {
+                            id: l.id, empId: l.emp_id, type: l.type, startDate: l.start_date,
+                            endDate: l.end_date, startTime: l.start_time || '', endTime: l.end_time || '',
+                            reason: snap.cleanReason, status: l.status,
+                            ytdLeaveAvail: snap.ytdLeaveAvail,
+                            ytdPermAvail: snap.ytdPermAvail,
+                            requestedAt: l.requested_at || l.created_at || null,
+                            approvedAt: l.approved_at || l.reviewed_at || null,
+                            reviewedAt: l.reviewed_at || l.approved_at || null,
+                            reviewedByName: l.reviewed_by_name || '',
+                            reviewedByRole: l.reviewed_by_role || '',
+                            reviewedByEmpId: l.reviewed_by_emp_id || '',
+                            name: memberNameMap.get(l.emp_id) || ''
+                        };
+                    });
                 }
 
-                if (hData) {
-                    this.holidayList = hData;
-                }
+                if (hData) this.holidayList = hData;
 
                 const newYtdStats = {};
                 if (vData) {
@@ -1453,7 +1671,7 @@ window.attendanceApp = () => {
                 this.punchLogs = newPunch;
                 invalidateMemo();
 
-                if (this.userSession) {
+                if (this.userSession && !this.isImpersonating) {
                     const today = this.getActiveShiftDate();
                     const log = this.punchLogs[today]?.[this.userSession.id];
                     if (log && log.captchas) {
@@ -1500,9 +1718,7 @@ window.attendanceApp = () => {
 
                 if (aData) {
                     if (!this.attendanceData[targetDate]) this.attendanceData[targetDate] = {};
-                    aData.forEach(r => {
-                        this.attendanceData[targetDate][r.member_id] = r.status;
-                    });
+                    aData.forEach(r => { this.attendanceData[targetDate][r.member_id] = r.status; });
                     this.attendanceData = { ...this.attendanceData };
                 }
 
@@ -1544,13 +1760,13 @@ window.attendanceApp = () => {
         },
 
         toggleMemberVerification(mId) {
-            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!mId || !this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
             const idx = this.members.findIndex(m => m.id === mId);
             if (idx > -1) {
                 const current = !!this.members[idx].captchaEnabled;
                 this.members[idx].captchaEnabled = !current;
 
-                if (this.userSession && this.userSession.id === mId) {
+                if (this.userSession && this.userSession.id === mId && !this.isImpersonating) {
                     this.userSession.captchaEnabled = !current;
                     if (this.userSession.captchaEnabled) {
                         if ("Notification" in window && Notification.permission !== "granted") Notification.requestPermission();
@@ -1566,26 +1782,64 @@ window.attendanceApp = () => {
             }
         },
 
-        clearCaptchaTimers() {
-            if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
-            if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
-            if (this.captchaCountdownInterval) { clearInterval(this.captchaCountdownInterval); this.captchaCountdownInterval = null; }
+        startCaptchaTone() {
+            this.stopCaptchaTone();
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const playPulse = () => {
+                    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.14);
+                    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.34);
+                };
+                playPulse();
+                this._captchaToneInterval = setInterval(playPulse, 1800);
+                this._captchaAudioCtx = ctx;
+                this._unlockAudioHandler = () => {
+                    if (this._captchaAudioCtx && this._captchaAudioCtx.state === 'suspended') {
+                        this._captchaAudioCtx.resume().catch(() => {});
+                    }
+                    document.removeEventListener('click', this._unlockAudioHandler);
+                    document.removeEventListener('keydown', this._unlockAudioHandler);
+                    this._unlockAudioHandler = null;
+                };
+                document.addEventListener('click', this._unlockAudioHandler, { once: true });
+                document.addEventListener('keydown', this._unlockAudioHandler, { once: true });
+            } catch (e) {}
+        },
 
+        stopCaptchaTone() {
+            if (this._captchaToneInterval) {
+                clearInterval(this._captchaToneInterval);
+                this._captchaToneInterval = null;
+            }
+            if (this._captchaAudioCtx) {
+                try { this._captchaAudioCtx.close(); } catch (e) {}
+                this._captchaAudioCtx = null;
+            }
             if (this._unlockAudioHandler) {
                 document.removeEventListener('click', this._unlockAudioHandler);
                 document.removeEventListener('keydown', this._unlockAudioHandler);
                 this._unlockAudioHandler = null;
             }
+        },
 
-            if (this._captchaAudio) {
-                try {
-                    this._captchaAudio.muted = true;
-                    this._captchaAudio.pause();
-                    this._captchaAudio.currentTime = 0;
-                    this._captchaAudio.removeAttribute('src');
-                } catch (e) {}
-                this._captchaAudio = null;
-            }
+        clearCaptchaTimers() {
+            if (this.captchaTimer) { clearTimeout(this.captchaTimer); this.captchaTimer = null; }
+            if (this.captchaTimeoutTimer) { clearTimeout(this.captchaTimeoutTimer); this.captchaTimeoutTimer = null; }
+            if (this.captchaCountdownInterval) { clearInterval(this.captchaCountdownInterval); this.captchaCountdownInterval = null; }
+
+            this.stopCaptchaTone();
 
             try { if (navigator.vibrate) navigator.vibrate(0); } catch (e) {}
 
@@ -1606,7 +1860,7 @@ window.attendanceApp = () => {
 
         scheduleNextCaptcha() {
             this.clearCaptchaTimers();
-            if (!this.userSession || !this.userSession.captchaEnabled || this.userOnBreak) return;
+            if (!this.userSession || this.isImpersonating || !this.userSession.captchaEnabled || this.userOnBreak) return;
             const activeDate = this.getActiveShiftDate();
             const log = this.punchLogs[activeDate]?.[this.userSession.id];
             if (!log || !log.in || log.out) return;
@@ -1615,13 +1869,14 @@ window.attendanceApp = () => {
             const interval = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
             this.captchaTimer = setTimeout(() => {
                 const currentLog = this.punchLogs[this.getActiveShiftDate()]?.[this.userSession?.id];
-                if (this.userSession && this.userSession.captchaEnabled && !this.userOnBreak && currentLog?.in && !currentLog?.out) {
+                if (this.userSession && !this.isImpersonating && this.userSession.captchaEnabled && !this.userOnBreak && currentLog?.in && !currentLog?.out) {
                     this.triggerCaptcha();
                 }
             }, interval);
         },
 
         triggerCaptcha(forceTime = null) {
+            if (this.isImpersonating) return;
             if (isMobileDevice()) {
                 this.showNote("Verification Failed: Mobile devices are strictly prohibited.", "error");
                 this.recordCaptchaResult('Failed');
@@ -1675,28 +1930,7 @@ window.attendanceApp = () => {
                 else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
             } catch (e) {}
 
-            try {
-                this._captchaAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                this._captchaAudio.loop = true;
-                this._captchaAudio.volume = 1.0;
-
-                this._unlockAudioHandler = () => {
-                    if (this._captchaAudio) {
-                        this._captchaAudio.play().catch(() => {});
-                    }
-                    document.removeEventListener('click', this._unlockAudioHandler);
-                    document.removeEventListener('keydown', this._unlockAudioHandler);
-                    this._unlockAudioHandler = null;
-                };
-
-                const playPromise = this._captchaAudio.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(() => {
-                        document.addEventListener('click', this._unlockAudioHandler, { once: true });
-                        document.addEventListener('keydown', this._unlockAudioHandler, { once: true });
-                    });
-                }
-            } catch (e) {}
+            this.startCaptchaTone();
 
             try {
                 if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
@@ -1719,8 +1953,7 @@ window.attendanceApp = () => {
                 if (!document.hidden && this.showCaptchaModal) {
                     try { window.focus(); } catch (e) {}
                     setTimeout(() => {
-                        const el = document.querySelector('[x-ref="captchaInputRef"]') ||
-                                   document.getElementById('captcha-input-field');
+                        const el = document.querySelector('[x-ref="captchaInputRef"]') || document.getElementById('captcha-input-field');
                         if (el) el.focus();
                     }, 100);
                 }
@@ -1733,11 +1966,8 @@ window.attendanceApp = () => {
             }, 120000);
             this.captchaSecondsRemaining = 120;
             this.captchaCountdownInterval = setInterval(() => {
-                if (this.captchaSecondsRemaining > 0) {
-                    this.captchaSecondsRemaining--;
-                } else {
-                    clearInterval(this.captchaCountdownInterval);
-                }
+                if (this.captchaSecondsRemaining > 0) this.captchaSecondsRemaining--;
+                else clearInterval(this.captchaCountdownInterval);
             }, 1000);
         },
 
@@ -1772,7 +2002,7 @@ window.attendanceApp = () => {
         },
 
         async recordCaptchaResult(status, timeOverride = null) {
-            if (!this.userSession) return;
+            if (!this.userSession || this.isImpersonating) return;
             let secureTime = null;
             if (!timeOverride && !this.currentCaptchaTime) {
                 secureTime = await fetchSecureApiTimeIST();
@@ -1815,13 +2045,13 @@ window.attendanceApp = () => {
         },
 
         async forceCaptcha(mId) {
-            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!this.hasWriteAccess('record')) return this.showNote("Read-only access for Log", "error");
             const checkTime = this.getCurrentTimeIST();
             const currentIp = await this.fetchDeviceAndNetworkInfo();
 
             const todayStr = getISTString();
             const yDate = getISTDateObject();
-            yDate.setDate(yDate.getDate() - 1);
+            yDate.setUTCDate(yDate.getUTCDate() - 1);
             const yesterdayStr = getISTString(yDate);
 
             let dateKey = this.currentDate;
@@ -1854,11 +2084,16 @@ window.attendanceApp = () => {
             }
         },
 
-        get isManagerOrLead() {
-            if (!this.userSession) return false;
-            if (this.isAdminAuthenticated) return true;
+        get activeAuthSession() {
+            return this.originalAdminSession || this.userSession;
+        },
 
-            const r = this.userSession.role;
+        get isManagerOrLead() {
+            if (this.isAdminAuthenticated) return true;
+            const actor = this.activeAuthSession;
+            if (!actor) return false;
+
+            const r = actor.role;
             const allowedMenus = this.roleAccess[r] || [];
 
             if (Object.keys(this.roleAccess).length > 0) {
@@ -1871,8 +2106,9 @@ window.attendanceApp = () => {
 
         get isSuperUser() {
             if (this.isAdminAuthenticated) return true;
-            if (!this.userSession || !this.userSession.role) return false;
-            const accessList = this.roleAccess[this.userSession.role];
+            const actor = this.activeAuthSession;
+            if (!actor || !actor.role) return false;
+            const accessList = this.roleAccess[actor.role];
             return Array.isArray(accessList) ? accessList.includes('superuser') : false;
         },
 
@@ -1894,11 +2130,12 @@ window.attendanceApp = () => {
         },
 
         get pendingLeaveRequests() {
+            const actor = this.activeAuthSession;
             return this.leaveRequests.filter(r => {
                 if (r.status !== 'pending') return false;
                 if (this.isManagerOrLead && !this.isSuperUser) {
-                    const reqMember = this.members.find(m => m.id === r.empId);
-                    if (reqMember && reqMember.dept !== this.userSession?.dept) return false;
+                    const reqMember = this.resolveMember(r.empId);
+                    if (reqMember && reqMember.dept !== actor?.dept) return false;
                 }
                 return true;
             });
@@ -1907,12 +2144,13 @@ window.attendanceApp = () => {
 
         get reviewedLeaveRequests() {
             if (!this.isManagerOrLead) return [];
+            const actor = this.activeAuthSession;
             return this.leaveRequests
                 .filter(r => r.status !== 'pending' && (r.reviewedAt || r.approvedAt))
                 .filter(r => {
                     if (this.isSuperUser) return true;
-                    const reqMember = this.members.find(m => m.id === r.empId || m.empId === r.empId);
-                    return !reqMember || reqMember.dept === this.userSession?.dept;
+                    const reqMember = this.resolveMember(r.empId);
+                    return !reqMember || reqMember.dept === actor?.dept;
                 })
                 .sort((a, b) => new Date(b.reviewedAt || b.approvedAt || 0) - new Date(a.reviewedAt || a.approvedAt || 0))
                 .slice(0, 8);
@@ -1940,7 +2178,7 @@ window.attendanceApp = () => {
                 for (let i = 0; i < targetMembers.length; i++) {
                     const m = targetMembers[i];
                     if (m.dob) {
-                        const [bY, bM, bD] = m.dob.split('-').map(Number);
+                        const [, bM, bD] = m.dob.split('-').map(Number);
                         if (bM === curM && bD === curD) events.push({ id: 'bday_' + m.id, type: 'birthday', member: m, title: 'Birthday', icon: '🎂', color: 'text-pink-600', bg: 'bg-pink-100' });
                     }
                     if (m.doj) {
@@ -2014,21 +2252,11 @@ window.attendanceApp = () => {
 
         get notificationGlowClass() {
             const events = this.todayEvents;
-            if (events.some(e => e.type === 'birthday')) {
-                return 'shadow-[0_0_15px_rgba(236,72,153,0.6)] animate-pulse text-pink-500';
-            }
-            if (events.some(e => e.type === 'anniversary')) {
-                return 'shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse text-emerald-500';
-            }
-            if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.offenderAlerts.length > 0) {
-                return 'shadow-[0_0_15px_rgba(244,63,94,0.6)] animate-pulse text-rose-500';
-            }
-            if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.pendingLeaveCount > 0) {
-                return 'shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-pulse text-indigo-500';
-            }
-            if (events.length > 0 || this.monthEvents.length > 0) {
-                return 'shadow-[0_0_15px_rgba(242,101,34,0.6)] animate-pulse text-[#f26522]';
-            }
+            if (events.some(e => e.type === 'birthday')) return 'shadow-[0_0_15px_rgba(236,72,153,0.6)] animate-pulse text-pink-500';
+            if (events.some(e => e.type === 'anniversary')) return 'shadow-[0_0_15px_rgba(16,185,129,0.6)] animate-pulse text-emerald-500';
+            if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.offenderAlerts.length > 0) return 'shadow-[0_0_15px_rgba(244,63,94,0.6)] animate-pulse text-rose-500';
+            if ((this.isAdminAuthenticated || this.isManagerOrLead) && this.pendingLeaveCount > 0) return 'shadow-[0_0_15px_rgba(99,102,241,0.6)] animate-pulse text-indigo-500';
+            if (events.length > 0 || this.monthEvents.length > 0) return 'shadow-[0_0_15px_rgba(242,101,34,0.6)] animate-pulse text-[#f26522]';
             return 'text-zinc-400 hover:text-indigo-500';
         },
 
@@ -2042,16 +2270,17 @@ window.attendanceApp = () => {
                 const todayStr = this.getActiveShiftDate();
                 const THRESHOLD = 480;
                 const VIOLATION_LIMIT = 3;
+                const actor = this.activeAuthSession;
 
                 const [y, m, d] = todayStr.split('-').map(Number);
-                const cutoffObj = new Date(y, m - 1, d - 30);
-                const cutoffDateStr = `${cutoffObj.getFullYear()}-${String(cutoffObj.getMonth() + 1).padStart(2, '0')}-${String(cutoffObj.getDate()).padStart(2, '0')}`;
+                const cutoffObj = new Date(Date.UTC(y, m - 1, d - 30));
+                const cutoffDateStr = cutoffObj.toISOString().slice(0, 10);
                 const punchDates = Object.keys(this.punchLogs).filter(date => date < todayStr && date >= cutoffDateStr);
 
                 for (let i = 0; i < this.members.length; i++) {
                     const member = this.members[i];
                     if (!this.isManagerOrLead && (!this.userSession || this.userSession.id !== member.id)) continue;
-                    if (this.isManagerOrLead && !this.isSuperUser && member.dept !== this.userSession?.dept) continue;
+                    if (this.isManagerOrLead && !this.isSuperUser && member.dept !== actor?.dept) continue;
 
                     const isPresentToday = this.attendanceData[todayStr]?.[member.id] === 'p' ||
                                           (this.punchLogs[todayStr]?.[member.id]?.in && !this.punchLogs[todayStr]?.[member.id]?.out);
@@ -2085,7 +2314,13 @@ window.attendanceApp = () => {
             return !!(breaks && breaks.length > 0 && !breaks[breaks.length - 1].end);
         },
 
+        resolveMember(idOrEmpId) {
+            if (!idOrEmpId) return null;
+            return this.members.find(m => m.id === idOrEmpId || m.empId === idOrEmpId) || null;
+        },
+
         submitLeave() {
+            if (this.isImpersonating) return this.showNote("Read-only preview mode. Exit Staff View to submit requests.", "error");
             if (!this.newLeave.type || !this.newLeave.startDate || !this.newLeave.endDate) return this.showNote("Request type and dates are required", "error");
             const timedTypes = ['1p', '2p', 'lop1', 'lop2', 'h', 'loph'];
             const needsTime = timedTypes.includes(this.newLeave.type);
@@ -2102,13 +2337,33 @@ window.attendanceApp = () => {
                 if (expected && duration !== expected) return this.showNote(`This request must be exactly ${expected / 60} hour${expected === 60 ? '' : 's'}`, "error");
             }
             if (this.newLeave.endDate < this.newLeave.startDate) return this.showNote("End date cannot be before start date", "error");
+
+            // Snapshot already-available YTD balances directly at submission time (no extra calculation)
+            const mMetrics = this.individualStats?.metrics;
+            const ytdLeaveAvail = (mMetrics && mMetrics.remainingLeavesYTD !== undefined && mMetrics.remainingLeavesYTD !== null)
+                ? mMetrics.remainingLeavesYTD : null;
+            const ytdPermAvail = (mMetrics && mMetrics.prmAvailYTD !== undefined && mMetrics.prmAvailYTD !== null)
+                ? mMetrics.prmAvailYTD : null;
+
             const req = {
-                id: generateSecureId(), empId: this.userSession.empId, name: this.userSession.name,
-                type: this.newLeave.type, startDate: this.newLeave.startDate, endDate: this.newLeave.endDate,
-                startTime: needsTime ? startTime : '', endTime: needsTime ? endTime : '',
-                reason: this.newLeave.reason, status: 'pending',
-                requestedAt: getNow().toISOString(), approvedAt: null, reviewedAt: null,
-                reviewedByName: '', reviewedByRole: '', reviewedByEmpId: ''
+                id: generateSecureId(),
+                empId: this.userSession.id || this.userSession.empId,
+                name: this.userSession.name,
+                type: this.newLeave.type,
+                startDate: this.newLeave.startDate,
+                endDate: this.newLeave.endDate,
+                startTime: needsTime ? startTime : '',
+                endTime: needsTime ? endTime : '',
+                reason: this.newLeave.reason,
+                ytdLeaveAvail,
+                ytdPermAvail,
+                status: 'pending',
+                requestedAt: getNow().toISOString(),
+                approvedAt: null,
+                reviewedAt: null,
+                reviewedByName: '',
+                reviewedByRole: '',
+                reviewedByEmpId: ''
             };
             this.leaveRequests.unshift(req);
             this.upsertLeaveCloud(req);
@@ -2119,7 +2374,7 @@ window.attendanceApp = () => {
         },
 
         getLeaveReviewerInfo() {
-            const reviewer = this.userSession;
+            const reviewer = this.activeAuthSession;
             if (reviewer) {
                 return {
                     name: reviewer.name || `${reviewer.firstName || ''} ${reviewer.lastName || ''}`.trim() || 'Manager',
@@ -2146,15 +2401,21 @@ window.attendanceApp = () => {
         },
 
         approveLeave(reqId) {
+            if (!this.hasWriteAccess('record') && !this.hasWriteAccess('members')) {
+                return this.showNote("Read-only access: approval requires write permission", "error");
+            }
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (!req) return;
             this.recordLeaveReview(req, 'approved');
 
-            for (let d = new Date(req.startDate); d <= new Date(req.endDate); d.setDate(d.getDate() + 1)) {
-                const dStr = getISTString(d);
+            const targetMember = this.resolveMember(req.empId);
+            const targetId = targetMember ? targetMember.id : req.empId;
+
+            for (let d = new Date(req.startDate + 'T00:00:00Z'); d <= new Date(req.endDate + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
+                const dStr = d.toISOString().slice(0, 10);
                 if (!this.attendanceData[dStr]) this.attendanceData[dStr] = {};
-                this.attendanceData[dStr][req.empId] = req.type;
-                this.upsertAttCloud(dStr, req.empId, req.type);
+                this.attendanceData[dStr][targetId] = req.type;
+                this.upsertAttCloud(dStr, targetId, req.type);
             }
             this.attendanceData = { ...this.attendanceData };
             invalidateMemo();
@@ -2162,6 +2423,9 @@ window.attendanceApp = () => {
         },
 
         rejectLeave(reqId) {
+            if (!this.hasWriteAccess('record') && !this.hasWriteAccess('members')) {
+                return this.showNote("Read-only access: rejection requires write permission", "error");
+            }
             const req = this.leaveRequests.find(r => r.id === reqId);
             if (req) {
                 this.recordLeaveReview(req, 'rejected');
@@ -2194,6 +2458,7 @@ window.attendanceApp = () => {
             const nowISTMs = getISTDate().getTime();
             const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
             const bulkRecords = [];
+            const weekOffSet = new Set(Array.isArray(this.weekOffDays) ? this.weekOffDays : [0, 6]);
 
             const targetMembers = (this.isAdminAuthenticated || this.isManagerOrLead)
                 ? this.members
@@ -2239,13 +2504,13 @@ window.attendanceApp = () => {
                     if (isHoliday) continue;
 
                     const hasApprovedLeave = approvedLeaves.some(
-                        l => l.empId === m.id && l.startDate <= dateStr && l.endDate >= dateStr
+                        l => (l.empId === m.id || l.empId === m.empId) && l.startDate <= dateStr && l.endDate >= dateStr
                     );
                     if (hasApprovedLeave) continue;
 
                     const log = this.punchLogs[dateStr]?.[m.id];
                     const isMissingOut = Boolean(log?.in && !log?.out);
-                    const isMissingIn = !log?.in && dayOfWeek !== 0 && dayOfWeek !== 6;
+                    const isMissingIn = !log?.in && !weekOffSet.has(dayOfWeek);
 
                     if (isMissingOut || isMissingIn) {
                         if (!this.attendanceData[dateStr]) this.attendanceData[dateStr] = {};
@@ -2263,8 +2528,9 @@ window.attendanceApp = () => {
         },
 
         addHoliday() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
             if (!this.newHoliday.name || !this.newHoliday.date) return this.showNote("Invalid Details", "error");
-            const h = { ...this.newHoliday, id: generateSecureId() };
+            const h = { ...this.newHoliday, name: this.newHoliday.name.trim(), id: generateSecureId() };
             this.holidayList.push(h);
             this.holidayList = [...this.holidayList];
             this.upsertHolidayCloud(h);
@@ -2273,7 +2539,32 @@ window.attendanceApp = () => {
             this.showNote("Holiday Processed Successfully");
         },
 
+        startEditHoliday(holiday) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.editingHolidayId = holiday.id;
+            this.editHolidayForm = { id: holiday.id, name: holiday.name, date: holiday.date, dept: holiday.dept || 'All' };
+        },
+        cancelEditHoliday() {
+            this.editingHolidayId = null;
+            this.editHolidayForm = { id: '', name: '', date: '', dept: 'All' };
+        },
+        async saveEditHoliday() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const id = this.editingHolidayId;
+            const name = (this.editHolidayForm.name || '').trim();
+            const date = this.editHolidayForm.date;
+            const dept = this.editHolidayForm.dept || 'All';
+            if (!id || !name || !date) return this.showNote("Holiday name and date are required", "error");
+            const updated = { id, name, date, dept };
+            this.holidayList = this.holidayList.map(h => h.id === id ? updated : h);
+            await this.upsertHolidayCloud(updated);
+            invalidateMemo();
+            this.cancelEditHoliday();
+            this.showNote("Holiday updated", "success");
+        },
+
         async removeHoliday(id) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
             this.holidayList = this.holidayList.filter(h => h.id !== id);
             invalidateMemo();
             try { await this.supabase.from('holidays').delete().eq('id', id); } catch (e) {}
@@ -2299,9 +2590,9 @@ window.attendanceApp = () => {
             const isNightShift = shiftObj.inTime && shiftObj.outTime ? (shiftObj.inTime > shiftObj.outTime) : shiftName.toLowerCase().includes('night');
 
             if (isNightShift && currentHourIST < 14) {
-                const y = getISTDateObject(); y.setDate(y.getDate() - 1); return getISTString(y);
+                const y = getISTDateObject(); y.setUTCDate(y.getUTCDate() - 1); return getISTString(y);
             } else if (!isNightShift && currentHourIST < 5) {
-                const y = getISTDateObject(); y.setDate(y.getDate() - 1);
+                const y = getISTDateObject(); y.setUTCDate(y.getUTCDate() - 1);
                 if (this.punchLogs[getISTString(y)]?.[this.userSession.id]?.in && !this.punchLogs[getISTString(y)]?.[this.userSession.id]?.out) return getISTString(y);
             }
             return getISTString();
@@ -2341,7 +2632,7 @@ window.attendanceApp = () => {
             const now = this.getCurrentTimeIST();
             let updated = false;
 
-            if (this.userSession) {
+            if (this.userSession && !this.isImpersonating) {
                 const today = this.getActiveShiftDate();
                 const uid = this.userSession.id;
                 const log = this.punchLogs[today]?.[uid];
@@ -2392,7 +2683,7 @@ window.attendanceApp = () => {
 
                                     const breaks = log.breaks || [];
                                     if (breaks.length === 0 || breaks[breaks.length - 1].end !== '') {
-                                        breaks.push({ start: now, end: '', type: 'Penalty' });
+                                        breaks.push({ start: cap.time, end: '', type: 'Penalty' });
                                         this.supabase.from('break_logs').insert({
                                             member_id: mId, log_date: checkDate, start_time: cap.time, type: 'Penalty'
                                         }).then();
@@ -2411,6 +2702,7 @@ window.attendanceApp = () => {
         },
 
         async startBreak(timeOverride = null, type = null) {
+            if (this.isImpersonating) return this.showNote("Read-only preview mode. Exit Staff View to perform actions.", "error");
             if (isMobileDevice()) {
                 this.showNote("Action Denied: Breaks cannot be initiated from a mobile device.", "error");
                 return;
@@ -2466,16 +2758,21 @@ window.attendanceApp = () => {
         },
 
         handleBreakUnlock() {
+            if (this.isImpersonating) return;
             if (this.breakPinInput === this.userSession.pin) {
                 this.endBreak();
                 this.breakPinInput = '';
                 try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(e => e); } catch (e) {}
             } else {
-                this.showNote("Invalid PIN.", "error"); this.breakPinInput = '';
+                this.pinErrorShake = true;
+                setTimeout(() => this.pinErrorShake = false, 500);
+                this.showNote("Invalid PIN.", "error");
+                this.breakPinInput = '';
             }
         },
 
         async endBreak() {
+            if (this.isImpersonating) return this.showNote("Read-only preview mode. Exit Staff View to perform actions.", "error");
             if (isMobileDevice()) {
                 this.showNote("Action Denied: Breaks cannot be ended from a mobile device.", "error");
                 return;
@@ -2539,7 +2836,8 @@ window.attendanceApp = () => {
 
         getActiveMinsForLog(log, dateKey) {
             if (!log || !log.in) return 0;
-            const outTime = log.out || (dateKey === initialToday ? this.getCurrentTimeIST() : null);
+            const isLiveLog = dateKey === this.getActiveShiftDate() || dateKey === getISTString();
+            const outTime = log.out || (isLiveLog ? this.getCurrentTimeIST() : null);
             if (!outTime) return 0;
             const gross = this.diffInMins(log.in, outTime);
             let allBreaks = 0;
@@ -2564,26 +2862,45 @@ window.attendanceApp = () => {
 
         get dashboardStats() {
             return memoizeFrame('dashboardStats', [
-                this.dashboardPeriod, this.attendanceData, this.filteredMembers
+                this.dashboardPeriod, this.attendanceData, this.filteredMembers, this.leaveRequests
             ], () => {
                 const dates = this.getFilteredDatesByPeriod(this.dashboardPeriod);
                 const totals = {};
                 this.statusOptions.forEach(o => totals[o.id] = 0);
                 const members = this.filteredMembers;
+                const approvedLeaves = this.leaveRequests.filter(l => l.status === 'approved' && l.type === 'a');
+
                 let grandTotal = 0;
+                let approvedLeaveDays = 0;
+                let unapprovedAbsentDays = 0;
 
                 for (let i = 0; i < dates.length; i++) {
-                    const dayMap = this.attendanceData[dates[i]];
+                    const dk = dates[i];
+                    const dayMap = this.attendanceData[dk];
                     if (!dayMap) continue;
                     for (let j = 0; j < members.length; j++) {
-                        const st = dayMap[members[j].id];
-                        if (st) {
-                            totals[st] = (totals[st] || 0) + 1;
-                            grandTotal++;
+                        const m = members[j];
+                        const st = dayMap[m.id];
+                        if (!st) continue;
+
+                        totals[st] = (totals[st] || 0) + 1;
+                        grandTotal++;
+
+                        if (st === 'a') {
+                            const isApproved = approvedLeaves.some(l =>
+                                (l.empId === m.id || l.empId === m.empId) && l.startDate <= dk && l.endDate >= dk
+                            );
+                            if (isApproved) approvedLeaveDays++;
+                            else unapprovedAbsentDays++;
                         }
                     }
                 }
-                return { totals, grandTotal };
+
+                const presentTotal = (totals.p || 0) + (totals.wfh || 0) + (totals['1p'] || 0) + (totals['2p'] || 0);
+                const leaveTotal = approvedLeaveDays + (totals.h || 0) + (totals.co || 0) + (totals.fh || 0);
+                const absentAndLopTotal = unapprovedAbsentDays + (totals.lop || 0) + (totals.loph || 0) + (totals.lop1 || 0) + (totals.lop2 || 0);
+
+                return { totals, grandTotal, kpis: { presentTotal, leaveTotal, absentAndLopTotal } };
             });
         },
 
@@ -2593,9 +2910,9 @@ window.attendanceApp = () => {
             ], () => {
                 const todayStr = getISTString();
                 const ist = getISTDateObject();
-                const curY = ist.getFullYear();
-                const curM = ist.getMonth() + 1;
-                const curD = ist.getDate();
+                const curY = ist.getUTCFullYear();
+                const curM = ist.getUTCMonth() + 1;
+                const curD = ist.getUTCDate();
 
                 const isInPeriod = (d) => {
                     const [y, m, day] = d.split('-').map(Number);
@@ -2688,14 +3005,14 @@ window.attendanceApp = () => {
                 const unrecorded = { id: '-', label: 'Unrecorded', color: 'text-zinc-400', bg: 'bg-zinc-100/50', display: '-' };
 
                 for (let i = 0; i < 15; i++) {
-                    const day = getISTDateObject(); day.setDate(day.getDate() - i);
+                    const day = getISTDateObject(); day.setUTCDate(day.getUTCDate() - i);
                     const dk = getISTString(day);
                     const sObj = statusMap.get(this.attendanceData[dk]?.[id]) || unrecorded;
                     stats.history.push({ date: dk, label: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' }), status: sObj, punch: this.punchLogs[dk]?.[id] || {} });
                 }
 
                 const mtd = {
-                    p: 0, lv: 0, prmHrs: 0, lop: 0, activeMins: 0, breakMins: 0,
+                    p: 0, co: 0, lv: 0, prmHrs: 0, lop: 0, activeMins: 0, breakMins: 0,
                     completedDays: 0, targetActiveMins: 0, targetBreakMins: 0
                 };
                 const ytd = {
@@ -2724,6 +3041,7 @@ window.attendanceApp = () => {
                             if (s === 'p' || s === 'wfh' || s === '1p' || s === '2p' || s === 'co' || s === 'lop1' || s === 'lop2') mtd.p += 1;
                             else if (s === 'h' || s === 'loph') mtd.p += 0.5;
 
+                            if (s === 'co') mtd.co += 1;
                             if (s === 'h') mtd.lv += 0.5;
                             else if (s === 'a') mtd.lv += 1;
 
@@ -2837,6 +3155,7 @@ window.attendanceApp = () => {
                     holidays: this.holidayList.filter(h => h.dept === 'All' || h.dept === user.dept),
                     metrics: {
                         presentMTD: mtd.p,
+                        coMTD: mtd.co,
                         lvMTD: mtd.lv,
                         prmUsedMTD: mtd.prmHrs,
                         lopMTD: mtd.lop,
@@ -2885,15 +3204,10 @@ window.attendanceApp = () => {
             const permsOver = (m.prmAvailYTD < 0);
             const breakCompliant = (m.avgBreakMTD || 0) <= (m.targetBreakMTD || 60);
 
-            if (activePercent >= 95 && breakCompliant && !leavesOver && !permsOver) {
-                return 'Platinum Tier';
-            } else if (activePercent >= 85 && !leavesOver && !permsOver) {
-                return 'Gold Tier';
-            } else if (activePercent >= 75) {
-                return 'Silver Tier';
-            } else {
-                return 'Action Needed';
-            }
+            if (activePercent >= 95 && breakCompliant && !leavesOver && !permsOver) return 'Platinum Tier';
+            if (activePercent >= 85 && !leavesOver && !permsOver) return 'Gold Tier';
+            if (activePercent >= 75) return 'Silver Tier';
+            return 'Action Needed';
         },
 
         get rangeSummaryData() {
@@ -2902,8 +3216,9 @@ window.attendanceApp = () => {
                 this.attendanceData, this.punchLogs, this.ytdStats
             ], () => {
                 const sDate = this.summaryStartDate, eDate = this.summaryEndDate;
-                const endY = eDate ? parseInt(eDate.split('-')[0], 10) : getISTDateObject().getFullYear();
-                const endM = eDate ? parseInt(eDate.split('-')[1], 10) : (getISTDateObject().getMonth() + 1);
+                const istFallback = getISTDateObject();
+                const endY = eDate ? parseInt(eDate.split('-')[0], 10) : istFallback.getUTCFullYear();
+                const endM = eDate ? parseInt(eDate.split('-')[1], 10) : (istFallback.getUTCMonth() + 1);
 
                 const attDatesInRange = Object.keys(this.attendanceData).filter(dk => dk >= sDate && dk <= eDate);
                 const punchDatesInYear = Object.keys(this.punchLogs).filter(dk => {
@@ -2981,9 +3296,44 @@ window.attendanceApp = () => {
             });
         },
 
+        getSortedSummaryData(reportFilter = '', sortField = 'name', sortAsc = true) {
+            const q = (reportFilter || '').trim().toLowerCase();
+            const rows = this.rangeSummaryData.filter(d =>
+                !q ||
+                d.name.toLowerCase().includes(q) ||
+                d.empId.toLowerCase().includes(q) ||
+                (d.dept && d.dept.toLowerCase().includes(q))
+            );
+            return rows.slice().sort((a, b) => {
+                const va = a[sortField];
+                const vb = b[sortField];
+                if (typeof va === 'number' || typeof vb === 'number') {
+                    return sortAsc ? (Number(va || 0) - Number(vb || 0)) : (Number(vb || 0) - Number(va || 0));
+                }
+                const sa = String(va || '').toLowerCase();
+                const sb = String(vb || '').toLowerCase();
+                return sortAsc ? sa.localeCompare(sb) : sb.localeCompare(sa);
+            });
+        },
+
+        getVisibleRecordMembers(logSearch = '', quickFilter = 'all') {
+            const q = (logSearch || '').trim().toLowerCase();
+            return this.filteredMembers.filter(m => {
+                const matchesSearch = !q ||
+                    m.name.toLowerCase().includes(q) ||
+                    m.empId.toLowerCase().includes(q) ||
+                    (m.dept && m.dept.toLowerCase().includes(q));
+                if (!matchesSearch) return false;
+                if (quickFilter === 'active') return !!this.punchLogs[this.currentDate]?.[m.id]?.in && !this.punchLogs[this.currentDate]?.[m.id]?.out;
+                if (quickFilter === 'punchedout') return !!this.punchLogs[this.currentDate]?.[m.id]?.out;
+                if (quickFilter === 'break') return this.isMemberOnBreak(m.id, this.currentDate);
+                return true;
+            });
+        },
+
         getFilteredDatesByPeriod(p) {
             const ist = getISTDateObject();
-            const curY = ist.getFullYear(), curM = ist.getMonth() + 1, curD = ist.getDate();
+            const curY = ist.getUTCFullYear(), curM = ist.getUTCMonth() + 1, curD = ist.getUTCDate();
             return Object.keys(this.attendanceData).filter(d => {
                 const [y, m, day] = d.split('-').map(Number);
                 if (p === 'day') return y === curY && m === curM && day === curD;
@@ -2994,27 +3344,29 @@ window.attendanceApp = () => {
 
         get availablePersonnelOptions() {
             const today = getISTString();
+            const actor = this.activeAuthSession;
             const activeOnly = this.members.filter(m => !m.doe || m.doe >= today);
             let scoped = activeOnly;
 
             if (this.isManagerOrLead && !this.isSuperUser) {
-                scoped = activeOnly.filter(m => m.dept === this.userSession?.dept);
+                scoped = activeOnly.filter(m => m.dept === actor?.dept);
             }
 
             return (this.filterDept && this.isSuperUser) ? scoped.filter(m => m.dept === this.filterDept) : scoped;
         },
 
         get filteredMembers() {
+            const actor = this.activeAuthSession;
             return memoizeFrame('filteredMembers', [
                 this.members, this.filterName, this.filterDept, this.view,
                 this.currentDate, this.summaryStartDate,
-                this.isManagerOrLead, this.isSuperUser, this.userSession?.dept
+                this.isManagerOrLead, this.isSuperUser, actor?.dept
             ], () => {
                 return this.members.filter(m => {
                     if (this.filterName && m.id !== this.filterName) return false;
 
                     if (this.isManagerOrLead && !this.isSuperUser) {
-                        if (m.dept !== this.userSession?.dept) return false;
+                        if (m.dept !== actor?.dept) return false;
                     } else {
                         if (this.filterDept && m.dept !== this.filterDept) return false;
                     }
@@ -3035,6 +3387,7 @@ window.attendanceApp = () => {
         handleNameFilterChange() { if (this.filterName) this.filterDept = this.members.find(m => m.id === this.filterName)?.dept; },
 
         markAttendance(id, s) {
+            if (!this.hasWriteAccess('record')) return this.showNote("Read-only access for Log", "error");
             if (!this.attendanceData[this.currentDate]) this.attendanceData[this.currentDate] = {};
             this.attendanceData[this.currentDate][id] = s;
             this.attendanceData = { ...this.attendanceData };
@@ -3055,9 +3408,13 @@ window.attendanceApp = () => {
         },
 
         async commitEditLog() {
+            if (!this.hasWriteAccess('record')) {
+                this.editingLogId = null;
+                return this.showNote("Read-only access for Log", "error");
+            }
             if (!this.editingLogId) return;
             const id = this.editingLogId;
-            if (!this.punchLogs[this.currentDate]) this.currentDate = getISTString();
+            if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
             if (!this.punchLogs[this.currentDate][id]) this.punchLogs[this.currentDate][id] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
             const formatT = (t) => {
@@ -3066,14 +3423,23 @@ window.attendanceApp = () => {
                 return `${(parseInt(h, 10) % 12 || 12).toString().padStart(2, '0')}:${m} ${parseInt(h, 10) >= 12 ? 'PM' : 'AM'}`;
             };
 
-            this.punchLogs[this.currentDate][id].in = formatT(this.tempPunches.in);
-            this.punchLogs[this.currentDate][id].out = formatT(this.tempPunches.out);
+            const nextIn = formatT(this.tempPunches.in);
+            const nextOut = formatT(this.tempPunches.out);
 
-            const newBreaks = this.tempPunches.breaks.map(b => ({
-                start: formatT(b.start),
-                end: formatT(b.end),
-                type: b.type || 'Admin Override'
-            }));
+            if (nextIn && nextOut && this.diffInMins(nextIn, nextOut) > 1080) {
+                this.showNote("Warning: Shift exceeds 18h. Verify AM/PM punch order.", "error");
+            }
+
+            this.punchLogs[this.currentDate][id].in = nextIn;
+            this.punchLogs[this.currentDate][id].out = nextOut;
+
+            const newBreaks = this.tempPunches.breaks
+                .filter(b => b.start)
+                .map(b => ({
+                    start: formatT(b.start),
+                    end: formatT(b.end),
+                    type: b.type || 'Admin Override'
+                }));
 
             this.punchLogs[this.currentDate][id].breaks = newBreaks;
             this.punchLogs = { ...this.punchLogs };
@@ -3105,7 +3471,7 @@ window.attendanceApp = () => {
         },
 
         async adminToggleBreak(mId) {
-            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!this.hasWriteAccess('record')) return this.showNote("Read-only access for Log", "error");
             if (!this.punchLogs[this.currentDate]) this.punchLogs[this.currentDate] = {};
             if (!this.punchLogs[this.currentDate][mId]) this.punchLogs[this.currentDate][mId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
@@ -3138,17 +3504,18 @@ window.attendanceApp = () => {
         formatDate(d) {
             if (!d) return '...';
             const parts = d.split('-').map(Number);
-            return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' });
+            return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short', timeZone: 'UTC' });
         },
         changeDate(n) {
             const parts = this.currentDate.split('-').map(Number);
-            const dt = new Date(parts[0], parts[1] - 1, parts[2]);
-            dt.setDate(dt.getDate() + n);
-            this.currentDate = getISTString(dt);
+            const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            dt.setUTCDate(dt.getUTCDate() + n);
+            this.currentDate = dt.toISOString().slice(0, 10);
         },
         isMarkedPortal(s) { return this.attendanceData[this.getActiveShiftDate()]?.[this.userSession?.id] === s; },
 
         async markPortalAttendance(s) {
+            if (this.isImpersonating) return this.showNote("Read-only preview mode. Exit Staff View to perform actions.", "error");
             if (!this.userSession) return;
 
             const secureTime = await fetchSecureApiTimeIST();
@@ -3179,6 +3546,7 @@ window.attendanceApp = () => {
         },
 
         initiateLogout() {
+            if (this.isImpersonating) return this.showNote("Read-only preview mode. Exit Staff View to perform actions.", "error");
             if (isMobileDevice()) {
                 this.showNote("Action Denied: You cannot punch out using a mobile device.", "error");
                 return;
@@ -3188,9 +3556,10 @@ window.attendanceApp = () => {
             const activeMins = this.liveActiveMins;
             const activeDate = this.getActiveShiftDate();
             const uId = this.userSession.id;
+            const empCode = this.userSession.empId;
 
             const activeLeave = this.leaveRequests.find(l =>
-                l.empId === uId &&
+                (l.empId === uId || l.empId === empCode) &&
                 l.status === 'approved' &&
                 l.startDate <= activeDate &&
                 l.endDate >= activeDate
@@ -3206,15 +3575,10 @@ window.attendanceApp = () => {
 
             this.logoutPenaltyWarning = null;
             if (activeMins < requiredMins) {
-                if (activeMins < 240) {
-                    this.logoutPenaltyWarning = "Full Day LOP (Less than 4 hours active)";
-                } else if (activeMins < 360) {
-                    this.logoutPenaltyWarning = "Half Day LOP (Between 4 - 5h 59m active)";
-                } else if (activeMins < 420) {
-                    this.logoutPenaltyWarning = "2 HR LOP (Between 6 - 6h 59m active)";
-                } else if (activeMins < 480) {
-                    this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 59m active)";
-                }
+                if (activeMins < 240) this.logoutPenaltyWarning = "Full Day LOP (Less than 4 hours active)";
+                else if (activeMins < 360) this.logoutPenaltyWarning = "Half Day LOP (Between 4 - 5h 59m active)";
+                else if (activeMins < 420) this.logoutPenaltyWarning = "2 HR LOP (Between 6 - 6h 59m active)";
+                else if (activeMins < 480) this.logoutPenaltyWarning = "1 HR LOP (Between 7 - 7h 59m active)";
             }
 
             this.logoutTimePreview = this.getCurrentTimeIST();
@@ -3222,6 +3586,10 @@ window.attendanceApp = () => {
         },
 
         async confirmLogoutPortal() {
+            if (this.isImpersonating) {
+                this.showLogoutModal = false;
+                return this.showNote("Read-only preview mode.", "error");
+            }
             if (isMobileDevice()) {
                 this.showLogoutModal = false;
                 this.showNote("Action Denied: Mobile punch-out is strictly prohibited.", "error");
@@ -3233,7 +3601,7 @@ window.attendanceApp = () => {
                 this.showLogoutModal = false;
                 return;
             }
-            const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
+            const activeDate = this.getActiveShiftDate(), uId = this.userSession.id, empCode = this.userSession.empId;
             if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
             if (!this.punchLogs[activeDate][uId]) this.punchLogs[activeDate][uId] = { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
 
@@ -3252,7 +3620,10 @@ window.attendanceApp = () => {
 
             const finalActiveMins = this.getActiveMinsForLog(this.punchLogs[activeDate][uId], activeDate);
             const activeLeave = this.leaveRequests.find(l =>
-                l.empId === uId && l.status === 'approved' && l.startDate <= activeDate && l.endDate >= activeDate
+                (l.empId === uId || l.empId === empCode) &&
+                l.status === 'approved' &&
+                l.startDate <= activeDate &&
+                l.endDate >= activeDate
             );
 
             let requiredMins = 480;
@@ -3275,16 +3646,17 @@ window.attendanceApp = () => {
                     this.attendanceData[activeDate][uId] = penaltyStatus;
                     this.attendanceData = { ...this.attendanceData };
                     invalidateMemo();
-                    this.upsertAttCloud(activeDate, uId, penaltyStatus);
+                    await this.upsertAttCloud(activeDate, uId, penaltyStatus);
                 }
             }
 
             this.showLogoutModal = false;
             this.showNote("Shift Logged Out", "success");
-            await this.logoutUser();
+            setTimeout(() => { this.logoutUser(); }, 700);
         },
 
         toggleEditLog(id) {
+            if (!this.hasWriteAccess('record')) return this.showNote("Read-only access for Log", "error");
             if (this.editingLogId === id) this.commitEditLog();
             else {
                 if (this.editingLogId) this.commitEditLog();
@@ -3303,7 +3675,12 @@ window.attendanceApp = () => {
             }
         },
 
-        startEdit(m) { this.isEditing = true; this.newMember = JSON.parse(JSON.stringify(m)); this.isAddingMember = true; },
+        startEdit(m) {
+            if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
+            this.isEditing = true;
+            this.newMember = JSON.parse(JSON.stringify(m));
+            this.isAddingMember = true;
+        },
         resetMemberForm() { this.isAddingMember = false; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
 
         async handlePinVerification() {
@@ -3323,17 +3700,16 @@ window.attendanceApp = () => {
             });
 
             if (authError && authError.message.includes("Invalid login credentials")) {
-                const { data: signUpData, error: signUpError } = await this.supabase.auth.signUp({
-                    email: ghostEmail,
-                    password: pinPassword
-                });
-
-                if (!signUpError && signUpData.user) {
-                    authData = signUpData;
-                    authError = null;
-                    await this.supabase.from('members').update({ auth_id: authData.user.id }).eq('id', uid);
-                } else if (signUpError && signUpError.message.includes("already registered")) {
-                    authError = signUpError;
+                if (!this.tempUser.auth_id && this.tempUser.pin && pinPassword === this.tempUser.pin) {
+                    const { data: signUpData, error: signUpError } = await this.supabase.auth.signUp({
+                        email: ghostEmail,
+                        password: pinPassword
+                    });
+                    if (!signUpError && signUpData.user) {
+                        authData = signUpData;
+                        authError = null;
+                        await this.supabase.from('members').update({ auth_id: authData.user.id }).eq('id', uid);
+                    }
                 }
             }
 
@@ -3354,6 +3730,8 @@ window.attendanceApp = () => {
             }
 
             this.userFailedAttempts[uid] = 0;
+            this.isImpersonating = false;
+            this.originalAdminSession = null;
             this.userSession = JSON.parse(JSON.stringify(this.tempUser));
             this.userSession.auth_id = authData.user.id;
 
@@ -3445,96 +3823,110 @@ window.attendanceApp = () => {
         },
 
         async handlePinSetup() {
-            if (this.loginPinInput.length === 6) {
-                const uid = this.tempUser.id;
-                const empId = this.tempUser.empId.toUpperCase();
-                const ghostEmail = `${empId}@revcentric.local`;
-                const pinPassword = this.loginPinInput;
+            if (this.loginPinInput.length !== 6) return this.showNote("PIN must be 6 digits", "error");
 
-                const { data: authData, error: authError } = await this.supabase.auth.signUp({
-                    email: ghostEmail, password: pinPassword
-                });
+            const uid = this.tempUser.id;
+            const empId = this.tempUser.empId.toUpperCase();
+            const ghostEmail = `${empId}@revcentric.local`;
+            const pinPassword = this.loginPinInput;
 
-                if (authError) return this.showNote("Auth Error: " + authError.message, "error");
+            if (this.tempUser.auth_id) {
+                return this.showNote("Account already exists in Auth. Ask an admin to run PIN reset via Edge Function.", "error");
+            }
 
-                const idx = this.members.findIndex(m => m.id === this.tempUser.id);
-                if (idx !== -1) {
-                    this.members[idx].pin = pinPassword;
-                    this.members[idx].auth_id = authData.user.id;
-                    this.upsertMemberCloud(this.members[idx]);
+            const { data: authData, error: authError } = await this.supabase.auth.signUp({
+                email: ghostEmail, password: pinPassword
+            });
 
-                    this.userSession = JSON.parse(JSON.stringify(this.members[idx]));
-                    this.userSession.auth_id = authData.user.id;
+            if (authError) {
+                const msg = authError.message.includes("already registered")
+                    ? "Auth user already exists. Ask Admin to reset via Edge Function."
+                    : "Auth Error: " + authError.message;
+                return this.showNote(msg, "error");
+            }
 
-                    this.localSessionToken = generateSecureId();
-                    await this.supabase.from('members')
-                        .update({ current_session: this.localSessionToken })
-                        .eq('id', uid);
+            const idx = this.members.findIndex(m => m.id === this.tempUser.id);
+            if (idx !== -1) {
+                this.members[idx].pin = pinPassword;
+                this.members[idx].auth_id = authData.user.id;
+                this.upsertMemberCloud(this.members[idx]);
 
-                    this.setupUserRealtime();
-                    await Promise.all([
-                        this.syncUserData(true),
-                        this.fetchExceptionHistory()
-                    ]);
+                this.isImpersonating = false;
+                this.originalAdminSession = null;
+                this.userSession = JSON.parse(JSON.stringify(this.members[idx]));
+                this.userSession.auth_id = authData.user.id;
 
-                    const setupTrapDate = this.getActiveShiftDate();
-                    const setupUid = this.userSession.id;
-                    const setupTodaysCaptchas = this.punchLogs[setupTrapDate]?.[setupUid]?.captchas || [];
-                    const setupPendingCaptchas = setupTodaysCaptchas.filter(c => c.status === 'Pending');
+                this.localSessionToken = generateSecureId();
+                await this.supabase.from('members')
+                    .update({ current_session: this.localSessionToken })
+                    .eq('id', uid);
 
-                    if (setupPendingCaptchas.length > 0) {
-                        this.showNote("Window closed during verification. Penalty applied.", "error");
+                this.setupUserRealtime();
+                await Promise.all([
+                    this.syncUserData(true),
+                    this.fetchExceptionHistory()
+                ]);
 
-                        let penaltyTime = setupPendingCaptchas[0].time;
-                        const currentIp = await this.fetchDeviceAndNetworkInfo();
-                        this.checkSecurityFlag(currentIp, this.userSession.name);
+                const setupTrapDate = this.getActiveShiftDate();
+                const setupUid = this.userSession.id;
+                const setupTodaysCaptchas = this.punchLogs[setupTrapDate]?.[setupUid]?.captchas || [];
+                const setupPendingCaptchas = setupTodaysCaptchas.filter(c => c.status === 'Pending');
 
-                        for (const cap of setupPendingCaptchas) {
-                            cap.status = 'Missed';
-                            await this.supabase.from('captcha_logs')
-                                .update({ status: 'Missed', ip_address: currentIp })
-                                .match({ member_id: setupUid, log_date: setupTrapDate, check_time: cap.time });
+                if (setupPendingCaptchas.length > 0) {
+                    this.showNote("Window closed during verification. Penalty applied.", "error");
 
-                            if (cap.time < penaltyTime) penaltyTime = cap.time;
-                        }
-                        this.punchLogs = { ...this.punchLogs };
-                        invalidateMemo();
+                    let penaltyTime = setupPendingCaptchas[0].time;
+                    const currentIp = await this.fetchDeviceAndNetworkInfo();
+                    this.checkSecurityFlag(currentIp, this.userSession.name);
 
-                        this.startBreak(null, 'Penalty');
-                        this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
-                        return;
+                    for (const cap of setupPendingCaptchas) {
+                        cap.status = 'Missed';
+                        await this.supabase.from('captcha_logs')
+                            .update({ status: 'Missed', ip_address: currentIp })
+                            .match({ member_id: setupUid, log_date: setupTrapDate, check_time: cap.time });
+
+                        if (cap.time < penaltyTime) penaltyTime = cap.time;
                     }
-
-                    const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
-                    if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
-                    this.attendanceData[activeDate][uId] = 'p';
-                    this.attendanceData = { ...this.attendanceData };
-                    this.upsertAttCloud(activeDate, uId, 'p');
-
-                    if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
-                    if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
-                        const currentIp = await this.fetchDeviceAndNetworkInfo();
-                        this.checkSecurityFlag(currentIp, this.userSession.name);
-
-                        this.punchLogs[activeDate][uId] = {
-                            in: this.getCurrentTimeIST(), out: '',
-                            in_ip: currentIp, out_ip: '',
-                            breaks: [], captchas: []
-                        };
-                        this.punchLogs = { ...this.punchLogs };
-                        this.upsertPunchCloud(activeDate, uId);
-                    }
+                    this.punchLogs = { ...this.punchLogs };
                     invalidateMemo();
+
+                    this.startBreak(null, 'Penalty');
                     this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
-                    this.scheduleNextCaptcha(); this.showNote("Security Registered", "success");
+                    return;
                 }
-            } else this.showNote("PIN must be 6 digits", "error");
+
+                const activeDate = this.getActiveShiftDate(), uId = this.userSession.id;
+                if (!this.attendanceData[activeDate]) this.attendanceData[activeDate] = {};
+                this.attendanceData[activeDate][uId] = 'p';
+                this.attendanceData = { ...this.attendanceData };
+                this.upsertAttCloud(activeDate, uId, 'p');
+
+                if (!this.punchLogs[activeDate]) this.punchLogs[activeDate] = {};
+                if (!this.punchLogs[activeDate][uId] || !this.punchLogs[activeDate][uId].in) {
+                    const currentIp = await this.fetchDeviceAndNetworkInfo();
+                    this.checkSecurityFlag(currentIp, this.userSession.name);
+
+                    this.punchLogs[activeDate][uId] = {
+                        in: this.getCurrentTimeIST(), out: '',
+                        in_ip: currentIp, out_ip: '',
+                        breaks: [], captchas: []
+                    };
+                    this.punchLogs = { ...this.punchLogs };
+                    this.upsertPunchCloud(activeDate, uId);
+                }
+                invalidateMemo();
+                this.loginStep = 'id'; this.loginIdInput = ''; this.loginPinInput = ''; this.tempUser = null;
+                this.scheduleNextCaptcha();
+                this.showNote("Security Registered", "success");
+            }
         },
 
         async logoutUser() {
             this.clearCaptchaTimers();
             this.currentCaptchaTime = null;
             this.userSession = null;
+            this.originalAdminSession = null;
+            this.isImpersonating = false;
             this.localSessionToken = null;
 
             if (this.userSyncChannel) {
@@ -3550,8 +3942,7 @@ window.attendanceApp = () => {
                 console.warn("Supabase signout skipped or failed:", e);
             }
 
-            localStorage.clear();
-            sessionStorage.clear();
+            clearAuthStorageOnly();
             window.location.reload();
         },
 
@@ -3629,12 +4020,27 @@ window.attendanceApp = () => {
         },
 
         addMember() {
+            if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
             if (!this.newMember.firstName || !this.newMember.empId) return this.showNote("Fields missing", "error");
             const fullName = (this.newMember.firstName + ' ' + (this.newMember.lastName || '')).trim();
-            const cleanMember = { ...this.newMember, id: this.newMember.empId, name: fullName, allowedPL: Number(this.newMember.allowedPL ?? 0), allowedSL: Number(this.newMember.allowedSL ?? 0), allowedPerm: Number(this.newMember.allowedPerm ?? 0) };
+            const cleanMember = {
+                ...this.newMember,
+                id: this.isEditing ? (this.newMember.id || this.newMember.empId) : this.newMember.empId,
+                name: fullName,
+                allowedPL: Number(this.newMember.allowedPL ?? 0),
+                allowedSL: Number(this.newMember.allowedSL ?? 0),
+                allowedPerm: Number(this.newMember.allowedPerm ?? 0)
+            };
 
-            if (this.isEditing) { const idx = this.members.findIndex(m => m.empId === cleanMember.empId); if (idx !== -1) this.members[idx] = cleanMember; }
-            else { if (this.members.find(m => m.empId === cleanMember.empId)) return this.showNote("ID exists", "error"); this.members.push(cleanMember); }
+            if (this.isEditing) {
+                const idx = this.members.findIndex(m => m.id === cleanMember.id || m.empId === cleanMember.empId);
+                if (idx !== -1) this.members[idx] = cleanMember;
+            } else {
+                if (this.members.find(m => m.empId.toUpperCase() === cleanMember.empId.toUpperCase())) {
+                    return this.showNote("ID exists", "error");
+                }
+                this.members.push(cleanMember);
+            }
 
             this.members.sort((a, b) => a.empId.localeCompare(b.empId, undefined, { numeric: true, sensitivity: 'base' }));
             this.members = [...this.members];
@@ -3642,51 +4048,216 @@ window.attendanceApp = () => {
 
             this.upsertMemberCloud(cleanMember);
             this.resetMemberForm();
+            this.showNote("Personnel profile saved", "success");
         },
 
         savePoliciesNote() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
             this.policiesNote = String(this.policyNoteDraft || '').trim();
             this.upsertConfigCloud('policies_note', this.policiesNote);
             this.showNote('Policies information updated', 'success');
         },
-        saveDepartmentLeaveList() {
-            const dept = this.leaveListDeptDraft || 'All';
-            this.leaveListByDept = { ...(this.leaveListByDept || {}), [dept]: String(this.leaveListDraft || '').trim() };
-            this.upsertConfigCloud('leave_list_by_dept', this.leaveListByDept);
-            this.showNote(`Leave list updated for ${dept}`, 'success');
-        },
-        get currentDepartmentLeaveList() {
-            const dept = this.userSession?.dept || 'General';
-            const configured = this.leaveListByDept || {};
-            return configured[dept] || configured.All || '';
-        },
+
         formatAuditDateTime(value) {
             if (!value) return '—';
             const d = new Date(value);
             return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString([], { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         },
 
-        addRole() { if (this.newRoleName.trim() && !this.roles.includes(this.newRoleName.trim())) { this.roles = [...this.roles, this.newRoleName.trim()]; this.upsertConfigCloud('roles', this.roles); this.newRoleName = ''; this.showNote("Role added", "success"); } },
-        addDept() { if (this.newDeptName.trim() && !this.departments.includes(this.newDeptName.trim())) { this.departments = [...this.departments, this.newDeptName.trim()]; this.upsertConfigCloud('departments', this.departments); this.newDeptName = ''; this.showNote("Department added", "success"); } },
-        addShift() { if (this.newShift.name.trim() && !this.shifts.find(s => s.name === this.newShift.name.trim())) { this.shifts = [...this.shifts, { name: this.newShift.name.trim(), inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }]; this.upsertConfigCloud('shifts', this.shifts); invalidateMemo(); this.newShift = { name: '', inTime: '', outTime: '' }; this.showNote("Shift added", "success"); } },
+        // Master Config: Roles CRUD
+        addRole() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const name = this.newRoleName.trim();
+            if (name && !this.roles.includes(name)) {
+                this.roles = [...this.roles, name];
+                this.upsertConfigCloud('roles', this.roles);
+                this.newRoleName = '';
+                this.showNote("Role added", "success");
+            }
+        },
+        startEditRole(role) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.editingRole = role;
+            this.editRoleValue = role;
+        },
+        cancelEditRole() {
+            this.editingRole = null;
+            this.editRoleValue = '';
+        },
+        async saveEditRole() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const oldName = this.editingRole;
+            const newName = (this.editRoleValue || '').trim();
+            if (!oldName || !newName) return this.showNote("Role title cannot be empty", "error");
+            if (newName === oldName) { this.cancelEditRole(); return; }
+            if (this.roles.some(r => r.toLowerCase() === newName.toLowerCase() && r !== oldName)) {
+                return this.showNote("Role already exists", "error");
+            }
+            this.roles = this.roles.map(r => r === oldName ? newName : r);
+            if (this.roleAccess[oldName]) {
+                this.roleAccess[newName] = [...this.roleAccess[oldName]];
+                delete this.roleAccess[oldName];
+                this.roleAccess = { ...this.roleAccess };
+                await this.upsertConfigCloud('role_access', this.roleAccess);
+            }
+            await this.upsertConfigCloud('roles', this.roles);
 
-        removeDept(dept) { this.departments = this.departments.filter(d => d !== dept); this.upsertConfigCloud('departments', this.departments); },
-        removeRole(role) { this.roles = this.roles.filter(r => r !== role); this.upsertConfigCloud('roles', this.roles); },
-        removeShift(s) { this.shifts = this.shifts.filter(x => x.name !== s); invalidateMemo(); this.upsertConfigCloud('shifts', this.shifts); },
+            const affectedMembers = this.members.filter(m => m.role === oldName);
+            for (const m of affectedMembers) {
+                m.role = newName;
+                this.upsertMemberCloud(m);
+            }
+            if (affectedMembers.length) this.members = [...this.members];
+            if (this.userSession?.role === oldName) this.userSession.role = newName;
+            if (this.originalAdminSession?.role === oldName) this.originalAdminSession.role = newName;
+
+            invalidateMemo();
+            this.cancelEditRole();
+            this.showNote("Role updated", "success");
+        },
+        removeRole(role) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.roles = this.roles.filter(r => r !== role);
+            if (this.editingRole === role) this.cancelEditRole();
+            this.upsertConfigCloud('roles', this.roles);
+        },
+
+        // Master Config: Departments CRUD
+        addDept() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const name = this.newDeptName.trim();
+            if (name && !this.departments.includes(name)) {
+                this.departments = [...this.departments, name];
+                this.upsertConfigCloud('departments', this.departments);
+                this.newDeptName = '';
+                this.showNote("Department added", "success");
+            }
+        },
+        startEditDept(dept) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.editingDept = dept;
+            this.editDeptValue = dept;
+        },
+        cancelEditDept() {
+            this.editingDept = null;
+            this.editDeptValue = '';
+        },
+        async saveEditDept() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const oldName = this.editingDept;
+            const newName = (this.editDeptValue || '').trim();
+            if (!oldName || !newName) return this.showNote("Department name cannot be empty", "error");
+            if (newName === oldName) { this.cancelEditDept(); return; }
+            if (this.departments.some(d => d.toLowerCase() === newName.toLowerCase() && d !== oldName)) {
+                return this.showNote("Department already exists", "error");
+            }
+            this.departments = this.departments.map(d => d === oldName ? newName : d);
+            await this.upsertConfigCloud('departments', this.departments);
+
+            const affectedMembers = this.members.filter(m => m.dept === oldName);
+            for (const m of affectedMembers) {
+                m.dept = newName;
+                this.upsertMemberCloud(m);
+            }
+            if (affectedMembers.length) this.members = [...this.members];
+
+            const affectedHolidays = this.holidayList.filter(h => h.dept === oldName);
+            for (const h of affectedHolidays) {
+                h.dept = newName;
+                this.upsertHolidayCloud(h);
+            }
+            if (affectedHolidays.length) this.holidayList = [...this.holidayList];
+
+            if (this.userSession?.dept === oldName) this.userSession.dept = newName;
+            if (this.originalAdminSession?.dept === oldName) this.originalAdminSession.dept = newName;
+
+            invalidateMemo();
+            this.cancelEditDept();
+            this.showNote("Department updated", "success");
+        },
+        removeDept(dept) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.departments = this.departments.filter(d => d !== dept);
+            if (this.editingDept === dept) this.cancelEditDept();
+            this.upsertConfigCloud('departments', this.departments);
+        },
+
+        // Master Config: Shifts CRUD
+        addShift() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const name = this.newShift.name.trim();
+            if (name && !this.shifts.find(s => s.name === name)) {
+                this.shifts = [...this.shifts, { name, inTime: this.newShift.inTime || '09:00', outTime: this.newShift.outTime || '18:00' }];
+                this.upsertConfigCloud('shifts', this.shifts);
+                invalidateMemo();
+                this.newShift = { name: '', inTime: '', outTime: '' };
+                this.showNote("Shift added", "success");
+            }
+        },
+        startEditShift(shift) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.editingShift = shift.name;
+            this.editShiftForm = { name: shift.name, inTime: shift.inTime || '09:00', outTime: shift.outTime || '18:00' };
+        },
+        cancelEditShift() {
+            this.editingShift = null;
+            this.editShiftForm = { name: '', inTime: '', outTime: '' };
+        },
+        async saveEditShift() {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            const oldName = this.editingShift;
+            const newName = (this.editShiftForm.name || '').trim();
+            const inTime = this.editShiftForm.inTime || '09:00';
+            const outTime = this.editShiftForm.outTime || '18:00';
+            if (!oldName || !newName) return this.showNote("Shift title cannot be empty", "error");
+            if (this.shifts.some(s => s.name.toLowerCase() === newName.toLowerCase() && s.name !== oldName)) {
+                return this.showNote("Shift title already exists", "error");
+            }
+            this.shifts = this.shifts.map(s => s.name === oldName ? { name: newName, inTime, outTime } : s);
+            await this.upsertConfigCloud('shifts', this.shifts);
+
+            if (newName !== oldName) {
+                const affectedMembers = this.members.filter(m => m.shift === oldName);
+                for (const m of affectedMembers) {
+                    m.shift = newName;
+                    this.upsertMemberCloud(m);
+                }
+                if (affectedMembers.length) this.members = [...this.members];
+                if (this.userSession?.shift === oldName) this.userSession.shift = newName;
+                if (this.originalAdminSession?.shift === oldName) this.originalAdminSession.shift = newName;
+            }
+
+            invalidateMemo();
+            this.cancelEditShift();
+            this.showNote("Shift schedule updated", "success");
+        },
+        removeShift(s) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
+            this.shifts = this.shifts.filter(x => x.name !== s);
+            if (this.editingShift === s) this.cancelEditShift();
+            invalidateMemo();
+            this.upsertConfigCloud('shifts', this.shifts);
+        },
 
         showNote(msg, type = 'success') { this.notification = { msg, type }; setTimeout(() => this.notification = null, 4000); },
 
         async executeWipe() {
+            if (!this.hasWriteAccess('members')) {
+                this.showDeleteModal = false;
+                return this.showNote("Read-only access for Roster", "error");
+            }
             if (this.memberToDelete) {
                 this.members = this.members.filter(m => m.id !== this.memberToDelete);
                 invalidateMemo();
                 try { await this.supabase.from('members').delete().eq('id', this.memberToDelete); } catch (e) {}
+                this.showNote("Personnel record removed", "success");
             }
             this.showDeleteModal = false;
             this.memberToDelete = null;
         },
 
         async exportToPDF() {
+            if (!this.hasWriteAccess('summary')) return this.showNote("Read-only access for Reports", "error");
             if (!window.html2pdf) {
                 this.showNote("Loading PDF engine...", "success");
                 try {
@@ -3696,10 +4267,19 @@ window.attendanceApp = () => {
                 }
             }
             const el = document.getElementById('summary-content'), scrollArea = document.getElementById('audit-table-scroll');
-            if (scrollArea) scrollArea.classList.remove('max-h-[600px]', 'overflow-x-auto');
-            html2pdf().from(el).set({ margin: 10, filename: `Audit_Report_${this.summaryStartDate}_to_${this.summaryEndDate}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a3', orientation: 'landscape' } }).save().then(() => {
-                if (scrollArea) scrollArea.classList.add('max-h-[600px]', 'overflow-x-auto'); this.showNote("PDF Downloaded", "success");
-            });
+            if (scrollArea) scrollArea.classList.remove('max-h-[620px]', 'max-h-[600px]', 'overflow-x-auto');
+            try {
+                await html2pdf().from(el).set({
+                    margin: 10,
+                    filename: `Audit_Report_${this.summaryStartDate}_to_${this.summaryEndDate}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2 },
+                    jsPDF: { format: 'a3', orientation: 'landscape' }
+                }).save();
+                this.showNote("PDF Downloaded", "success");
+            } finally {
+                if (scrollArea) scrollArea.classList.add('max-h-[620px]', 'overflow-x-auto');
+            }
         },
 
         async fetchReportDataRange() {
@@ -3783,18 +4363,19 @@ window.attendanceApp = () => {
         },
 
         async exportDetailedExcel() {
+            if (!this.hasWriteAccess('summary')) return this.showNote("Read-only access for Reports", "error");
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Invalid date range", "error");
             if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
 
-            const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), detailedRows = [];
+            const sDate = new Date(this.summaryStartDate + 'T00:00:00Z'), eDate = new Date(this.summaryEndDate + 'T00:00:00Z'), detailedRows = [];
             const statusMap = new Map(this.statusOptions.map(s => [s.id, s.label]));
             this.filteredMembers.forEach(m => {
-                for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
-                    const dateStr = getISTString(d), statusId = this.attendanceData[dateStr]?.[m.id] || '-';
+                for (let d = new Date(sDate); d <= eDate; d.setUTCDate(d.getUTCDate() + 1)) {
+                    const dateStr = d.toISOString().slice(0, 10), statusId = this.attendanceData[dateStr]?.[m.id] || '-';
                     const punchLog = this.punchLogs[dateStr]?.[m.id] || { in: '', out: '', in_ip: '', out_ip: '', breaks: [], captchas: [] };
                     let notes = '';
                     if (statusId === 'fh') { const h = this.holidayList.find(hol => hol.date === dateStr && (hol.dept === 'All' || hol.dept === m.dept)); if (h) notes = `Holiday: ${h.name}`; }
-                    else if (['a', 'h', '1p', '2p', 'lop', 'wfh'].includes(statusId)) { const leave = this.leaveRequests.find(l => l.empId === m.id &&l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
+                    else if (['a', 'h', '1p', '2p', 'lop', 'wfh'].includes(statusId)) { const leave = this.leaveRequests.find(l => (l.empId === m.id || l.empId === m.empId) && l.status === 'approved' && l.startDate <= dateStr && l.endDate >= dateStr); if (leave) notes = `Leave: ${leave.reason}`; }
                     detailedRows.push({ 'Date': dateStr, 'Emp ID': m.empId, 'Name': m.name, 'Department': m.dept, 'Shift': m.shift, 'Status': statusMap.get(statusId) || 'Unrecorded', 'Punch In': punchLog.in || '', 'Punch In IP': punchLog.in_ip || '', 'Punch Out': punchLog.out || '', 'Punch Out IP': punchLog.out_ip || '', 'Active (Mins)': this.getActiveMinsForLog(punchLog, dateStr), 'Break (Mins)': this.calculateTotalBreakMins(punchLog.breaks), 'Captcha Fails': punchLog.captchas?.filter(c => c.status !== 'Passed').length || 0, 'Notes': notes });
                 }
             });
@@ -3805,10 +4386,11 @@ window.attendanceApp = () => {
         },
 
         async exportSecurityAuditExcel() {
+            if (!this.hasWriteAccess('summary')) return this.showNote("Read-only access for Reports", "error");
             if (!this.summaryStartDate || !this.summaryEndDate) return this.showNote("Invalid date range", "error");
             if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
 
-            const sDate = new Date(this.summaryStartDate), eDate = new Date(this.summaryEndDate), auditRows = [];
+            const sDate = new Date(this.summaryStartDate + 'T00:00:00Z'), eDate = new Date(this.summaryEndDate + 'T00:00:00Z'), auditRows = [];
 
             const parseNetworkString = (str) => {
                 if (!str) return { ip: 'N/A', geo: 'US/Unknown', os: 'N/A' };
@@ -3824,8 +4406,8 @@ window.attendanceApp = () => {
             };
 
             this.filteredMembers.forEach(m => {
-                for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
-                    const dateStr = getISTString(d);
+                for (let d = new Date(sDate); d <= eDate; d.setUTCDate(d.getUTCDate() + 1)) {
+                    const dateStr = d.toISOString().slice(0, 10);
                     const punchLog = this.punchLogs[dateStr]?.[m.id];
                     if (!punchLog) continue;
 
@@ -3856,6 +4438,7 @@ window.attendanceApp = () => {
         },
 
         async exportRosterExcel() {
+            if (!this.hasWriteAccess('summary')) return this.showNote("Read-only access for Reports", "error");
             if (!this.members || this.members.length === 0) return this.showNote("No personnel data", "error");
             if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
 
@@ -3880,6 +4463,7 @@ window.attendanceApp = () => {
         },
 
         async executeFullSystemExport() {
+            if (!this.hasWriteAccess('summary')) return this.showNote("Read-only access for Reports", "error");
             if (!this.members || this.members.length === 0) return this.showNote("No data available to export", "error");
             if (!(await ensureXLSX())) return this.showNote("Failed to load Excel engine", "error");
 
@@ -3949,6 +4533,8 @@ window.attendanceApp = () => {
                 'Start Time': l.startTime || '',
                 'End Time': l.endTime || '',
                 'Reason': l.reason,
+                'YTD Leave Avail (At Request)': l.ytdLeaveAvail ?? '',
+                'YTD Perm Avail (At Request)': l.ytdPermAvail ?? '',
                 'Approval Status': l.status.toUpperCase(),
                 'Reviewed By': l.reviewedByName || '',
                 'Reviewer Role': l.reviewedByRole || '',
@@ -4006,27 +4592,32 @@ window.attendanceApp = () => {
         },
 
         viewAsStaff(mId) {
-            if (!this.isAdminAuthenticated && !this.isManagerOrLead) return;
+            if (!this.hasAccess('members')) return;
             const member = this.members.find(m => m.id === mId);
-            if (member) {
-                if (this.userSession && !this.originalAdminSession) {
-                    this.originalAdminSession = JSON.parse(JSON.stringify(this.userSession));
-                }
+            if (!member) return;
 
-                this.userSession = JSON.parse(JSON.stringify(member));
-                invalidateMemo();
-                this.fetchExceptionHistory();
-                this.view = 'portal';
-                this.showNote(`Viewing portal as ${member.firstName}`, "success");
+            this.clearCaptchaTimers();
+            if (this.userSession && !this.originalAdminSession) {
+                this.originalAdminSession = JSON.parse(JSON.stringify(this.userSession));
             }
+            this.isImpersonating = true;
+            this.userSession = JSON.parse(JSON.stringify(member));
+            invalidateMemo();
+            this.fetchExceptionHistory();
+            this.view = 'portal';
+            this.showNote(`Viewing portal as ${member.firstName} (Read-Only)`, "success");
         },
 
         closeStaffView() {
+            this.clearCaptchaTimers();
+            this.isImpersonating = false;
+
             if (this.originalAdminSession) {
                 this.userSession = JSON.parse(JSON.stringify(this.originalAdminSession));
                 this.originalAdminSession = null;
                 invalidateMemo();
                 this.fetchExceptionHistory();
+                this.scheduleNextCaptcha();
             } else {
                 this.userSession = null;
                 invalidateMemo();
@@ -4039,9 +4630,10 @@ window.attendanceApp = () => {
         hasAccess(menuId) {
             if (this.isAdminAuthenticated) return true;
             if (menuId === 'portal') return true;
-            if (!this.userSession) return false;
+            const actor = this.activeAuthSession;
+            if (!actor) return false;
 
-            const userRole = this.userSession.role;
+            const userRole = actor.role;
             const allowedMenus = this.roleAccess[userRole] || [];
 
             if (Object.keys(this.roleAccess).length === 0) {
@@ -4049,14 +4641,15 @@ window.attendanceApp = () => {
                 if (rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr')) return true;
             }
 
-            return allowedMenus.includes(menuId);
+            return allowedMenus.includes(menuId) || allowedMenus.includes(`${menuId}_write`);
         },
 
         hasWriteAccess(menuId) {
             if (this.isAdminAuthenticated) return true;
-            if (!this.userSession) return false;
+            const actor = this.activeAuthSession;
+            if (!actor) return false;
 
-            const userRole = this.userSession.role;
+            const userRole = actor.role;
             const allowedMenus = this.roleAccess[userRole] || [];
 
             if (Object.keys(this.roleAccess).length === 0) {
@@ -4064,10 +4657,11 @@ window.attendanceApp = () => {
                 if (rLower.includes('manager') || rLower.includes('lead') || rLower.includes('admin') || rLower.includes('hr')) return true;
             }
 
-            return allowedMenus.includes(menuId + '_write');
+            return allowedMenus.includes(`${menuId}_write`);
         },
 
         toggleRoleAccess(role, menuId, isWrite = false) {
+            if (!this.hasWriteAccess('master')) return this.showNote("Read-only access for Master Config", "error");
             if (!this.roleAccess[role]) this.roleAccess[role] = [];
             const accessKey = isWrite ? `${menuId}_write` : menuId;
             const idx = this.roleAccess[role].indexOf(accessKey);
@@ -4090,17 +4684,44 @@ window.attendanceApp = () => {
             this.upsertConfigCloud('role_access', this.roleAccess);
         },
 
-        openNewMemberForm() { this.isAddingMember = true; this.isEditing = false; this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false }; },
-        removeMember(id) { this.memberToDelete = id; this.showDeleteModal = true; },
-        resetUserPin(id) {
+        openNewMemberForm() {
+            if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
+            this.isAddingMember = true;
+            this.isEditing = false;
+            this.newMember = { empId: '', firstName: '', lastName: '', dept: 'General', role: 'Staff', shift: 'General Shift', allowedPL: 0, allowedSL: 0, allowedPerm: 0, doj: '', doe: '', dob: '', pin: '', captchaEnabled: false };
+        },
+        removeMember(id) {
+            if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
+            this.memberToDelete = id;
+            this.showDeleteModal = true;
+        },
+        async resetUserPin(id) {
+            if (!this.hasWriteAccess('members')) return this.showNote("Read-only access for Roster", "error");
             const idx = this.members.findIndex(m => m.id === id);
-            if (idx !== -1) {
-                this.members[idx].pin = '';
-                this.members = [...this.members];
-                invalidateMemo();
-                this.upsertMemberCloud(this.members[idx]);
-                this.showNote("User security reset");
+            if (idx === -1) return;
+            const member = this.members[idx];
+            if (member.auth_id) {
+                try {
+                    const { error } = await this.supabase.functions.invoke('reset-member-pin', {
+                        body: { memberId: member.id, authId: member.auth_id }
+                    });
+                    if (error) throw error;
+                    this.members[idx].pin = '';
+                    this.members[idx].auth_id = null;
+                    this.members = [...this.members];
+                    invalidateMemo();
+                    this.showNote("User PIN & Auth reset successfully", "success");
+                    return;
+                } catch (e) {
+                    console.warn("Edge function reset-member-pin failed or unavailable:", e);
+                    return this.showNote("Deploy 'reset-member-pin' Edge Function to reset Auth-linked PINs.", "error");
+                }
             }
+            this.members[idx].pin = '';
+            this.members = [...this.members];
+            invalidateMemo();
+            this.upsertMemberCloud(this.members[idx]);
+            this.showNote("User security reset", "success");
         }
     };
 };
