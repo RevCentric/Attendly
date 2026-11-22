@@ -805,8 +805,8 @@
                     </div>
 
                     <!-- Live Broadcast Banner -->
-                    <div x-show="activeBroadcast && (activeBroadcast.dept === 'All' || activeBroadcast.dept === userSession?.dept)" x-transition.duration.400ms class="w-full">
-                        <div class="p-4 bg-gradient-to-r from-[#f26522] to-amber-500 rounded-2xl text-white flex items-center justify-between gap-4 shadow-lg relative overflow-hidden">
+                    <div x-show="activeBroadcast && !broadcastDismissed && (activeBroadcast.dept === 'All' || activeBroadcast.dept === userSession?.dept)" x-transition.duration.400ms class="w-full">
+    <div class="p-4 bg-gradient-to-r from-[#f26522] to-amber-500 rounded-2xl text-white flex items-center justify-between gap-4 shadow-lg relative overflow-hidden">
                             <div class="flex items-center gap-3.5 relative z-10 min-w-0 flex-1">
                                 <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl shrink-0">📢</div>
                                 <div class="min-w-0 flex-1">
@@ -819,11 +819,11 @@
                                     </div>
                                 </div>
                             </div>
-                            <button @click="activeBroadcast = null" class="w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-xl shrink-0 transition" aria-label="Dismiss Announcement">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                        </div>
-                    </div>
+                            <button @click="broadcastDismissed = true" class="w-8 h-8 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-xl shrink-0 transition" aria-label="Dismiss Announcement">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+    </div>
+</div>
 
                     <!-- HERO WORKSPACE CARD -->
                     <section class="rc-card rounded-3xl relative z-50">
@@ -2401,8 +2401,7 @@
     <button x-show="hasWriteAccess('members')" @click="toggleMemberVerification(m.id)" role="switch" :aria-checked="!!m.captchaEnabled" title="Toggle captcha verification" aria-label="Toggle captcha verification" :class="m.captchaEnabled ? 'text-indigo-600 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/60' : 'text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-zinc-800'" class="w-9 h-9 rounded-xl flex items-center justify-center transition"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></button>
     <button x-show="hasWriteAccess('members')" @click="toggleSplitShiftAccess(m.id)" role="switch" :aria-checked="(splitShiftEmps || []).includes(m.id)" title="Toggle split shift" aria-label="Toggle split shift" :class="(splitShiftEmps || []).includes(m.id) ? 'text-cyan-600 bg-cyan-50 dark:text-cyan-300 dark:bg-cyan-950/60' : 'text-slate-400 hover:text-cyan-500 hover:bg-slate-100 dark:hover:bg-zinc-800'" class="w-9 h-9 rounded-xl flex items-center justify-center transition"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/></svg></button>
     <button x-show="hasWriteAccess('members')" @click="resetUserPin(m.id)" :disabled="!m.pin" title="Reset PIN" aria-label="Reset PIN" class="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 transition hover:text-white hover:bg-[#f26522] disabled:opacity-30 disabled:pointer-events-none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
-    <button x-show="hasWriteAccess('members') && (isAdminAuthenticated || isSuperUser)" @click="removeMember(m.id)" title="Delete member" aria-label="Delete member" class="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
-</div>
+    </div>
                                     </article>
                                 </template>
                             </div>
@@ -2437,8 +2436,7 @@
     <button x-show="hasWriteAccess('members')" @click="toggleMemberVerification(m.id)" role="switch" :aria-checked="!!m.captchaEnabled" title="Toggle captcha verification" aria-label="Toggle captcha verification" :class="m.captchaEnabled ? 'text-indigo-600 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/60' : 'text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-zinc-800'" class="w-8 h-8 rounded-lg flex items-center justify-center transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></button>
     <button x-show="hasWriteAccess('members')" @click="toggleSplitShiftAccess(m.id)" role="switch" :aria-checked="(splitShiftEmps || []).includes(m.id)" title="Toggle split shift" aria-label="Toggle split shift" :class="(splitShiftEmps || []).includes(m.id) ? 'text-cyan-600 bg-cyan-50 dark:text-cyan-300 dark:bg-cyan-950/60' : 'text-slate-400 hover:text-cyan-500 hover:bg-slate-100 dark:hover:bg-zinc-800'" class="w-8 h-8 rounded-lg flex items-center justify-center transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2zM22 6v12a2 2 0 0 1-2 2h-2V4h2a2 2 0 0 1 2 2z"/></svg></button>
     <button x-show="hasWriteAccess('members')" @click="resetUserPin(m.id)" :disabled="!m.pin" title="Reset PIN" aria-label="Reset PIN" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-white hover:bg-[#f26522] disabled:opacity-30 disabled:pointer-events-none transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
-    <button x-show="hasWriteAccess('members') && (isAdminAuthenticated || isSuperUser)" @click="removeMember(m.id)" title="Delete member" aria-label="Delete member" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
-</div></td>
+    </div></td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -2655,8 +2653,11 @@
                                 <button @click="saveEditDept()" class="w-6 h-6 rounded-lg flex items-center justify-center bg-emerald-600 text-white hover:bg-emerald-700 transition" title="Save">
                                     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.8" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                                 </button>
-                                <button @click="cancelEditDept()" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition" title="Cancel">
+                                <button @click="cancelEditDept()" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition" title="Cancel">
                                     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                </button>
+                                <button @click="removeDept(dept)" class="w-6 h-6 rounded-lg flex items-center justify-center bg-rose-50 dark:bg-rose-950/50 text-rose-600 hover:bg-rose-600 hover:text-white transition" title="Remove Department">
+                                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                                 </button>
                             </div>
                         </template>
@@ -2665,9 +2666,6 @@
                                 <span class="text-xs font-extrabold text-slate-800 dark:text-zinc-200 uppercase mr-1" x-text="dept"></span>
                                 <button x-show="hasWriteAccess('master')" @click="startEditDept(dept)" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0f4c81] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition" title="Edit Department">
                                     <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </button>
-                                <button x-show="hasWriteAccess('master')" @click="removeDept(dept)" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition" title="Remove Department">
-                                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
                                 </button>
                             </div>
                         </template>
@@ -2700,8 +2698,11 @@
                                     <button @click="saveEditRole()" class="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600 text-white hover:bg-emerald-700 transition" title="Save Role">
                                         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.8" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
                                     </button>
-                                    <button @click="cancelEditRole()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition" title="Cancel">
+                                    <button @click="cancelEditRole()" class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:hover:bg-zinc-800 transition" title="Cancel">
                                         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                    </button>
+                                    <button @click="removeRole(role)" class="w-7 h-7 rounded-lg flex items-center justify-center bg-rose-50 dark:bg-rose-950/50 text-rose-600 hover:bg-rose-600 hover:text-white transition" title="Remove Role">
+                                        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                                     </button>
                                 </div>
                             </template>
@@ -2711,9 +2712,6 @@
                                     <div x-show="hasWriteAccess('master')" class="flex items-center gap-1">
                                         <button @click="startEditRole(role)" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0f4c81] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition" title="Edit Role">
                                             <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                        </button>
-                                        <button @click="removeRole(role)" class="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition" title="Remove Role">
-                                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
                                         </button>
                                     </div>
                                 </div>
@@ -2807,9 +2805,12 @@
                                     <input type="time" x-model="editShiftForm.outTime" class="bg-transparent outline-none font-extrabold text-xs text-slate-900 dark:text-white cursor-pointer">
                                 </div>
                             </div>
-                            <div class="flex justify-end gap-2">
-                                <button @click="cancelEditShift()" class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-[10px] font-extrabold uppercase">Cancel</button>
-                                <button @click="saveEditShift()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold uppercase">Save</button>
+                            <div class="flex items-center justify-between gap-2 pt-1">
+                                <button @click="removeShift(shift.name)" class="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 hover:bg-rose-600 hover:text-white text-[10px] font-extrabold uppercase transition">Remove</button>
+                                <div class="flex gap-2">
+                                    <button @click="cancelEditShift()" class="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-[10px] font-extrabold uppercase">Cancel</button>
+                                    <button @click="saveEditShift()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold uppercase">Save</button>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -2830,9 +2831,6 @@
                                 <span class="px-2.5 py-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg text-[10px] font-extrabold text-slate-600 dark:text-zinc-400 tabular-nums" x-text="diffInMins(shift.inTime, shift.outTime) + 'm'"></span>
                                 <button x-show="hasWriteAccess('master')" @click="startEditShift(shift)" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#0f4c81] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition" title="Edit Shift">
                                     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                </button>
-                                <button x-show="hasWriteAccess('master')" @click="removeShift(shift.name)" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition" title="Delete Shift">
-                                    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
                                 </button>
                             </div>
                         </div>
@@ -2897,15 +2895,13 @@
                                         <div class="inline-flex items-center gap-1.5">
                                             <button @click="saveEditHoliday()" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold uppercase">Save</button>
                                             <button @click="cancelEditHoliday()" class="px-2.5 py-1.5 rounded-lg bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 text-[10px] font-extrabold uppercase">Cancel</button>
+                                            <button @click="removeHoliday(holiday.id)" class="px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 hover:bg-rose-600 hover:text-white text-[10px] font-extrabold uppercase transition">Remove</button>
                                         </div>
                                     </template>
                                     <template x-if="editingHolidayId !== holiday.id">
                                         <div class="inline-flex items-center gap-1">
                                             <button @click="startEditHoliday(holiday)" class="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-400 hover:text-[#0f4c81] hover:bg-blue-50 dark:hover:bg-blue-950/50 transition" title="Edit Leave Date">
                                                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                            </button>
-                                            <button @click="removeHoliday(holiday.id)" class="w-8 h-8 rounded-lg inline-flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition" title="Remove Leave Date">
-                                                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
                                             </button>
                                         </div>
                                     </template>
@@ -3396,22 +3392,6 @@
     </div>
 </div>
 
-        </div>
-    </div>
-</div>
-
-<!-- Deletion Confirmation Modal -->
-<div x-show="showDeleteModal" class="fixed inset-0 z-[4000] flex items-center justify-center p-6" x-transition x-cloak>
-    <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" @click="showDeleteModal = false"></div>
-    <div class="bg-white dark:bg-zinc-900 rounded-3xl p-8 max-w-sm w-full relative z-10 text-center space-y-5 shadow-2xl border border-slate-200 dark:border-zinc-800">
-        <div class="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center mx-auto border border-rose-100 dark:border-rose-800/50">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        </div>
-        <h4 class="text-2xl font-extrabold tracking-tight uppercase text-slate-950 dark:text-white">Confirm Deletion?</h4>
-        <p class="text-slate-500 dark:text-zinc-400 font-semibold text-xs uppercase tracking-wider leading-relaxed">This action cannot be undone. All associated history may be orphaned.</p>
-        <div class="grid grid-cols-2 gap-3 pt-2">
-            <button @click="showDeleteModal = false" class="py-3.5 bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 rounded-xl font-extrabold text-xs uppercase tracking-wider hover:bg-slate-200 transition">Cancel</button>
-            <button @click="executeWipe()" class="py-3.5 bg-rose-600 text-white rounded-xl font-extrabold text-xs uppercase tracking-wider shadow-md active:scale-95 hover:bg-rose-700 transition">Delete</button>
         </div>
     </div>
 </div>
